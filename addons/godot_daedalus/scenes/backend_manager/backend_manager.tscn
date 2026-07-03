@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://iuhv67mniduh" path="res://addons/godot_daedalus/scripts/backend_manager/backend_manager.gd" id="1_51q6j"]
 [ext_resource type="Texture2D" uid="uid://c5rbvirywf83c" path="res://addons/godot_daedalus/assets/icons/external_link.svg" id="2_06yhw"]
 [ext_resource type="Texture2D" uid="uid://qfq5odxqx0ci" path="res://addons/godot_daedalus/assets/icons/install.svg" id="3_djbet"]
+[ext_resource type="Texture2D" uid="uid://dwb8kq3qurrpk" path="res://addons/godot_daedalus/assets/icons/repair.svg" id="4_m6doa"]
 [ext_resource type="Texture2D" uid="uid://c7af3axgcc10p" path="res://addons/godot_daedalus/assets/icons/file_browse.svg" id="4_ud3fg"]
 
 [node name="BackendManager" type="AcceptDialog" unique_id=97889299]
@@ -43,7 +44,7 @@ icon = ExtResource("3_djbet")
 [node name="NodeJsCurrentVersionLabel" type="Label" parent="VBoxContainer/NodeJsContainer" unique_id=1090584617]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Current version: {version}"
+text = "Current version: v24.14.1"
 
 [node name="NPMContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=1357685257]
 layout_mode = 2
@@ -69,7 +70,7 @@ icon = ExtResource("3_djbet")
 [node name="NPMCurrentVersionLabel" type="Label" parent="VBoxContainer/NPMContainer" unique_id=119098764]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Current version: {version}"
+text = "Current version: 11.11.0"
 
 [node name="BackendContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=2041244809]
 layout_mode = 2
@@ -87,6 +88,14 @@ layout_mode = 2
 size_flags_horizontal = 2
 icon = ExtResource("2_06yhw")
 
+[node name="RepairButton" type="Button" parent="VBoxContainer/BackendContainer/HBoxContainer" unique_id=1205725036]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Install or update from npm"
+text = "Repair"
+icon = ExtResource("4_m6doa")
+
 [node name="DownloadBackendButton" type="Button" parent="VBoxContainer/BackendContainer/HBoxContainer" unique_id=1910831024]
 unique_name_in_owner = true
 layout_mode = 2
@@ -103,28 +112,28 @@ icon = ExtResource("4_ud3fg")
 [node name="CurrentBackendVersionLabel" type="Label" parent="VBoxContainer/BackendContainer" unique_id=671052104]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Current version: {version}"
+text = "Current version: Not found"
 
 [node name="LatestBackendVersionLabel" type="Label" parent="VBoxContainer/BackendContainer" unique_id=2053572059]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Latest version: {version}"
+text = "Latest version: 1.0.3"
 
 [node name="EditorFileDialog" type="EditorFileDialog" parent="." unique_id=668270008]
 unique_name_in_owner = true
 oversampling_override = 1.0
-title = "Install Daedalus backend from package"
+title = "Open a File"
 initial_position = 2
 file_mode = 0
 access = 2
 filters = PackedStringArray("*.tgz ; npm package archive")
 
-[connection signal="focus_entered" from="." to="." method="refresh_status"]
 [connection signal="pressed" from="VBoxContainer/NodeJsContainer/HBoxContainer/OpenNodeJsPageButton" to="." method="_on_open_node_js_page_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/NodeJsContainer/HBoxContainer/DownloadNodeJsButton" to="." method="_on_download_node_js_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/NPMContainer/HBoxContainer/OpenNPMPageButton" to="." method="_on_open_npm_page_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/NPMContainer/HBoxContainer/DownloadNPMButton" to="." method="_on_download_npm_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/OpenBackendPageButton" to="." method="_on_open_backend_page_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/RepairButton" to="." method="_on_repair_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/DownloadBackendButton" to="." method="_on_download_backend_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/InstallFromFileButton" to="." method="_on_install_from_file_button_pressed"]
 [connection signal="file_selected" from="EditorFileDialog" to="." method="_on_backend_package_file_selected"]

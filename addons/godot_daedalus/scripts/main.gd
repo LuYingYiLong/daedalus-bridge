@@ -1,7 +1,8 @@
 @tool
 extends VBoxContainer
 
-const DEFAULT_BACKEND_URL: String = "ws://localhost:8080"
+const DEFAULT_BACKEND_URL: String = "ws://localhost:38180"
+const LEGACY_DEFAULT_BACKEND_URL: String = "ws://localhost:8080"
 const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
 const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
 const USER_MESSAGE_ITEM_SCENE: PackedScene = preload("uid://c0qgg77075lmq")
@@ -13,11 +14,27 @@ const TODO_ITEM_SCENE: PackedScene = preload("uid://d3i7c6i2shbyl")
 const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
 const CONTEXT_POPUP_MENU_UID: String = "uid://brjsrkaconcvu"
 const CONTEXT_ICON_DIR: String = "res://addons/godot_daedalus/assets/icons"
-const CONFIG_BACKEND_URL_SETTING: String = "godot_daedalus/backend_url"
-const CONFIG_MODEL_ID_SETTING: String = "godot_daedalus/model_id"
-const CONFIG_APPROVAL_MODE_SETTING: String = "godot_daedalus/approval_mode"
-const CONFIG_CUSTOM_INSTRUCTIONS_SETTING: String = "godot_daedalus/custom_instructions"
-const CONFIG_NEXT_STEP_HINTS_SETTING: String = "godot_daedalus/next_step_hints_enabled"
+const FRONTEND_CONFIG_PATH: String = "user://godot_daedalus_frontend.cfg"
+const FRONTEND_CONFIG_SECTION: String = "frontend"
+const CONFIG_BACKEND_URL_KEY: String = "backend_url"
+const CONFIG_BACKEND_DEV_DIR_KEY: String = "backend_dev_dir"
+const CONFIG_MODEL_ID_KEY: String = "model_id"
+const CONFIG_APPROVAL_MODE_KEY: String = "approval_mode"
+const CONFIG_CUSTOM_INSTRUCTIONS_KEY: String = "custom_instructions"
+const CONFIG_NEXT_STEP_HINTS_KEY: String = "next_step_hints_enabled"
+const BACKEND_PACKAGE_NAME: String = "godot-daedalus_backend"
+const LEGACY_BACKEND_URL_SETTING: String = "godot_daedalus/backend_url"
+const LEGACY_BACKEND_DEV_DIR_SETTING: String = "godot_daedalus/backend_dev_dir"
+const LEGACY_MODEL_ID_SETTING: String = "godot_daedalus/model_id"
+const LEGACY_APPROVAL_MODE_SETTING: String = "godot_daedalus/approval_mode"
+const LEGACY_CUSTOM_INSTRUCTIONS_SETTING: String = "godot_daedalus/custom_instructions"
+const LEGACY_NEXT_STEP_HINTS_SETTING: String = "godot_daedalus/next_step_hints_enabled"
+const LEGACY_DEEPSEEK_API_KEY_SETTINGS: Array[String] = [
+	"Daedalus/deepseek_api_key",
+	"Deadalus/deepseek_api_key",
+	"GodotDaedalus/deepseek_api_key",
+	"godot_daedalus/deepseek_api_key"
+]
 const CONNECTED_ICON: Texture2D = preload("uid://1eh7wxaewfje")
 const CONNECT_FAILED_ICON: Texture2D = preload("uid://chihcwe7t0f2g")
 const DISCONNECTED_ICON: Texture2D = preload("uid://cq15q550jtb21")
@@ -27,8 +44,11 @@ const EDIT_ICON: Texture2D = preload("uid://pj7m0o4eos6a")
 const DELETE_ICON: Texture2D = preload("uid://qpmvpq6q2q60")
 const SETTINGS_MENU_UID: String = "uid://dp3tsanvojx2k"
 const BACKEND_MANAGER_UID: String = "uid://c08tpkgdjw6id"
-const MAX_CONNECT_ATTEMPTS: int = 5
-const CONNECT_RETRY_SECONDS: float = 0.8
+const BACKEND_LAUNCHER_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/backend_launcher.gd")
+const MAX_CONNECT_ATTEMPTS: int = 20
+const CONNECT_RETRY_SECONDS: float = 0.5
+const BACKEND_START_TIMEOUT_MSEC: int = 10000
+const BACKEND_HEALTH_TIMEOUT_MSEC: int = 2500
 const WEBSOCKET_BUFFER_SIZE: int = 4194304
 const MAX_MESSAGES_PER_FRAME: int = 24
 const MAX_MESSAGE_PROCESS_MSEC: int = 6
@@ -205,6 +225,19 @@ var context_popup_menu: PopupPanel
 var context_popup_open_after_info: bool
 var active_settings_menu: Node
 var backend_url: String = DEFAULT_BACKEND_URL
+var backend_dev_dir: String
+var backend_launcher: RefCounted
+var backend_launch_started: bool
+var backend_launch_deadline_msec: int
+var backend_health_request_id: String
+var backend_health_pending: bool
+var backend_health_deadline_msec: int
+var backend_update_in_progress: bool
+var pending_socket_open_was_recovering: bool
+var pending_socket_open_session_id: String
+var connected_backend_version: String
+var latest_backend_version_check_started: bool
+var latest_backend_version_check_thread: Thread
 var custom_instructions: String
 var next_step_hints_enabled: bool
 var pending_provider_config_api_key: String
@@ -234,6 +267,7 @@ var dismissed_live_context_signatures: Dictionary[String, String] = {}
 func _ready() -> void:
 	main_viewer.hide()
 	boot_splash.show()
+	backend_launcher = BACKEND_LAUNCHER_SCRIPT.new()
 	_setup_options()
 	_load_frontend_config()
 	_setup_timeline_containers()
@@ -249,6 +283,8 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if backend_launcher != null:
+		backend_launcher.call("poll_logs")
 	socket.poll()
 	var state: WebSocketPeer.State = socket.get_ready_state()
 
@@ -257,6 +293,7 @@ func _process(_delta: float) -> void:
 			socket_ready = true
 			_on_socket_opened()
 		_receive_messages()
+		_check_backend_health_timeout()
 	elif state == WebSocketPeer.STATE_CLOSED and socket_ready:
 		_handle_socket_closed_after_ready()
 	elif state == WebSocketPeer.STATE_CLOSED and is_connecting:
@@ -300,40 +337,73 @@ func _setup_options() -> void:
 
 
 func _load_frontend_config() -> void:
-	var editor_settings: EditorSettings = _get_editor_settings()
-	if editor_settings == null:
-		return
+	var config: ConfigFile = ConfigFile.new()
+	var load_error: Error = config.load(FRONTEND_CONFIG_PATH)
+	var migrated_legacy_settings: bool = _migrate_legacy_editor_settings(config)
 
-	_ensure_frontend_setting(editor_settings, CONFIG_BACKEND_URL_SETTING, DEFAULT_BACKEND_URL)
-	_ensure_frontend_setting(editor_settings, CONFIG_MODEL_ID_SETTING, MODEL_IDS[0])
-	_ensure_frontend_setting(editor_settings, CONFIG_APPROVAL_MODE_SETTING, APPROVAL_MODE_IDS[0])
-	_ensure_frontend_setting(editor_settings, CONFIG_CUSTOM_INSTRUCTIONS_SETTING, "")
-	_ensure_frontend_setting(editor_settings, CONFIG_NEXT_STEP_HINTS_SETTING, false)
-
-	backend_url = _normalize_backend_url(str(editor_settings.get_setting(CONFIG_BACKEND_URL_SETTING)))
-	custom_instructions = str(editor_settings.get_setting(CONFIG_CUSTOM_INSTRUCTIONS_SETTING)).strip_edges()
-	next_step_hints_enabled = bool(editor_settings.get_setting(CONFIG_NEXT_STEP_HINTS_SETTING))
-	if not _select_model_id(str(editor_settings.get_setting(CONFIG_MODEL_ID_SETTING))):
+	backend_url = _normalize_backend_url(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, DEFAULT_BACKEND_URL)))
+	if backend_url == LEGACY_DEFAULT_BACKEND_URL:
+		backend_url = DEFAULT_BACKEND_URL
+	backend_dev_dir = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_DEV_DIR_KEY, "")).strip_edges()
+	custom_instructions = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, "")).strip_edges()
+	next_step_hints_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, false))
+	if not _select_model_id(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_MODEL_ID_KEY, MODEL_IDS[0]))):
 		_select_model_id(MODEL_IDS[0])
-	if not _select_approval_mode(str(editor_settings.get_setting(CONFIG_APPROVAL_MODE_SETTING))):
+	if not _select_approval_mode(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, APPROVAL_MODE_IDS[0]))):
 		_select_approval_mode(APPROVAL_MODE_IDS[0])
 
-
-func _ensure_frontend_setting(editor_settings: EditorSettings, setting_name: String, default_value: Variant) -> void:
-	if not editor_settings.has_setting(setting_name):
-		editor_settings.set_setting(setting_name, default_value)
-	editor_settings.set_initial_value(setting_name, default_value, false)
+	if load_error != OK or migrated_legacy_settings:
+		_save_frontend_config()
 
 
-func _save_frontend_setting(setting_name: String, value: Variant) -> void:
+func _migrate_legacy_editor_settings(config: ConfigFile) -> bool:
 	var editor_settings: EditorSettings = _get_editor_settings()
 	if editor_settings == null:
-		return
+		return false
 
-	if not editor_settings.has_setting(setting_name):
-		editor_settings.set_setting(setting_name, value)
-		editor_settings.set_initial_value(setting_name, value, false)
-	editor_settings.set_setting(setting_name, value)
+	var changed: bool
+	changed = _migrate_legacy_editor_setting(config, editor_settings, LEGACY_BACKEND_URL_SETTING, CONFIG_BACKEND_URL_KEY) or changed
+	changed = _migrate_legacy_editor_setting(config, editor_settings, LEGACY_BACKEND_DEV_DIR_SETTING, CONFIG_BACKEND_DEV_DIR_KEY) or changed
+	changed = _migrate_legacy_editor_setting(config, editor_settings, LEGACY_MODEL_ID_SETTING, CONFIG_MODEL_ID_KEY) or changed
+	changed = _migrate_legacy_editor_setting(config, editor_settings, LEGACY_APPROVAL_MODE_SETTING, CONFIG_APPROVAL_MODE_KEY) or changed
+	changed = _migrate_legacy_editor_setting(config, editor_settings, LEGACY_CUSTOM_INSTRUCTIONS_SETTING, CONFIG_CUSTOM_INSTRUCTIONS_KEY) or changed
+	changed = _migrate_legacy_editor_setting(config, editor_settings, LEGACY_NEXT_STEP_HINTS_SETTING, CONFIG_NEXT_STEP_HINTS_KEY) or changed
+
+	for setting_name: String in LEGACY_DEEPSEEK_API_KEY_SETTINGS:
+		if editor_settings.has_setting(setting_name):
+			editor_settings.erase(setting_name)
+			changed = true
+
+	return changed
+
+
+func _migrate_legacy_editor_setting(
+	config: ConfigFile,
+	editor_settings: EditorSettings,
+	legacy_setting_name: String,
+	config_key: String
+) -> bool:
+	if not editor_settings.has_setting(legacy_setting_name):
+		return false
+
+	if not config.has_section_key(FRONTEND_CONFIG_SECTION, config_key):
+		config.set_value(FRONTEND_CONFIG_SECTION, config_key, editor_settings.get_setting(legacy_setting_name))
+
+	editor_settings.erase(legacy_setting_name)
+	return true
+
+
+func _save_frontend_config() -> void:
+	var config: ConfigFile = ConfigFile.new()
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, backend_url)
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_DEV_DIR_KEY, backend_dev_dir)
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_MODEL_ID_KEY, _get_selected_model_id())
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, _get_selected_approval_mode())
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, custom_instructions)
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, next_step_hints_enabled)
+	var save_error: Error = config.save(FRONTEND_CONFIG_PATH)
+	if save_error != OK:
+		push_warning("Failed to save Daedalus frontend config: %s" % error_string(save_error))
 
 
 func _get_editor_settings() -> EditorSettings:
@@ -844,7 +914,18 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 	connection_attempt_generation += 1
 	is_connecting = true
 	socket_ready = false
+	backend_launch_started = false
+	backend_health_pending = false
+	backend_health_request_id = ""
+	pending_socket_open_was_recovering = false
+	pending_socket_open_session_id = ""
 	backend_recovery_mode = recovery_mode
+	if backend_launcher != null:
+		backend_launcher.call("setup", backend_url, backend_dev_dir)
+	if recovery_mode:
+		backend_launch_deadline_msec = 0
+	else:
+		backend_launch_deadline_msec = Time.get_ticks_msec() + BACKEND_START_TIMEOUT_MSEC
 	if not recovery_mode:
 		restore_session_after_reconnect_id = ""
 		pending_recovery_status_after_session_open = false
@@ -852,7 +933,7 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 	if show_boot_screen:
 		main_viewer.hide()
 		boot_splash.show()
-		boot_splash.call("show_connecting")
+		boot_splash.call("show_status", "Checking backend")
 	_connect_to_backend()
 
 
@@ -887,6 +968,19 @@ func _connect_to_backend() -> void:
 
 
 func _retry_backend_connection() -> void:
+	if not backend_recovery_mode:
+		if not backend_launch_started:
+			if not _try_start_backend_process():
+				return
+		elif Time.get_ticks_msec() >= backend_launch_deadline_msec:
+			_show_backend_startup_error(
+				"Cannot connect to Daedalus backend",
+				"Daedalus started a backend process, but it did not become reachable within 10 seconds.\n\n%s" % _get_backend_launcher_details()
+			)
+			return
+		else:
+			boot_splash.call("show_status", "Waiting for backend")
+
 	if connection_attempts >= MAX_CONNECT_ATTEMPTS:
 		is_connecting = false
 		status_button.icon = CONNECT_FAILED_ICON
@@ -900,7 +994,10 @@ func _retry_backend_connection() -> void:
 				"reconnect"
 			)
 		else:
-			boot_splash.call("show_error", "Cannot connect to Daedalus backend", "请确认后端已启动：npm exec -- godot-daedalus-backend\n地址：%s" % backend_url)
+			_show_backend_startup_error(
+				"Cannot connect to Daedalus backend",
+				"Daedalus could not connect after %d attempts.\n\n%s" % [MAX_CONNECT_ATTEMPTS, _get_backend_launcher_details()]
+			)
 		return
 
 	is_connecting = false
@@ -915,10 +1012,234 @@ func _retry_backend_connection() -> void:
 	_connect_to_backend()
 
 
+func _try_start_backend_process() -> bool:
+	if backend_launcher == null:
+		_show_backend_startup_error("Cannot start Daedalus backend", "Backend launcher is unavailable.")
+		return false
+
+	var is_local_backend: bool = bool(backend_launcher.call("is_local_backend_url"))
+	if not is_local_backend:
+		_show_backend_startup_error(
+			"Remote backend is not started automatically",
+			"Daedalus only starts local backends automatically.\n\nBackend URL: %s\nStart the remote backend manually, then click Reconnect." % backend_url
+		)
+		return false
+
+	var port_probe: Dictionary = backend_launcher.call("probe_local_backend_port") as Dictionary
+	if bool(port_probe.get("checked", false)) and bool(port_probe.get("occupied", false)):
+		_show_backend_startup_error(
+			"Backend port is already in use",
+			"Daedalus could not connect to the configured backend, but TCP port %d is already occupied on %s.\n\nThis usually means an old Daedalus backend, a stuck node process, or another service is using the port. Steam's steamwebhelper is a known example. Stop that process, or change the backend URL in Settings, then click Reconnect.\n\nBackend URL: %s" % [
+				int(port_probe.get("port", 0)),
+				str(port_probe.get("host", "127.0.0.1")),
+				backend_url
+			]
+		)
+		return false
+
+	boot_splash.call("show_status", "Starting backend")
+	var start_result: Dictionary = backend_launcher.call("start_backend") as Dictionary
+	backend_launch_started = true
+	backend_launch_deadline_msec = Time.get_ticks_msec() + BACKEND_START_TIMEOUT_MSEC
+	if not bool(start_result.get("ok", false)):
+		_show_backend_startup_error(
+			"Cannot start Daedalus backend",
+			str(start_result.get("details", _get_backend_launcher_details()))
+		)
+		return false
+
+	return true
+
+
+func _get_backend_launcher_details() -> String:
+	if backend_launcher == null:
+		return "Backend launcher is unavailable."
+
+	return str(backend_launcher.call("build_diagnostic_details"))
+
+
+func _show_backend_startup_error(title: String, details: String) -> void:
+	is_connecting = false
+	socket_ready = false
+	backend_health_pending = false
+	status_button.icon = CONNECT_FAILED_ICON
+	status_button.tooltip_text = "Connect failed. Click to reconnect."
+	if socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
+		socket.close()
+	boot_splash.call("show_error", title, details)
+
+
 func _on_socket_opened() -> void:
 	var was_recovering: bool = backend_recovery_mode
 	var session_id_to_restore: String = restore_session_after_reconnect_id
 	is_connecting = false
+	pending_socket_open_was_recovering = was_recovering
+	pending_socket_open_session_id = session_id_to_restore
+	backend_health_request_id = _send_request(RPC_METHODS.BACKEND_HEALTH, {}, "backend-health")
+	if backend_health_request_id.is_empty():
+		_handle_backend_health_failed("Unable to send backend health check request.")
+		return
+
+	backend_health_pending = true
+	backend_health_deadline_msec = Time.get_ticks_msec() + BACKEND_HEALTH_TIMEOUT_MSEC
+	status_button.icon = DISCONNECTED_ICON
+	status_button.tooltip_text = "Connected. Checking backend health..."
+	if boot_splash.visible:
+		boot_splash.call("show_status", "Checking backend")
+
+
+func _check_backend_health_timeout() -> void:
+	if not backend_health_pending:
+		return
+	if Time.get_ticks_msec() < backend_health_deadline_msec:
+		return
+
+	_handle_backend_health_failed("The WebSocket opened, but Daedalus health check did not respond in time.")
+
+
+func _handle_backend_health_response(message: Dictionary) -> bool:
+	if str(message.get("id", "")) != backend_health_request_id:
+		return false
+
+	backend_health_pending = false
+	var ok: bool = bool(message.get("ok", false))
+	var result: Variant = message.get("result", {})
+	if not ok or typeof(result) != TYPE_DICTIONARY:
+		_handle_backend_health_failed("The service on this port did not return a valid Daedalus health response.")
+		return true
+
+	var result_dictionary: Dictionary = result as Dictionary
+	if str(result_dictionary.get("name", "")) != "godot-daedalus-backend":
+		_handle_backend_health_failed("The service on this port is not Daedalus backend.")
+		return true
+
+	connected_backend_version = str(result_dictionary.get("version", "")).strip_edges()
+	var was_recovering: bool = pending_socket_open_was_recovering
+	var session_id_to_restore: String = pending_socket_open_session_id
+	pending_socket_open_was_recovering = false
+	pending_socket_open_session_id = ""
+	backend_health_request_id = ""
+	_finalize_socket_opened(was_recovering, session_id_to_restore)
+	return true
+
+
+func _handle_backend_health_failed(message_text: String) -> void:
+	backend_health_pending = false
+	backend_health_request_id = ""
+	pending_socket_open_was_recovering = false
+	pending_socket_open_session_id = ""
+	_show_backend_startup_error(
+		"Cannot verify Daedalus backend",
+		"%s\n\nThis usually means another WebSocket service is using the configured port, or the backend version is too old.\n\n%s" % [message_text, _get_backend_launcher_details()]
+	)
+
+
+func _check_latest_backend_version_once() -> void:
+	if latest_backend_version_check_started:
+		return
+
+	latest_backend_version_check_started = true
+	latest_backend_version_check_thread = Thread.new()
+	latest_backend_version_check_thread.start(Callable(self, "_run_latest_backend_version_check"))
+
+
+func _run_latest_backend_version_check() -> void:
+	var latest_version_text: String = _read_latest_backend_version_from_npm()
+	call_deferred("_finish_latest_backend_version_check", latest_version_text)
+
+
+func _read_latest_backend_version_from_npm() -> String:
+	var output_lines: Array = []
+	var exit_code: int
+	if OS.get_name() == "Windows":
+		exit_code = OS.execute(
+			_get_windows_shell_path(),
+			PackedStringArray(["/d", "/s", "/c", "npm view %s version" % BACKEND_PACKAGE_NAME]),
+			output_lines,
+			true
+		)
+	else:
+		exit_code = OS.execute(
+			"/bin/sh",
+			PackedStringArray(["-lc", "npm view %s version" % BACKEND_PACKAGE_NAME]),
+			output_lines,
+			true
+		)
+
+	if exit_code != 0:
+		return ""
+
+	for line_value: Variant in output_lines:
+		var line_text: String = str(line_value).strip_edges()
+		if not line_text.is_empty():
+			return line_text
+
+	return ""
+
+
+func _get_windows_shell_path() -> String:
+	var shell_path: String = OS.get_environment("COMSPEC").strip_edges()
+	if shell_path.is_empty():
+		return "cmd.exe"
+
+	return shell_path
+
+
+func _finish_latest_backend_version_check(latest_version_text: String) -> void:
+	if latest_backend_version_check_thread != null:
+		latest_backend_version_check_thread.wait_to_finish()
+		latest_backend_version_check_thread = null
+
+	var normalized_latest_version: String = latest_version_text.strip_edges()
+	if normalized_latest_version.is_empty():
+		return
+
+	if connected_backend_version.is_empty():
+		return
+
+	if _is_semver_newer(normalized_latest_version, connected_backend_version):
+		backend_manager_button.text = "Backend update: %s" % normalized_latest_version
+		backend_manager_button.tooltip_text = "Running backend %s. Latest npm version is %s." % [connected_backend_version, normalized_latest_version]
+	else:
+		backend_manager_button.text = "Backend manager"
+		backend_manager_button.tooltip_text = "Backend is up to date: %s" % connected_backend_version
+
+
+func _is_semver_newer(candidate_version: String, current_version: String) -> bool:
+	var candidate_parts: Array[int] = _parse_semver_numbers(candidate_version)
+	var current_parts: Array[int] = _parse_semver_numbers(current_version)
+	if candidate_parts.is_empty() or current_parts.is_empty():
+		return false
+
+	for index: int in range(3):
+		if candidate_parts[index] > current_parts[index]:
+			return true
+		if candidate_parts[index] < current_parts[index]:
+			return false
+
+	return false
+
+
+func _parse_semver_numbers(version_text: String) -> Array[int]:
+	var version_parts: PackedStringArray = version_text.strip_edges().split(".")
+	if version_parts.size() < 3:
+		return []
+
+	var numbers: Array[int] = []
+	for index: int in range(3):
+		var part_text: String = version_parts[index]
+		var dash_index: int = part_text.find("-")
+		if dash_index >= 0:
+			part_text = part_text.substr(0, dash_index)
+		if not part_text.is_valid_int():
+			return []
+
+		numbers.append(part_text.to_int())
+
+	return numbers
+
+
+func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String) -> void:
 	backend_recovery_mode = false
 	has_connected_once = true
 	status_button.icon = CONNECTED_ICON
@@ -954,6 +1275,7 @@ func _on_socket_opened() -> void:
 			_send_request(RPC_METHODS.SESSION_OPEN, { "sessionId": session_id_to_restore, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-recover-open")
 		else:
 			_finalize_recovery_status(false)
+	_check_latest_backend_version_once()
 
 
 func _on_boot_splash_reconnect_requested() -> void:
@@ -972,6 +1294,10 @@ func _on_status_button_pressed() -> void:
 
 
 func _handle_socket_closed_after_ready() -> void:
+	if backend_update_in_progress:
+		socket_ready = false
+		return
+
 	var close_detail: String = _format_socket_close_tooltip("Disconnected")
 	var session_id_to_restore: String = active_session_id
 	var was_streaming: bool = not active_stream_id.is_empty()
@@ -1939,7 +2265,7 @@ func _on_model_button_item_selected(index: int) -> void:
 	if index < 0 or index >= MODEL_IDS.size():
 		return
 
-	_save_frontend_setting(CONFIG_MODEL_ID_SETTING, MODEL_IDS[index])
+	_save_frontend_config()
 	_apply_model_config_to_backend()
 
 
@@ -1947,7 +2273,7 @@ func _on_approval_mode_button_item_selected(index: int) -> void:
 	if index < 0 or index >= APPROVAL_MODE_IDS.size():
 		return
 
-	_save_frontend_setting(CONFIG_APPROVAL_MODE_SETTING, APPROVAL_MODE_IDS[index])
+	_save_frontend_config()
 	_apply_approval_mode_to_backend()
 
 
@@ -2654,6 +2980,9 @@ func _handle_message(message: Dictionary) -> void:
 
 
 func _handle_response(message: Dictionary) -> void:
+	if _handle_backend_health_response(message):
+		return
+
 	var ok: bool = bool(message.get("ok", false))
 	if not ok:
 		if str(message.get("id", "")).begins_with("mcp-config"):
@@ -2682,6 +3011,8 @@ func _handle_response(message: Dictionary) -> void:
 				"后端已重新连接，但当前会话恢复失败。可以手动从会话列表重新打开。"
 			)
 			connection_status_entry_id = ""
+			return
+		if _handle_stale_approval_response(message):
 			return
 		if str(message.get("id", "")) == active_stream_id:
 			_show_response_error(message)
@@ -3419,7 +3750,7 @@ func _apply_provider_config_status(status: Dictionary) -> void:
 		status_button.tooltip_text = "Open settings and save DeepSeek API key"
 
 	if typeof(model_value) == TYPE_STRING and _select_model_id(str(model_value)):
-		_save_frontend_setting(CONFIG_MODEL_ID_SETTING, str(model_value))
+		_save_frontend_config()
 	else:
 		_apply_model_config_to_backend()
 
@@ -4826,12 +5157,17 @@ func _show_approval_dialog(event_data: Dictionary) -> void:
 		_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_APPROVAL)
 	var tool_name: String = str(event_data.get("toolName", event_data.get("llmToolName", "")))
 	approval_title_label.text = "需要审批：%s" % MAIN_HELPERS.localize_tool_name_for_display(tool_name)
-	approval_description_label.text = "\n".join([
+	var description_lines: Array[String] = [
 		"审批 ID：`%s`" % pending_approval_id,
 		"原因：%s" % str(event_data.get("reason", "")),
 		"参数：",
 		MAIN_HELPERS.format_approval_args_preview(event_data.get("args", {}), APPROVAL_ARGS_PREVIEW_LIMIT)
-	])
+	]
+	if bool(event_data.get("restored", false)):
+		description_lines.insert(2, "状态：后端重启后恢复")
+	if bool(event_data.get("interrupted", false)):
+		description_lines.insert(2, "状态：上次执行中断，可重试")
+	approval_description_label.text = "\n".join(description_lines)
 	approval_dialog.visible = true
 	_update_send_state()
 
@@ -4857,6 +5193,36 @@ func _show_first_pending_approval(result_dictionary: Dictionary) -> void:
 		pending_data["toolName"] = str(pending_data.get("llmToolName", ""))
 	_show_approval_dialog(pending_data)
 
+
+func _clear_stale_approval_dialog(detail_text: String) -> void:
+	if pending_approval_id.is_empty() and not approval_dialog.visible:
+		return
+
+	pending_approval_id = ""
+	approval_dialog.visible = false
+	_clear_paused_stream_context()
+	_update_send_state()
+	_upsert_connection_status_entry("warning", "审批已失效", detail_text)
+
+
+func _handle_stale_approval_response(message: Dictionary) -> bool:
+	var response_id: String = str(message.get("id", ""))
+	if not response_id.begins_with("approval-approve") and not response_id.begins_with("approval-reject"):
+		return false
+
+	var error_value: Variant = message.get("error", {})
+	if typeof(error_value) != TYPE_DICTIONARY:
+		return false
+
+	var error_dictionary: Dictionary = error_value as Dictionary
+	if str(error_dictionary.get("code", "")) != "approval_not_found":
+		return false
+
+	_clear_stale_approval_dialog("后端当前没有这条待审批记录，通常是后端重启或热更新后审批队列已清空。请重新发起该操作。")
+	_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
+	return true
+
+
 func _update_context_length(info: Dictionary) -> void:
 	latest_context_info = info.duplicate(true)
 	var context_window_tokens: int = int(info.get("contextWindowTokens", 0))
@@ -4871,6 +5237,9 @@ func _update_context_length(info: Dictionary) -> void:
 
 	if context_popup_menu != null and is_instance_valid(context_popup_menu) and context_popup_menu.visible:
 		context_popup_menu.call("setup", latest_context_info)
+
+	if int(info.get("pendingApprovals", 0)) <= 0:
+		_clear_stale_approval_dialog("后端当前没有待审批记录；如果刚刚重启过后端，需要重新触发写入工具。")
 
 
 func _set_context_length_icon(ratio: float, is_empty: bool, history_tokens_stored: int = 0, context_window_tokens: int = 0) -> void:
@@ -4979,7 +5348,7 @@ func _update_send_state() -> void:
 	var has_pending_queue: bool = _has_pending_queued_messages()
 	var should_show_send_button: bool = _should_show_send_button(is_streaming, has_message_draft)
 	send_button.visible = should_show_send_button
-	stop_button.visible = is_streaming and not should_show_send_button
+	stop_button.visible = is_streaming
 	send_button.disabled = not text_edit.visible or (not has_message_draft and not has_pending_queue)
 	if not socket_ready:
 		send_button.tooltip_text = "Queue message until reconnected"
@@ -5110,6 +5479,8 @@ func _open_backend_manager() -> void:
 
 	var backend_manager: AcceptDialog = packed_scene.instantiate()
 	add_child(backend_manager)
+	backend_manager.connect("backend_update_started", Callable(self, "_on_backend_manager_backend_update_started"))
+	backend_manager.connect("backend_update_finished", Callable(self, "_on_backend_manager_backend_update_finished"))
 	backend_manager.popup_centered()
 
 
@@ -5117,9 +5488,36 @@ func _on_backend_manager_button_pressed() -> void:
 	_open_backend_manager()
 
 
+func _on_backend_manager_backend_update_started() -> void:
+	backend_update_in_progress = true
+	is_connecting = false
+	socket_ready = false
+	backend_health_pending = false
+	backend_health_request_id = ""
+	status_button.icon = DISCONNECTED_ICON
+	status_button.tooltip_text = "Backend update in progress"
+	if socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
+		socket.close()
+
+	if backend_launcher != null:
+		backend_launcher.call("stop_started_backend")
+
+
+func _on_backend_manager_backend_update_finished(exit_code: int) -> void:
+	backend_update_in_progress = false
+	connected_backend_version = ""
+	latest_backend_version_check_started = false
+	if exit_code == 0:
+		_restart_backend_connection()
+	else:
+		status_button.icon = CONNECT_FAILED_ICON
+		status_button.tooltip_text = "Backend update failed. Open Backend Manager for details."
+
+
 func _get_frontend_config_snapshot() -> Dictionary:
 	return {
 		"backendUrl": backend_url,
+		"backendDevDir": backend_dev_dir,
 		"model": _get_selected_model_id(),
 		"approvalMode": _get_selected_approval_mode(),
 		"customInstructions": custom_instructions,
@@ -5261,21 +5659,23 @@ func _on_settings_provider_config_clear_requested() -> void:
 
 func _on_settings_frontend_config_save_requested(
 	next_backend_url: String,
+	next_backend_dev_dir: String,
 	next_custom_instructions: String,
 	next_step_hints_enabled_value: bool
 ) -> void:
 	var normalized_backend_url: String = _normalize_backend_url(next_backend_url)
+	var normalized_backend_dev_dir: String = next_backend_dev_dir.strip_edges()
 	var backend_url_changed: bool = normalized_backend_url != backend_url
+	var backend_dev_dir_changed: bool = normalized_backend_dev_dir != backend_dev_dir
 	backend_url = normalized_backend_url
+	backend_dev_dir = normalized_backend_dev_dir
 	custom_instructions = next_custom_instructions.strip_edges()
 	next_step_hints_enabled = next_step_hints_enabled_value
-	_save_frontend_setting(CONFIG_BACKEND_URL_SETTING, backend_url)
-	_save_frontend_setting(CONFIG_CUSTOM_INSTRUCTIONS_SETTING, custom_instructions)
-	_save_frontend_setting(CONFIG_NEXT_STEP_HINTS_SETTING, next_step_hints_enabled)
+	_save_frontend_config()
 	if not next_step_hints_enabled:
 		_clear_next_step_hint_entries()
 
-	if backend_url_changed:
+	if backend_url_changed or backend_dev_dir_changed:
 		_restart_backend_connection()
 
 
@@ -5289,5 +5689,8 @@ func _restart_backend_connection(recovery_mode: bool = false) -> void:
 
 
 func _exit_tree() -> void:
+	if latest_backend_version_check_thread != null:
+		latest_backend_version_check_thread.wait_to_finish()
+		latest_backend_version_check_thread = null
 	if socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		socket.close()

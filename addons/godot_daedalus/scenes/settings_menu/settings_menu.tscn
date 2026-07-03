@@ -1,6 +1,7 @@
 [gd_scene format=3 uid="uid://dp3tsanvojx2k"]
 
 [ext_resource type="Script" uid="uid://be4xxflyjlo3e" path="res://addons/godot_daedalus/scripts/settings_menu/settings_menu.gd" id="1_smwku"]
+[ext_resource type="Texture2D" uid="uid://kesqy88rofwn" path="res://addons/godot_daedalus/assets/icons/folder_browse.svg" id="2_mcffq"]
 [ext_resource type="Texture2D" uid="uid://cwfwhi42kpukr" path="res://addons/godot_daedalus/assets/icons/clear.svg" id="2_y8kc5"]
 [ext_resource type="Texture2D" uid="uid://cjjnoxgoriwwi" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="3_pcvmy"]
 
@@ -51,8 +52,28 @@ text = "Backend URL"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "ws://localhost:8080"
+placeholder_text = "ws://localhost:38180"
 caret_blink = true
+
+[node name="BackendDevDirLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1840252981]
+layout_mode = 2
+tooltip_text = "Optional. When set, Daedalus starts this local backend with npm run dev before falling back to the installed npm package."
+mouse_filter = 1
+text = "Backend dev directory"
+
+[node name="BackendDevDirContainer" type="HBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1025641172]
+layout_mode = 2
+
+[node name="BackendDevDirLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer/BackendDevDirContainer" unique_id=1857705544]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Optional local backend source directory. Leave empty to use the installed npm package."
+caret_blink = true
+
+[node name="BackendDevDirButton" type="Button" parent="TabContainer/General/VBoxContainer/GeneralContainer/BackendDevDirContainer" unique_id=737830909]
+layout_mode = 2
+icon = ExtResource("2_mcffq")
 
 [node name="ProviderLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=915626358]
 layout_mode = 2
@@ -70,22 +91,29 @@ popup/item_0/id = 0
 layout_mode = 2
 text = "Deepseek API Key"
 
-[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1384427553]
+[node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=831029577]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer" unique_id=1384427553]
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="DeepseekAPIKeyLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer/HBoxContainer" unique_id=1108202873]
+[node name="DeepseekAPIKeyLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer/HBoxContainer" unique_id=1108202873]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 caret_blink = true
 secret = true
 
-[node name="ClearDeepseekAPIKeyButton" type="Button" parent="TabContainer/General/VBoxContainer/GeneralContainer/HBoxContainer" unique_id=1646854023]
+[node name="ClearDeepseekAPIKeyButton" type="Button" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer/HBoxContainer" unique_id=1646854023]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Clear saved API key"
 icon = ExtResource("2_y8kc5")
+
+[node name="Label" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer" unique_id=1992095171]
+layout_mode = 2
+text = "Daedalus will mask the API key"
 
 [node name="NextStepHintsCheckBox" type="CheckBox" parent="TabContainer/General/VBoxContainer" unique_id=942113094]
 unique_name_in_owner = true
@@ -200,10 +228,17 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
+[node name="EditorFileDialog" type="EditorFileDialog" parent="." unique_id=858716456]
+unique_name_in_owner = true
+title = "Open a Directory"
+file_mode = 2
+access = 2
+
 [connection signal="canceled" from="." to="." method="_on_close_requested"]
 [connection signal="close_requested" from="." to="." method="_on_close_requested"]
 [connection signal="confirmed" from="." to="." method="_on_confirmed"]
-[connection signal="pressed" from="TabContainer/General/VBoxContainer/GeneralContainer/HBoxContainer/ClearDeepseekAPIKeyButton" to="." method="_on_clear_deepseek_api_key_button_pressed"]
+[connection signal="pressed" from="TabContainer/General/VBoxContainer/GeneralContainer/BackendDevDirContainer/BackendDevDirButton" to="." method="_on_backend_dev_dir_button_pressed"]
+[connection signal="pressed" from="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer/HBoxContainer/ClearDeepseekAPIKeyButton" to="." method="_on_clear_deepseek_api_key_button_pressed"]
 [connection signal="pressed" from="TabContainer/Personalization/HBoxContainer/CustomInstructionsWarningButton" to="." method="_on_custom_instructions_warning_button_pressed"]
 [connection signal="text_changed" from="TabContainer/Personalization/CustomInstructionsEdit" to="." method="_on_custom_instructions_edit_text_changed"]
 [connection signal="pressed" from="TabContainer/MCPServer/AddMCPServerButton" to="." method="_on_add_mcp_server_button_pressed"]

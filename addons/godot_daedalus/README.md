@@ -28,7 +28,7 @@ npm run dev
 The plugin defaults to:
 
 ```text
-ws://localhost:8080
+ws://localhost:38180
 ```
 
 You can change the backend URL from the plugin settings panel.

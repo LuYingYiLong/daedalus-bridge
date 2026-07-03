@@ -1,3 +1,4 @@
+@tool
 extends AcceptDialog
 
 signal command_finished(exit_code: int)

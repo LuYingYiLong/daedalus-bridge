@@ -3,7 +3,7 @@ extends AcceptDialog
 
 signal provider_config_save_requested(api_key: String)
 signal provider_config_clear_requested
-signal frontend_config_save_requested(backend_url: String, custom_instructions: String, next_step_hints_enabled: bool)
+signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, custom_instructions: String, next_step_hints_enabled: bool)
 signal archived_session_restore_requested(session_id: String)
 signal archived_session_delete_requested(session_id: String)
 signal mcp_server_add_requested(config: Dictionary)
@@ -13,6 +13,7 @@ signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 @onready var tab_container: TabContainer = %TabContainer
 @onready var provider_option_button: OptionButton = %ProviderOptionButton
 @onready var backend_url_line_edit: LineEdit = %BackendURLLineEdit
+@onready var backend_dev_dir_line_edit: LineEdit = %BackendDevDirLineEdit
 @onready var deepseek_api_key_line_edit: LineEdit = %DeepseekAPIKeyLineEdit
 @onready var clear_deepseek_api_key_button: Button = %ClearDeepseekAPIKeyButton
 @onready var custom_instructions_label: Label = %CustomInstructionsLabel
@@ -26,6 +27,7 @@ signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 @onready var search_archived_chat_line_edit: LineEdit = %SearchArchivedChatLineEdit
 @onready var delete_all_archived_chats_button: Button = %DeleteAllArchivedChatsButton
 @onready var archived_chat_list: VBoxContainer = %ArchivedChatList
+@onready var file_dialog: EditorFileDialog = %EditorFileDialog
 
 const ARCHIVED_CHAT_ITEM_SCENE_UID: String = "uid://kyksk24wd7d3"
 const MCP_SERVER_ITEM_SCENE_UID: String = "uid://cuwihfpwn6b68"
@@ -63,6 +65,10 @@ var mcp_delete_confirmation_dialog: ConfirmationDialog
 
 func _ready() -> void:
 	tab_container.current_tab = 0
+	file_dialog.file_mode = EditorFileDialog.FILE_MODE_OPEN_DIR
+	file_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
+	if not file_dialog.dir_selected.is_connected(_on_backend_dev_dir_selected):
+		file_dialog.dir_selected.connect(_on_backend_dev_dir_selected)
 	_update_custom_instructions_status()
 	_render_mcp_servers()
 	_update_delete_all_archived_chats_button()
@@ -71,7 +77,8 @@ func _ready() -> void:
 
 func setup_provider_config(status: Dictionary, frontend_config: Dictionary = {}) -> void:
 	var configured: bool = bool(status.get("configured", false))
-	backend_url_line_edit.text = str(frontend_config.get("backendUrl", "ws://localhost:8080"))
+	backend_url_line_edit.text = str(frontend_config.get("backendUrl", "ws://localhost:38180"))
+	backend_dev_dir_line_edit.text = str(frontend_config.get("backendDevDir", ""))
 	custom_instructions_edit.text = str(frontend_config.get("customInstructions", ""))
 	next_step_hints_check_box.button_pressed = bool(frontend_config.get("nextStepHintsEnabled", false))
 	_update_custom_instructions_status()
@@ -137,6 +144,7 @@ func _on_confirmed() -> void:
 	var api_key: String = deepseek_api_key_line_edit.text.strip_edges()
 	frontend_config_save_requested.emit(
 		backend_url_line_edit.text.strip_edges(),
+		backend_dev_dir_line_edit.text.strip_edges(),
 		custom_instructions_edit.text.strip_edges(),
 		next_step_hints_check_box.button_pressed
 	)
@@ -693,3 +701,15 @@ func _get_mcp_server_name(server_id: String) -> String:
 				return server_name
 
 	return "Custom MCP"
+
+
+func _on_backend_dev_dir_button_pressed() -> void:
+	var current_dir_text: String = backend_dev_dir_line_edit.text.strip_edges()
+	if not current_dir_text.is_empty() and DirAccess.dir_exists_absolute(current_dir_text):
+		file_dialog.current_dir = current_dir_text
+
+	file_dialog.popup_centered_ratio()
+
+
+func _on_backend_dev_dir_selected(dir_path: String) -> void:
+	backend_dev_dir_line_edit.text = dir_path.strip_edges()

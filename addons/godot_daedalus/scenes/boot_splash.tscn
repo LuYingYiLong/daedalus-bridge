@@ -28,6 +28,15 @@ texture = ExtResource("1_ribfp")
 expand_mode = 3
 stretch_mode = 5
 
+[node name="StatusLabel" type="Label" parent="VBoxContainer" unique_id=1039282843]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+theme_type_variation = &"HeaderLarge"
+text = "Checking backend"
+horizontal_alignment = 1
+autowrap_mode = 2
+
 [node name="ErrorContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=495067745]
 unique_name_in_owner = true
 visible = false
@@ -37,16 +46,19 @@ layout_mode = 2
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 0)
 layout_mode = 2
-theme_type_variation = &"HeaderLarge"
+theme_type_variation = &"HeaderMedium"
 text = "Error"
 autowrap_mode = 2
 
-[node name="ErrorDetailsLabel" type="Label" parent="VBoxContainer/ErrorContainer" unique_id=1146277673]
+[node name="ErrorDetailsLabel" type="RichTextLabel" parent="VBoxContainer/ErrorContainer" unique_id=1375964936]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(200, 0)
+custom_minimum_size = Vector2(200, 256)
 layout_mode = 2
+focus_mode = 2
 text = "Error Details"
 autowrap_mode = 2
+context_menu_enabled = true
+selection_enabled = true
 
 [node name="ReconnectButton" type="Button" parent="VBoxContainer/ErrorContainer" unique_id=1325972220]
 layout_mode = 2
@@ -56,5 +68,10 @@ text = "Reconnect"
 layout_mode = 2
 text = "Backend Manager"
 
+[node name="CopyDetailsButton" type="Button" parent="VBoxContainer/ErrorContainer" unique_id=625645196]
+layout_mode = 2
+text = "Copy Details"
+
 [connection signal="pressed" from="VBoxContainer/ErrorContainer/ReconnectButton" to="." method="_on_reconnect_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/ErrorContainer/BackendManagerButton" to="." method="_on_backend_manager_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/ErrorContainer/CopyDetailsButton" to="." method="_on_copy_details_button_pressed"]

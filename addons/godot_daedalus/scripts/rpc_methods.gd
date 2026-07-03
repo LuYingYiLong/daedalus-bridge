@@ -2,6 +2,7 @@
 extends RefCounted
 
 const PING: String = "ping"
+const BACKEND_HEALTH: String = "backend.health"
 const PROVIDER_CONFIGURE: String = "provider.configure"
 const PROVIDER_CONFIG_GET: String = "provider.config.get"
 const PROVIDER_CONFIG_SET: String = "provider.config.set"
@@ -56,6 +57,7 @@ const WORKSPACE_INFO: String = "workspace.info"
 static func all() -> Array[String]:
 	return [
 		PING,
+		BACKEND_HEALTH,
 		PROVIDER_CONFIGURE,
 		PROVIDER_CONFIG_GET,
 		PROVIDER_CONFIG_SET,
