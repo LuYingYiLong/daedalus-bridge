@@ -381,6 +381,24 @@ func _normalize_tool_name(raw_tool_name: String) -> String:
 			return "mcp_godot_create_scene"
 		"apply_scene_patch":
 			return "mcp_godot_apply_scene_patch"
+		"lsp_get_status", "get_lsp_status":
+			return "mcp_godot_lsp_get_status"
+		"lsp_get_file_diagnostics", "get_file_diagnostics":
+			return "mcp_godot_lsp_get_file_diagnostics"
+		"lsp_get_document_symbols", "get_document_symbols":
+			return "mcp_godot_lsp_get_document_symbols"
+		"lsp_hover", "hover":
+			return "mcp_godot_lsp_hover"
+		"lsp_goto_definition", "goto_definition":
+			return "mcp_godot_lsp_goto_definition"
+		"dap_get_status", "get_dap_status":
+			return "mcp_godot_dap_get_status"
+		"dap_get_last_error", "get_last_error":
+			return "mcp_godot_dap_get_last_error"
+		"dap_get_stack_trace", "get_stack_trace":
+			return "mcp_godot_dap_get_stack_trace"
+		"dap_get_variables", "get_variables":
+			return "mcp_godot_dap_get_variables"
 		"run_safe_preset":
 			return "mcp_terminal_run_safe_preset"
 		"run_write_preset":
@@ -442,6 +460,24 @@ func _localize_tool_name(raw_tool_name: String) -> String:
 			return "预览批量编辑场景"
 		"mcp_godot_apply_scene_patch":
 			return "批量编辑场景"
+		"mcp_godot_lsp_get_status":
+			return "检查 LSP 状态"
+		"mcp_godot_lsp_get_file_diagnostics":
+			return "读取脚本诊断"
+		"mcp_godot_lsp_get_document_symbols":
+			return "查看脚本符号"
+		"mcp_godot_lsp_hover":
+			return "查看 Hover 信息"
+		"mcp_godot_lsp_goto_definition":
+			return "查找定义"
+		"mcp_godot_dap_get_status":
+			return "检查 DAP 状态"
+		"mcp_godot_dap_get_last_error":
+			return "读取运行错误"
+		"mcp_godot_dap_get_stack_trace":
+			return "读取调用栈"
+		"mcp_godot_dap_get_variables":
+			return "读取变量"
 		"mcp_terminal_get_capabilities":
 			return "读取终端能力"
 		"mcp_terminal_run_safe_preset":

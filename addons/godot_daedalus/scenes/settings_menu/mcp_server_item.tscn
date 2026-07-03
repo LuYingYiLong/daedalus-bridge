@@ -16,18 +16,21 @@ text = "MCP"
 text_overrun_behavior = 6
 
 [node name="RemoveButton" type="Button" parent="." unique_id=366006546]
+unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 1
 theme_type_variation = &"FlatButton"
 icon = ExtResource("1_5xa0g")
 
 [node name="EditButton" type="Button" parent="." unique_id=1716334768]
+unique_name_in_owner = true
 layout_mode = 2
 mouse_filter = 1
 theme_type_variation = &"FlatButton"
 icon = ExtResource("2_m40qf")
 
 [node name="CheckButton" type="CheckButton" parent="." unique_id=1507414911]
+unique_name_in_owner = true
 layout_mode = 2
 
 [connection signal="pressed" from="RemoveButton" to="." method="_on_remove_button_pressed"]

@@ -42,7 +42,7 @@ func setup(info: Dictionary) -> void:
 	safety_margin_value_label.text = "%s margin" % _format_compact_token_count(safety_margin_tokens)
 	summary_value_label.text = _format_summary(info)
 	approval_value_label.text = _format_approval(info)
-	mcp_value_label.text = _format_mcp_servers(info.get("mcpServers", []))
+	mcp_value_label.text = _format_mcp_servers(info.get("mcpServers", []), info.get("godotDiagnostics", {}))
 	workspace_value_label.text = _format_workspace(info)
 
 
@@ -102,19 +102,55 @@ func _format_approval_mode(mode: String) -> String:
 	return "Unknown"
 
 
-func _format_mcp_servers(value: Variant) -> String:
+func _format_mcp_servers(value: Variant, diagnostics_value: Variant = {}) -> String:
+	var diagnostics_text: String = _format_godot_diagnostics(diagnostics_value)
 	if typeof(value) != TYPE_ARRAY:
-		return "0 connected"
+		return "0 connected%s" % diagnostics_text
 
 	var servers: Array = value as Array
 	if servers.is_empty():
-		return "0 connected"
+		return "0 connected%s" % diagnostics_text
 
 	var names: PackedStringArray = PackedStringArray()
 	for item: Variant in servers:
 		names.append(str(item))
 
-	return "%d connected: %s" % [names.size(), ", ".join(names)]
+	return "%d connected: %s%s" % [names.size(), ", ".join(names), diagnostics_text]
+
+
+func _format_godot_diagnostics(value: Variant) -> String:
+	if typeof(value) != TYPE_DICTIONARY:
+		return ""
+
+	var diagnostics: Dictionary = value as Dictionary
+	var parts: PackedStringArray = PackedStringArray()
+	var lsp_text: String = _format_endpoint_status("LSP", diagnostics.get("lsp", {}))
+	var dap_text: String = _format_endpoint_status("DAP", diagnostics.get("dap", {}))
+	if not lsp_text.is_empty():
+		parts.append(lsp_text)
+	if not dap_text.is_empty():
+		parts.append(dap_text)
+
+	if parts.is_empty():
+		return ""
+
+	return " | %s" % ", ".join(parts)
+
+
+func _format_endpoint_status(label: String, value: Variant) -> String:
+	if typeof(value) != TYPE_DICTIONARY:
+		return ""
+
+	var status: Dictionary = value as Dictionary
+	var host: String = str(status.get("host", "127.0.0.1"))
+	var port: int = int(status.get("port", 0))
+	var available_value: Variant = status.get("available", null)
+	var availability: String = "unknown"
+	if typeof(available_value) == TYPE_BOOL:
+		availability = "available" if bool(available_value) else "unavailable"
+
+	var endpoint_text: String = "%s:%d" % [host, port] if port > 0 else host
+	return "%s %s %s" % [label, endpoint_text, availability]
 
 
 func _format_workspace(info: Dictionary) -> String:

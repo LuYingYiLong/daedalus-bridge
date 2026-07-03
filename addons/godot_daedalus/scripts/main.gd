@@ -4950,6 +4950,24 @@ func _localize_tool_name_for_display(raw_tool_name: String) -> String:
 			return "连接信号"
 		"mcp_godot_apply_scene_patch", "mcp_godot_propose_apply_scene_patch", "apply_scene_patch":
 			return "批量编辑场景"
+		"mcp_godot_lsp_get_status", "lsp_get_status":
+			return "检查 LSP 状态"
+		"mcp_godot_lsp_get_file_diagnostics", "lsp_get_file_diagnostics":
+			return "读取脚本诊断"
+		"mcp_godot_lsp_get_document_symbols", "lsp_get_document_symbols":
+			return "查看脚本符号"
+		"mcp_godot_lsp_hover", "lsp_hover":
+			return "查看 Hover 信息"
+		"mcp_godot_lsp_goto_definition", "lsp_goto_definition":
+			return "查找定义"
+		"mcp_godot_dap_get_status", "dap_get_status":
+			return "检查 DAP 状态"
+		"mcp_godot_dap_get_last_error", "dap_get_last_error":
+			return "读取运行错误"
+		"mcp_godot_dap_get_stack_trace", "dap_get_stack_trace":
+			return "读取调用栈"
+		"mcp_godot_dap_get_variables", "dap_get_variables":
+			return "读取变量"
 		"mcp_terminal_run_safe_preset", "run_safe_preset":
 			return "运行验证命令"
 		"mcp_terminal_run_write_preset", "run_write_preset":
