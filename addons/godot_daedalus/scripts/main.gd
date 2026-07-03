@@ -2,6 +2,7 @@
 extends VBoxContainer
 
 const DEFAULT_BACKEND_URL: String = "ws://localhost:38180"
+const DEVELOPMENT_BACKEND_URL: String = "ws://localhost:38181"
 const LEGACY_DEFAULT_BACKEND_URL: String = "ws://localhost:8080"
 const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
 const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
@@ -46,6 +47,8 @@ const SETTINGS_MENU_UID: String = "uid://dp3tsanvojx2k"
 const BACKEND_MANAGER_UID: String = "uid://c08tpkgdjw6id"
 const BACKEND_LAUNCHER_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/backend_launcher.gd")
 const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
+const SLASH_COMMAND_OVERLAY_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/slash_command_overlay.gd")
+const TEXT_COMPLETION_ACCEPT_ACTION: StringName = &"ui_text_completion_accept"
 const MAX_CONNECT_ATTEMPTS: int = 20
 const CONNECT_RETRY_SECONDS: float = 0.5
 const BACKEND_START_TIMEOUT_MSEC: int = 10000
@@ -239,6 +242,11 @@ var pending_socket_open_session_id: String
 var connected_backend_version: String
 var latest_backend_version_check_started: bool
 var latest_backend_version_check_thread: Thread
+var slash_command_overlay: Control
+var slash_commands: Array[Dictionary] = []
+var slash_command_items: Array[Dictionary] = []
+var slash_command_selected_index: int
+var slash_command_completion_consumed: bool
 var custom_instructions: String
 var next_step_hints_enabled: bool
 var check_for_updates_enabled: bool = true
@@ -276,6 +284,7 @@ func _ready() -> void:
 	_connect_timeline_signals()
 	_setup_message_tree()
 	_setup_add_context_menu()
+	_setup_slash_command_popup()
 	_render_message_panel()
 	_clear_template_items()
 	_render_additional_context_items()
@@ -310,6 +319,9 @@ func _input(event: InputEvent) -> void:
 		return
 
 	if event.keycode == KEY_ENTER:
+		if _handle_slash_command_key(event):
+			accept_event()
+			return
 		if event.shift_pressed:
 			return
 		if event.ctrl_pressed:
@@ -317,6 +329,8 @@ func _input(event: InputEvent) -> void:
 			accept_event()
 			return
 		_on_send_button_pressed()
+		accept_event()
+	elif _handle_slash_command_key(event):
 		accept_event()
 
 
@@ -338,15 +352,34 @@ func _setup_options() -> void:
 		approval_mode_button.add_item(APPROVAL_MODE_NAMES[index], index)
 
 
+func _setup_slash_command_popup() -> void:
+	slash_command_overlay = SLASH_COMMAND_OVERLAY_SCRIPT.new() as Control
+	slash_command_overlay.name = "SlashCommandOverlay"
+	slash_command_overlay.top_level = true
+	slash_command_overlay.z_index = 4096
+	slash_command_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slash_command_overlay.focus_mode = Control.FOCUS_NONE
+	add_child(slash_command_overlay)
+	slash_command_overlay.hide()
+	text_edit.gui_input.connect(_on_text_edit_gui_input)
+
+
+func _load_slash_commands() -> void:
+	slash_commands.clear()
+	_hide_slash_command_popup()
+	_send_request(RPC_METHODS.COMMAND_LIST, {}, "command-list")
+
+
 func _load_frontend_config() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	var load_error: Error = config.load(FRONTEND_CONFIG_PATH)
 	var migrated_legacy_settings: bool = _migrate_legacy_editor_settings(config)
 
-	backend_url = _normalize_backend_url(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, DEFAULT_BACKEND_URL)))
-	if backend_url == LEGACY_DEFAULT_BACKEND_URL:
-		backend_url = DEFAULT_BACKEND_URL
 	backend_dev_dir = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_DEV_DIR_KEY, "")).strip_edges()
+	backend_url = _resolve_backend_url_for_mode(
+		_normalize_backend_url(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, DEFAULT_BACKEND_URL))),
+		backend_dev_dir
+	)
 	custom_instructions = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, "")).strip_edges()
 	next_step_hints_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, false))
 	check_for_updates_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, true))
@@ -421,8 +454,23 @@ func _normalize_backend_url(url: String) -> String:
 	var normalized_url: String = url.strip_edges()
 	if normalized_url.is_empty():
 		return DEFAULT_BACKEND_URL
+	if normalized_url == LEGACY_DEFAULT_BACKEND_URL:
+		return DEFAULT_BACKEND_URL
 
 	return normalized_url
+
+
+func _resolve_backend_url_for_mode(normalized_url: String, normalized_backend_dev_dir: String) -> String:
+	if not normalized_backend_dev_dir.strip_edges().is_empty() and _is_default_backend_url(normalized_url):
+		return DEVELOPMENT_BACKEND_URL
+	if normalized_backend_dev_dir.strip_edges().is_empty() and normalized_url == DEVELOPMENT_BACKEND_URL:
+		return DEFAULT_BACKEND_URL
+
+	return normalized_url
+
+
+func _is_default_backend_url(url: String) -> bool:
+	return url == DEFAULT_BACKEND_URL or url == LEGACY_DEFAULT_BACKEND_URL or url == DEVELOPMENT_BACKEND_URL
 
 
 func _select_model_id(model_id: String) -> bool:
@@ -899,8 +947,193 @@ func _on_message_tree_button_clicked(item: TreeItem, _column: int, button_id: in
 
 
 func _on_text_edit_text_changed() -> void:
+	if text_edit.text.strip_edges().is_empty():
+		slash_command_completion_consumed = false
+	_update_slash_command_popup()
 	_update_send_state()
 
+
+func _on_text_edit_gui_input(event: InputEvent) -> void:
+	if not (event is InputEventKey and event.pressed):
+		return
+
+	var key_event: InputEventKey = event as InputEventKey
+	if _handle_slash_command_key(key_event):
+		accept_event()
+
+
+func _handle_slash_command_key(event: InputEventKey) -> bool:
+	if event.is_action_pressed(TEXT_COMPLETION_ACCEPT_ACTION):
+		if _has_valid_slash_command_completion():
+			_confirm_slash_command_completion()
+			return true
+
+		_hide_slash_command_popup()
+		return false
+
+	if not _is_slash_command_popup_open():
+		return false
+
+	if event.keycode == KEY_ESCAPE:
+		_hide_slash_command_popup()
+		return true
+	if event.keycode == KEY_UP:
+		_move_slash_command_selection(-1)
+		return true
+	if event.keycode == KEY_DOWN:
+		_move_slash_command_selection(1)
+		return true
+
+	return false
+
+
+func _update_slash_command_popup() -> void:
+	if slash_command_completion_consumed:
+		_hide_slash_command_popup()
+		return
+
+	var filter_text: String = _get_slash_command_filter()
+	if filter_text.is_empty():
+		_hide_slash_command_popup()
+		return
+
+	slash_command_items = _filter_slash_commands(filter_text)
+	if slash_command_items.is_empty():
+		_hide_slash_command_popup()
+		return
+
+	slash_command_selected_index = clampi(slash_command_selected_index, 0, slash_command_items.size() - 1)
+	_show_slash_command_overlay()
+
+
+func _get_slash_command_filter() -> String:
+	var caret_line: int = text_edit.get_caret_line()
+	if caret_line < 0 or caret_line >= text_edit.get_line_count():
+		return ""
+
+	var line_text: String = text_edit.get_line(caret_line)
+	var caret_column: int = clampi(text_edit.get_caret_column(), 0, line_text.length())
+	var prefix_text: String = line_text.substr(0, caret_column)
+	var slash_index: int = prefix_text.rfind("/")
+	if slash_index < 0:
+		return ""
+
+	var before_slash: String = prefix_text.substr(0, slash_index).strip_edges()
+	if not before_slash.is_empty():
+		return ""
+
+	var filter_text: String = prefix_text.substr(slash_index).strip_edges()
+	if filter_text.contains(" "):
+		return ""
+
+	return filter_text
+
+
+func _filter_slash_commands(filter_text: String) -> Array[Dictionary]:
+	var filtered_commands: Array[Dictionary] = []
+	var normalized_filter: String = filter_text.to_lower()
+	for command: Dictionary in slash_commands:
+		var command_text: String = str(command.get("command", "")).to_lower()
+		var usage_text: String = str(command.get("label", "")).to_lower()
+		if normalized_filter == "/" or command_text.begins_with(normalized_filter) or usage_text.begins_with(normalized_filter):
+			filtered_commands.append(command)
+
+	return filtered_commands
+
+
+func _apply_slash_command_list_response(result_dictionary: Dictionary) -> void:
+	slash_commands.clear()
+	var commands_value: Variant = result_dictionary.get("commands", [])
+	if typeof(commands_value) != TYPE_ARRAY:
+		return
+
+	var command_array: Array = commands_value as Array
+	for command_value: Variant in command_array:
+		if typeof(command_value) != TYPE_DICTIONARY:
+			continue
+
+		var command_dictionary: Dictionary = command_value as Dictionary
+		var command_text: String = str(command_dictionary.get("command", "")).strip_edges()
+		if command_text.is_empty() or not command_text.begins_with("/"):
+			continue
+
+		var usage_text: String = str(command_dictionary.get("usage", command_text)).strip_edges()
+		var insert_text: String = str(command_dictionary.get("insertText", command_text))
+		var description_text: String = str(command_dictionary.get("description", "")).strip_edges()
+		slash_commands.append({
+			"command": command_text,
+			"label": usage_text,
+			"insert": insert_text,
+			"description": description_text
+		})
+
+	_update_slash_command_popup()
+
+
+func _show_slash_command_overlay() -> void:
+	if slash_command_overlay == null:
+		return
+
+	slash_command_overlay.call(
+		"show_commands",
+		slash_command_items,
+		slash_command_selected_index,
+		text_edit.get_global_rect(),
+		get_global_rect()
+	)
+
+
+func _hide_slash_command_popup() -> void:
+	if slash_command_overlay != null:
+		slash_command_overlay.call("hide_commands")
+
+
+func _clear_text_edit_after_submit() -> void:
+	slash_command_completion_consumed = false
+	_hide_slash_command_popup()
+	text_edit.clear()
+
+
+func _is_slash_command_popup_open() -> bool:
+	return slash_command_overlay != null and slash_command_overlay.visible and not slash_command_items.is_empty()
+
+
+func _has_valid_slash_command_completion() -> bool:
+	return _is_slash_command_popup_open() and slash_command_selected_index >= 0 and slash_command_selected_index < slash_command_items.size()
+
+
+func _move_slash_command_selection(delta: int) -> void:
+	if slash_command_items.is_empty():
+		return
+
+	slash_command_selected_index = posmod(slash_command_selected_index + delta, slash_command_items.size())
+	_show_slash_command_overlay()
+
+
+func _confirm_slash_command_completion() -> void:
+	if slash_command_items.is_empty():
+		return
+
+	var selected_command: Dictionary = slash_command_items[clampi(slash_command_selected_index, 0, slash_command_items.size() - 1)]
+	slash_command_completion_consumed = true
+	_replace_slash_command_token(str(selected_command.get("insert", "")))
+	_hide_slash_command_popup()
+	_update_send_state()
+
+
+func _replace_slash_command_token(insert_text: String) -> void:
+	var caret_line: int = text_edit.get_caret_line()
+	var line_text: String = text_edit.get_line(caret_line)
+	var caret_column: int = clampi(text_edit.get_caret_column(), 0, line_text.length())
+	var prefix_text: String = line_text.substr(0, caret_column)
+	var slash_index: int = prefix_text.rfind("/")
+	if slash_index < 0:
+		return
+
+	text_edit.select(caret_line, slash_index, caret_line, caret_column)
+	text_edit.delete_selection()
+	text_edit.insert_text_at_caret(insert_text)
+	text_edit.grab_focus()
 
 func _on_timeline_scroll_value_changed(_value: float) -> void:
 	timeline_follow_bottom = _is_timeline_near_bottom()
@@ -1116,6 +1349,15 @@ func _handle_backend_health_response(message: Dictionary) -> bool:
 	if str(result_dictionary.get("name", "")) != "godot-daedalus-backend":
 		_handle_backend_health_failed("The service on this port is not Daedalus backend.")
 		return true
+	var backend_mode: String = str(result_dictionary.get("mode", "")).strip_edges()
+	if not backend_dev_dir.strip_edges().is_empty() and backend_mode != "development":
+		_handle_backend_health_failed(
+			"Daedalus is configured to use the development backend, but the connected backend reports mode '%s'. Use %s for development, or clear the backend development directory in Settings." % [
+				backend_mode if not backend_mode.is_empty() else "unknown",
+				DEVELOPMENT_BACKEND_URL
+			]
+		)
+		return true
 
 	connected_backend_version = str(result_dictionary.get("version", "")).strip_edges()
 	var was_recovering: bool = pending_socket_open_was_recovering
@@ -1123,6 +1365,7 @@ func _handle_backend_health_response(message: Dictionary) -> bool:
 	pending_socket_open_was_recovering = false
 	pending_socket_open_session_id = ""
 	backend_health_request_id = ""
+	_load_slash_commands()
 	_finalize_socket_opened(was_recovering, session_id_to_restore)
 	return true
 
@@ -1153,47 +1396,75 @@ func _check_latest_backend_version_once() -> void:
 
 
 func _run_latest_backend_version_check() -> void:
-	var latest_version_text: String = _read_latest_backend_version_from_manager()
-	call_deferred("_finish_latest_backend_version_check", latest_version_text)
+	var update_status: Dictionary = _read_update_status_from_manager()
+	call_deferred("_finish_latest_backend_version_check", update_status)
 
 
-func _read_latest_backend_version_from_manager() -> String:
+func _read_update_status_from_manager() -> Dictionary:
 	var manager_cli: RefCounted = MANAGER_CLI_SCRIPT.new()
 	var manager_result: Dictionary = manager_cli.call("run_json", PackedStringArray(["status", "--project", ProjectSettings.globalize_path("res://")])) as Dictionary
 	if not bool(manager_result.get("ok", false)):
-		return ""
+		return {}
 
 	var status_value: Variant = manager_result.get("status", {})
 	if typeof(status_value) != TYPE_DICTIONARY:
-		return ""
+		return {}
 
 	var status_dictionary: Dictionary = status_value as Dictionary
 	var backend_value: Variant = status_dictionary.get("backend", {})
-	if typeof(backend_value) != TYPE_DICTIONARY:
-		return ""
+	var frontend_value: Variant = status_dictionary.get("frontend", {})
+	var backend_status: Dictionary = {}
+	var frontend_status: Dictionary = {}
+	if typeof(backend_value) == TYPE_DICTIONARY:
+		backend_status = backend_value as Dictionary
+	if typeof(frontend_value) == TYPE_DICTIONARY:
+		frontend_status = frontend_value as Dictionary
 
-	var backend_status: Dictionary = backend_value as Dictionary
-	return str(backend_status.get("latestVersion", "")).strip_edges()
+	var backend_current_version: String = str(backend_status.get("installedVersion", "")).strip_edges()
+	if backend_current_version.is_empty():
+		backend_current_version = str(backend_status.get("runningVersion", "")).strip_edges()
+	if backend_current_version.is_empty():
+		backend_current_version = connected_backend_version
+	var backend_latest_version: String = str(backend_status.get("latestVersion", "")).strip_edges()
+	var frontend_current_version: String = str(frontend_status.get("installedVersion", "")).strip_edges()
+	var frontend_latest_version: String = str(frontend_status.get("latestVersion", "")).strip_edges()
+	var has_backend_update: bool = _is_semver_newer(backend_latest_version, backend_current_version)
+	var has_frontend_update: bool = _is_semver_newer(frontend_latest_version, frontend_current_version)
+	return {
+		"hasNewVersion": has_backend_update or has_frontend_update,
+		"backendCurrentVersion": backend_current_version,
+		"backendLatestVersion": backend_latest_version,
+		"frontendCurrentVersion": frontend_current_version,
+		"frontendLatestVersion": frontend_latest_version
+	}
 
 
-func _finish_latest_backend_version_check(latest_version_text: String) -> void:
+func _finish_latest_backend_version_check(update_status: Dictionary) -> void:
 	if latest_backend_version_check_thread != null:
 		latest_backend_version_check_thread.wait_to_finish()
 		latest_backend_version_check_thread = null
 
-	var normalized_latest_version: String = latest_version_text.strip_edges()
-	if normalized_latest_version.is_empty():
+	if update_status.is_empty():
 		return
 
-	if connected_backend_version.is_empty():
-		return
-
-	if _is_semver_newer(normalized_latest_version, connected_backend_version):
-		backend_manager_button.text = "Backend update: %s" % normalized_latest_version
-		backend_manager_button.tooltip_text = "Running backend %s. Latest npm version is %s." % [connected_backend_version, normalized_latest_version]
+	if bool(update_status.get("hasNewVersion", false)):
+		backend_manager_button.text = "Has new version"
+		backend_manager_button.tooltip_text = "Open Backend Manager to update Daedalus backend or plugin."
 	else:
 		backend_manager_button.text = "Backend manager"
-		backend_manager_button.tooltip_text = "Backend is up to date: %s" % connected_backend_version
+		var backend_version: String = str(update_status.get("backendCurrentVersion", "")).strip_edges()
+		var frontend_version: String = str(update_status.get("frontendCurrentVersion", "")).strip_edges()
+		backend_manager_button.tooltip_text = "Daedalus is up to date. Backend: %s. Plugin: %s." % [
+			_format_version_for_tooltip(backend_version),
+			_format_version_for_tooltip(frontend_version)
+		]
+
+
+func _format_version_for_tooltip(version_text: String) -> String:
+	if version_text.is_empty():
+		return "unknown"
+
+	return version_text
 
 
 func _is_semver_newer(candidate_version: String, current_version: String) -> bool:
@@ -2277,7 +2548,7 @@ func _on_send_button_pressed() -> void:
 	var additional_context_snapshot: Array[Dictionary] = _get_additional_context_snapshot()
 	if _should_queue_outgoing_message():
 		if _enqueue_message(message_text, additional_context_snapshot):
-			text_edit.clear()
+			_clear_text_edit_after_submit()
 			_clear_unpinned_additional_context_items()
 			_update_send_state()
 			_process_message_queue()
@@ -2286,7 +2557,7 @@ func _on_send_button_pressed() -> void:
 	if _dispatch_message_text(message_text, additional_context_snapshot):
 		_clear_unpinned_additional_context_items()
 		if active_session_id.is_empty():
-			text_edit.clear()
+			_clear_text_edit_after_submit()
 			_update_send_state()
 
 
@@ -2558,7 +2829,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 		return false
 
 	_scroll_to_bottom_if_following(should_follow_bottom)
-	text_edit.clear()
+	_clear_text_edit_after_submit()
 	_set_streaming_state(true)
 	return true
 
@@ -2734,7 +3005,7 @@ func _create_or_update_manual_guide_from_text_edit() -> void:
 
 	if not editing_guide_local_id.is_empty():
 		if _update_editing_manual_guide(guide_text):
-			text_edit.clear()
+			_clear_text_edit_after_submit()
 			editing_guide_local_id = ""
 			_update_send_state()
 		return
@@ -2752,7 +3023,7 @@ func _create_or_update_manual_guide_from_text_edit() -> void:
 		"anchor_request_id": active_stream_request_id
 	}
 	manual_guides.append(manual_guide)
-	text_edit.clear()
+	_clear_text_edit_after_submit()
 	_show_background_context_viewer()
 	_render_message_panel()
 	_update_send_state()
@@ -2983,6 +3254,10 @@ func _handle_response(message: Dictionary) -> void:
 			next_step_hint_request_id = ""
 			next_step_hint_anchor_request_id = ""
 			return
+		if str(message.get("id", "")).begins_with("command-list"):
+			slash_commands.clear()
+			_hide_slash_command_popup()
+			return
 		if _handle_guide_response_error(message):
 			return
 		if str(message.get("id", "")).begins_with("context-popup-info"):
@@ -3028,7 +3303,9 @@ func _handle_response(message: Dictionary) -> void:
 		return
 
 	var result_dictionary: Dictionary = result as Dictionary
-	if bool(result_dictionary.get("nextStepHints", false)):
+	if result_dictionary.has("commands"):
+		_apply_slash_command_list_response(result_dictionary)
+	elif bool(result_dictionary.get("nextStepHints", false)):
 		_apply_next_step_hints_response(str(message.get("id", "")), result_dictionary)
 	elif result_dictionary.has("customMcpServers"):
 		_apply_mcp_config_response(result_dictionary)
@@ -5500,6 +5777,9 @@ func _on_backend_manager_backend_update_finished(exit_code: int) -> void:
 	connected_backend_version = ""
 	latest_backend_version_check_started = false
 	if exit_code == 0:
+		backend_manager_button.text = "Backend manager"
+		backend_manager_button.tooltip_text = "Refreshing Daedalus version status..."
+		_check_latest_backend_version_once()
 		_restart_backend_connection()
 	else:
 		status_button.icon = CONNECT_FAILED_ICON
@@ -5657,8 +5937,8 @@ func _on_settings_frontend_config_save_requested(
 	next_step_hints_enabled_value: bool,
 	next_check_for_updates_enabled: bool
 ) -> void:
-	var normalized_backend_url: String = _normalize_backend_url(next_backend_url)
 	var normalized_backend_dev_dir: String = next_backend_dev_dir.strip_edges()
+	var normalized_backend_url: String = _resolve_backend_url_for_mode(_normalize_backend_url(next_backend_url), normalized_backend_dev_dir)
 	var backend_url_changed: bool = normalized_backend_url != backend_url
 	var backend_dev_dir_changed: bool = normalized_backend_dev_dir != backend_dev_dir
 	backend_url = normalized_backend_url

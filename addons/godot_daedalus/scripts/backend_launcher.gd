@@ -4,10 +4,11 @@ extends RefCounted
 const PACKAGE_NAME: String = "godot-daedalus_backend"
 const BACKEND_BIN_NAME: String = "godot-daedalus-backend"
 const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
-const DEFAULT_BACKEND_PORT: int = 38180
+const DEFAULT_PUBLISHED_BACKEND_PORT: int = 38180
+const DEFAULT_DEVELOPMENT_BACKEND_PORT: int = 38181
 const MAX_LOG_LINES: int = 80
 const MAX_LOG_READ_BYTES: int = 65536
-const TCP_PROBE_ATTEMPTS: int = 10
+const TCP_PROBE_ATTEMPTS: int = 50
 const TCP_PROBE_DELAY_MSEC: int = 20
 
 var backend_url: String
@@ -67,44 +68,43 @@ func probe_local_backend_port() -> Dictionary:
 			"port": port_number
 		}
 
+	var probe_hosts: Array[String] = _get_backend_probe_hosts()
+	for host_name: String in probe_hosts:
+		if _is_tcp_port_occupied(host_name, port_number):
+			return {
+				"checked": true,
+				"occupied": true,
+				"host": host_name,
+				"port": port_number
+			}
+
+	return {
+		"checked": true,
+		"occupied": false,
+		"host": ", ".join(probe_hosts),
+		"port": port_number
+	}
+
+
+func _is_tcp_port_occupied(host_name: String, port_number: int) -> bool:
 	var tcp_peer: StreamPeerTCP = StreamPeerTCP.new()
-	var connect_error: Error = tcp_peer.connect_to_host("127.0.0.1", port_number)
+	var connect_error: Error = tcp_peer.connect_to_host(host_name, port_number)
 	if connect_error != OK:
-		return {
-			"checked": true,
-			"occupied": false,
-			"host": "127.0.0.1",
-			"port": port_number
-		}
+		return false
 
 	for _attempt_index: int in range(TCP_PROBE_ATTEMPTS):
 		tcp_peer.poll()
 		var tcp_status: StreamPeerTCP.Status = tcp_peer.get_status()
 		if tcp_status == StreamPeerTCP.STATUS_CONNECTED:
 			tcp_peer.disconnect_from_host()
-			return {
-				"checked": true,
-				"occupied": true,
-				"host": "127.0.0.1",
-				"port": port_number
-			}
+			return true
 		if tcp_status == StreamPeerTCP.STATUS_ERROR:
-			return {
-				"checked": true,
-				"occupied": false,
-				"host": "127.0.0.1",
-				"port": port_number
-			}
+			return false
 
 		OS.delay_msec(TCP_PROBE_DELAY_MSEC)
 
 	tcp_peer.disconnect_from_host()
-	return {
-		"checked": true,
-		"occupied": false,
-		"host": "127.0.0.1",
-		"port": port_number
-	}
+	return false
 
 
 func start_backend() -> Dictionary:
@@ -112,6 +112,21 @@ func start_backend() -> Dictionary:
 	recent_log_lines.clear()
 	log_file_path = _prepare_launch_log_file()
 	launched_pid = -1
+
+	var port_probe: Dictionary = probe_local_backend_port()
+	if bool(port_probe.get("checked", false)) and bool(port_probe.get("occupied", false)):
+		launch_mode = "development" if not backend_dev_dir.is_empty() else "published"
+		command_summary = "port probe before backend start"
+		last_error = "Backend port %d is already in use on %s." % [
+			int(port_probe.get("port", 0)),
+			str(port_probe.get("host", "localhost"))
+		]
+		return {
+			"ok": false,
+			"mode": launch_mode,
+			"message": last_error,
+			"details": build_diagnostic_details()
+		}
 
 	if backend_dev_dir.is_empty():
 		return _start_published_backend_with_manager()
@@ -211,13 +226,13 @@ func _start_legacy_published_backend(manager_message: String, manager_details: S
 	var launch_port: int = _parse_backend_url_port()
 	var backend_install_dir: String = _get_backend_install_dir()
 	if OS.get_name() == "Windows":
-		command_summary = "set PORT=%d&& npm exec --prefix %s -- %s" % [
+		command_summary = "set DAEDALUS_BACKEND_MODE=runtime&& set PORT=%d&& npm exec --prefix %s -- %s" % [
 			launch_port,
 			_quote_command_part(backend_install_dir),
 			BACKEND_BIN_NAME
 		]
 	else:
-		command_summary = "PORT=%d npm exec --prefix %s -- %s" % [
+		command_summary = "DAEDALUS_BACKEND_MODE=runtime PORT=%d npm exec --prefix %s -- %s" % [
 			launch_port,
 			_quote_command_part(backend_install_dir),
 			BACKEND_BIN_NAME
@@ -281,7 +296,7 @@ func build_diagnostic_details() -> String:
 func _parse_backend_url_port() -> int:
 	var normalized_url: String = backend_url.strip_edges().to_lower()
 	if normalized_url.is_empty():
-		return DEFAULT_BACKEND_PORT
+		return DEFAULT_DEVELOPMENT_BACKEND_PORT if not backend_dev_dir.is_empty() else DEFAULT_PUBLISHED_BACKEND_PORT
 
 	var scheme_separator_index: int = normalized_url.find("://")
 	var remainder: String = normalized_url
@@ -311,6 +326,55 @@ func _parse_backend_url_port() -> int:
 	return 80
 
 
+func _parse_backend_url_host() -> String:
+	var normalized_url: String = backend_url.strip_edges().to_lower()
+	if normalized_url.is_empty():
+		return "localhost"
+
+	var scheme_separator_index: int = normalized_url.find("://")
+	var remainder: String = normalized_url
+	if scheme_separator_index >= 0:
+		remainder = normalized_url.substr(scheme_separator_index + 3)
+
+	var slash_index: int = remainder.find("/")
+	if slash_index >= 0:
+		remainder = remainder.substr(0, slash_index)
+
+	if remainder.begins_with("["):
+		var bracket_index: int = remainder.find("]")
+		if bracket_index > 0:
+			return remainder.substr(1, bracket_index - 1)
+
+	var colon_index: int = remainder.rfind(":")
+	if colon_index >= 0:
+		return remainder.substr(0, colon_index)
+
+	if remainder.is_empty():
+		return "localhost"
+
+	return remainder
+
+
+func _get_backend_probe_hosts() -> Array[String]:
+	var hosts: Array[String] = []
+	var parsed_host: String = _parse_backend_url_host()
+	_append_unique_probe_host(hosts, parsed_host)
+	var normalized_host: String = parsed_host.to_lower()
+	if normalized_host == "localhost" or normalized_host == "127.0.0.1" or normalized_host == "::1":
+		_append_unique_probe_host(hosts, "127.0.0.1")
+		_append_unique_probe_host(hosts, "::1")
+
+	return hosts
+
+
+func _append_unique_probe_host(hosts: Array[String], host_name: String) -> void:
+	var normalized_host: String = host_name.strip_edges()
+	if normalized_host.is_empty():
+		return
+	if not hosts.has(normalized_host):
+		hosts.append(normalized_host)
+
+
 func _build_launch_command_text() -> String:
 	var launch_port: int = _parse_backend_url_port()
 	var global_dev_dir: String = ProjectSettings.globalize_path(backend_dev_dir)
@@ -322,10 +386,10 @@ func _build_launch_command_text() -> String:
 
 	launch_mode = "development"
 	if OS.get_name() == "Windows":
-		command_summary = "cd /d %s && set PORT=%d&& npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
+		command_summary = "cd /d %s && set DAEDALUS_BACKEND_MODE=development&& set PORT=%d&& npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
 		return command_summary
 
-	command_summary = "cd %s && PORT=%d npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
+	command_summary = "cd %s && DAEDALUS_BACKEND_MODE=development PORT=%d npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
 	return command_summary
 
 

@@ -20,6 +20,7 @@ func _init() -> void:
 func _run_tests() -> void:
 	_expect_equal(RPC_METHODS.AI_CHAT, "ai.chat", "ai chat method")
 	_expect_equal(RPC_METHODS.BACKEND_HEALTH, "backend.health", "backend health method")
+	_expect_equal(RPC_METHODS.COMMAND_LIST, "command.list", "command list method")
 	_expect_equal(RPC_METHODS.SESSION_OPEN, "session.open", "session open method")
 	_expect_equal(RPC_METHODS.APPROVAL_APPROVE, "approval.approve", "approval approve method")
 	_expect_equal(RPC_METHODS.MCP_CONFIG_ADD, "mcp.config.add", "mcp config add method")
@@ -31,7 +32,8 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 51, "rpc method count")
+	_expect_equal(methods.size(), 52, "rpc method count")
+	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_TOOL_RESULT), true, "editor tool result listed")
 	_expect_equal(seen.has(RPC_METHODS.WORKSPACE_INFO), true, "workspace info listed")
 

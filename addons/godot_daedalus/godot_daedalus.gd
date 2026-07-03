@@ -13,7 +13,10 @@ func _enter_tree() -> void:
 	dock.dock_icon = DOCK_ICON
 	dock.default_slot = EditorDock.DOCK_SLOT_RIGHT_UL
 	var dock_content: Node = MAIN_SCENE.instantiate()
-	if dock_content.has_method("setup_editor_bridge"):
+	var dock_content_script: Script = dock_content.get_script()
+	if dock_content_script == null or not dock_content_script.can_instantiate():
+		push_error("Daedalus main dock script failed to load. Please reinstall the plugin package or check script load errors above.")
+	elif dock_content.has_method("setup_editor_bridge"):
 		dock_content.call("setup_editor_bridge", self)
 	dock.add_child(dock_content)
 	add_dock(dock)
