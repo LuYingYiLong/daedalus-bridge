@@ -3,7 +3,7 @@ extends AcceptDialog
 
 signal provider_config_save_requested(api_key: String)
 signal provider_config_clear_requested
-signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, custom_instructions: String, next_step_hints_enabled: bool)
+signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, custom_instructions: String, next_step_hints_enabled: bool, check_for_updates_enabled: bool)
 signal archived_session_restore_requested(session_id: String)
 signal archived_session_delete_requested(session_id: String)
 signal mcp_server_add_requested(config: Dictionary)
@@ -18,6 +18,7 @@ signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 @onready var clear_deepseek_api_key_button: Button = %ClearDeepseekAPIKeyButton
 @onready var custom_instructions_label: Label = %CustomInstructionsLabel
 @onready var custom_instructions_warning_button: Button = %CustomInstructionsWarningButton
+@onready var check_for_updates_check_box: CheckBox = %CheckForUpdatesCheckBox
 @onready var next_step_hints_check_box: CheckBox = %NextStepHintsCheckBox
 @onready var custom_instructions_edit: TextEdit = %CustomInstructionsEdit
 @onready var add_mcp_server_button: Button = %AddMCPServerButton
@@ -81,6 +82,7 @@ func setup_provider_config(status: Dictionary, frontend_config: Dictionary = {})
 	backend_dev_dir_line_edit.text = str(frontend_config.get("backendDevDir", ""))
 	custom_instructions_edit.text = str(frontend_config.get("customInstructions", ""))
 	next_step_hints_check_box.button_pressed = bool(frontend_config.get("nextStepHintsEnabled", false))
+	check_for_updates_check_box.button_pressed = bool(frontend_config.get("checkForUpdatesEnabled", true))
 	_update_custom_instructions_status()
 
 	if configured:
@@ -146,7 +148,8 @@ func _on_confirmed() -> void:
 		backend_url_line_edit.text.strip_edges(),
 		backend_dev_dir_line_edit.text.strip_edges(),
 		custom_instructions_edit.text.strip_edges(),
-		next_step_hints_check_box.button_pressed
+		next_step_hints_check_box.button_pressed,
+		check_for_updates_check_box.button_pressed
 	)
 	provider_config_save_requested.emit(api_key)
 	queue_free()

@@ -10,7 +10,7 @@
 oversampling_override = 1.0
 title = "Backend manager"
 initial_position = 2
-size = Vector2i(648, 302)
+size = Vector2i(648, 439)
 ok_button_text = "Close"
 script = ExtResource("1_51q6j")
 
@@ -18,7 +18,7 @@ script = ExtResource("1_51q6j")
 offset_left = 9.0
 offset_top = 9.0
 offset_right = 639.0
-offset_bottom = 251.0
+offset_bottom = 388.0
 
 [node name="NodeJsContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=745112678]
 layout_mode = 2
@@ -106,7 +106,6 @@ icon = ExtResource("3_djbet")
 [node name="InstallFromFileButton" type="Button" parent="VBoxContainer/BackendContainer/HBoxContainer" unique_id=627284914]
 layout_mode = 2
 tooltip_text = "Install from a local .tgz package"
-text = "Install from file"
 icon = ExtResource("4_ud3fg")
 
 [node name="CurrentBackendVersionLabel" type="Label" parent="VBoxContainer/BackendContainer" unique_id=671052104]
@@ -117,7 +116,47 @@ text = "Current version: Not found"
 [node name="LatestBackendVersionLabel" type="Label" parent="VBoxContainer/BackendContainer" unique_id=2053572059]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Latest version: 1.0.3"
+text = "Latest version: unavailable"
+
+[node name="FrontendContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=1334241830]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/FrontendContainer" unique_id=1294622309]
+layout_mode = 2
+
+[node name="FrontendLabel" type="Label" parent="VBoxContainer/FrontendContainer/HBoxContainer" unique_id=2076853040]
+layout_mode = 2
+theme_type_variation = &"HeaderLarge"
+text = "Daedalus plugin"
+
+[node name="OpenFrontendPageButton" type="Button" parent="VBoxContainer/FrontendContainer/HBoxContainer" unique_id=424222460]
+layout_mode = 2
+size_flags_horizontal = 2
+tooltip_text = "Open GitHub Releases"
+icon = ExtResource("2_06yhw")
+
+[node name="StageFrontendUpdateButton" type="Button" parent="VBoxContainer/FrontendContainer/HBoxContainer" unique_id=640768038]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Download and stage the plugin update. Apply it after closing Godot."
+disabled = true
+text = "Stage update"
+icon = ExtResource("3_djbet")
+
+[node name="CurrentFrontendVersionLabel" type="Label" parent="VBoxContainer/FrontendContainer" unique_id=1871319362]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Current version: Not found"
+
+[node name="LatestFrontendVersionLabel" type="Label" parent="VBoxContainer/FrontendContainer" unique_id=561886000]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Latest version: unavailable"
+
+[node name="PendingFrontendVersionLabel" type="Label" parent="VBoxContainer/FrontendContainer" unique_id=1885597430]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Pending version: none"
 
 [node name="EditorFileDialog" type="EditorFileDialog" parent="." unique_id=668270008]
 unique_name_in_owner = true
@@ -136,4 +175,6 @@ filters = PackedStringArray("*.tgz ; npm package archive")
 [connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/RepairButton" to="." method="_on_repair_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/DownloadBackendButton" to="." method="_on_download_backend_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/InstallFromFileButton" to="." method="_on_install_from_file_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/FrontendContainer/HBoxContainer/OpenFrontendPageButton" to="." method="_on_open_frontend_page_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/FrontendContainer/HBoxContainer/StageFrontendUpdateButton" to="." method="_on_stage_frontend_update_button_pressed"]
 [connection signal="file_selected" from="EditorFileDialog" to="." method="_on_backend_package_file_selected"]

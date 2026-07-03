@@ -3,6 +3,7 @@ extends RefCounted
 
 const PACKAGE_NAME: String = "godot-daedalus_backend"
 const BACKEND_BIN_NAME: String = "godot-daedalus-backend"
+const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
 const DEFAULT_BACKEND_PORT: int = 38180
 const MAX_LOG_LINES: int = 80
 const MAX_LOG_READ_BYTES: int = 65536
@@ -17,6 +18,7 @@ var launched_pid: int = -1
 var log_file_path: String
 var recent_log_lines: Array[String] = []
 var last_error: String
+var manager_cli: RefCounted
 
 
 func setup(next_backend_url: String, next_backend_dev_dir: String) -> void:
@@ -28,6 +30,7 @@ func setup(next_backend_url: String, next_backend_dev_dir: String) -> void:
 	log_file_path = ""
 	recent_log_lines.clear()
 	last_error = ""
+	manager_cli = MANAGER_CLI_SCRIPT.new()
 
 
 func is_local_backend_url() -> bool:
@@ -110,6 +113,9 @@ func start_backend() -> Dictionary:
 	log_file_path = _prepare_launch_log_file()
 	launched_pid = -1
 
+	if backend_dev_dir.is_empty():
+		return _start_published_backend_with_manager()
+
 	var command_text: String = _build_launch_command_text()
 	if command_text.is_empty():
 		return {
@@ -140,6 +146,11 @@ func start_backend() -> Dictionary:
 
 
 func stop_started_backend() -> Dictionary:
+	if backend_dev_dir.is_empty() and manager_cli != null and launch_mode != "published-legacy":
+		var stop_result: Dictionary = manager_cli.call("run_json", PackedStringArray(["backend", "stop"])) as Dictionary
+		launched_pid = -1
+		return stop_result
+
 	if launched_pid <= 0:
 		return {
 			"ok": true,
@@ -170,6 +181,68 @@ func stop_started_backend() -> Dictionary:
 		"pid": previous_pid,
 		"exitCode": exit_code,
 		"message": "\n".join(_stringify_output_lines(output_lines))
+	}
+
+
+func _start_published_backend_with_manager() -> Dictionary:
+	launch_mode = "published"
+	var launch_port: int = _parse_backend_url_port()
+	command_summary = "godot-daedalus-manager backend start --port %d" % launch_port
+	var manager_result: Dictionary = manager_cli.call("run_json", PackedStringArray(["backend", "start", "--port", str(launch_port)])) as Dictionary
+	if not bool(manager_result.get("ok", false)):
+		return _start_legacy_published_backend(str(manager_result.get("message", "Daedalus manager could not start the backend.")), str(manager_result.get("details", "")))
+
+	var backend_value: Variant = manager_result.get("backend", {})
+	if typeof(backend_value) == TYPE_DICTIONARY:
+		var backend_dictionary: Dictionary = backend_value as Dictionary
+		launched_pid = int(backend_dictionary.get("pid", -1))
+		log_file_path = str(backend_dictionary.get("logPath", log_file_path))
+
+	return {
+		"ok": true,
+		"mode": launch_mode,
+		"pid": launched_pid,
+		"details": build_diagnostic_details()
+	}
+
+
+func _start_legacy_published_backend(manager_message: String, manager_details: String) -> Dictionary:
+	launch_mode = "published-legacy"
+	var launch_port: int = _parse_backend_url_port()
+	var backend_install_dir: String = _get_backend_install_dir()
+	if OS.get_name() == "Windows":
+		command_summary = "set PORT=%d&& npm exec --prefix %s -- %s" % [
+			launch_port,
+			_quote_command_part(backend_install_dir),
+			BACKEND_BIN_NAME
+		]
+	else:
+		command_summary = "PORT=%d npm exec --prefix %s -- %s" % [
+			launch_port,
+			_quote_command_part(backend_install_dir),
+			BACKEND_BIN_NAME
+		]
+
+	var shell_path: String = _get_shell_path()
+	var shell_args: PackedStringArray = _get_shell_args(_append_log_redirection(command_summary))
+	launched_pid = OS.create_process(shell_path, shell_args, false)
+	if launched_pid <= 0:
+		last_error = "Daedalus manager is unavailable, and the legacy backend command could not be started.\n%s" % manager_message
+		if not manager_details.is_empty():
+			last_error += "\n%s" % manager_details
+		return {
+			"ok": false,
+			"mode": launch_mode,
+			"message": last_error,
+			"details": build_diagnostic_details()
+		}
+
+	last_error = ""
+	return {
+		"ok": true,
+		"mode": launch_mode,
+		"pid": launched_pid,
+		"details": build_diagnostic_details()
 	}
 
 
@@ -240,35 +313,19 @@ func _parse_backend_url_port() -> int:
 
 func _build_launch_command_text() -> String:
 	var launch_port: int = _parse_backend_url_port()
-	if not backend_dev_dir.is_empty():
-		var global_dev_dir: String = ProjectSettings.globalize_path(backend_dev_dir)
-		if not DirAccess.dir_exists_absolute(global_dev_dir):
-			last_error = "Backend development directory does not exist: %s" % global_dev_dir
-			launch_mode = "development"
-			command_summary = "npm run dev"
-			return ""
-
+	var global_dev_dir: String = ProjectSettings.globalize_path(backend_dev_dir)
+	if not DirAccess.dir_exists_absolute(global_dev_dir):
+		last_error = "Backend development directory does not exist: %s" % global_dev_dir
 		launch_mode = "development"
-		if OS.get_name() == "Windows":
-			command_summary = "cd /d %s && set PORT=%d&& npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
-			return command_summary
-
-		command_summary = "cd %s && PORT=%d npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
-		return command_summary
-
-	var backend_install_dir: String = _get_backend_install_dir()
-	var package_json_path: String = backend_install_dir.path_join("node_modules").path_join(PACKAGE_NAME).path_join("package.json")
-	if not FileAccess.file_exists(package_json_path):
-		last_error = "Published backend package is not installed. Open Backend Manager and install it first."
-		launch_mode = "published"
-		command_summary = "npm exec --prefix %s -- %s" % [backend_install_dir, BACKEND_BIN_NAME]
+		command_summary = "npm run dev"
 		return ""
 
-	launch_mode = "published"
+	launch_mode = "development"
 	if OS.get_name() == "Windows":
-		command_summary = "set PORT=%d&& npm exec --prefix %s -- %s" % [launch_port, _quote_command_part(backend_install_dir), BACKEND_BIN_NAME]
-	else:
-		command_summary = "PORT=%d npm exec --prefix %s -- %s" % [launch_port, _quote_command_part(backend_install_dir), BACKEND_BIN_NAME]
+		command_summary = "cd /d %s && set PORT=%d&& npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
+		return command_summary
+
+	command_summary = "cd %s && PORT=%d npm run dev" % [_quote_command_part(global_dev_dir), launch_port]
 	return command_summary
 
 

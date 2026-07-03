@@ -18,7 +18,7 @@ Project > Project Settings > Plugins > GodotDaedalus
 
 ## Backend
 
-Start the backend from the backend repository:
+The plugin uses `godot-daedalus-manager` for published backend install, update, launch, rollback, and diagnostics. For local backend development, configure the backend source directory in settings and run from the backend repository:
 
 ```powershell
 npm install
@@ -32,6 +32,8 @@ ws://localhost:38180
 ```
 
 You can change the backend URL from the plugin settings panel.
+
+Published backend versions are installed under `%APPDATA%/.godot_daedalus/backend/versions/` and are switched by the manager instead of updating a running `node_modules` directory in place.
 
 ## API Key
 

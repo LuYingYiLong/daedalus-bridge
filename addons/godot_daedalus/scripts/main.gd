@@ -22,7 +22,7 @@ const CONFIG_MODEL_ID_KEY: String = "model_id"
 const CONFIG_APPROVAL_MODE_KEY: String = "approval_mode"
 const CONFIG_CUSTOM_INSTRUCTIONS_KEY: String = "custom_instructions"
 const CONFIG_NEXT_STEP_HINTS_KEY: String = "next_step_hints_enabled"
-const BACKEND_PACKAGE_NAME: String = "godot-daedalus_backend"
+const CONFIG_CHECK_FOR_UPDATES_KEY: String = "check_for_updates_enabled"
 const LEGACY_BACKEND_URL_SETTING: String = "godot_daedalus/backend_url"
 const LEGACY_BACKEND_DEV_DIR_SETTING: String = "godot_daedalus/backend_dev_dir"
 const LEGACY_MODEL_ID_SETTING: String = "godot_daedalus/model_id"
@@ -45,6 +45,7 @@ const DELETE_ICON: Texture2D = preload("uid://qpmvpq6q2q60")
 const SETTINGS_MENU_UID: String = "uid://dp3tsanvojx2k"
 const BACKEND_MANAGER_UID: String = "uid://c08tpkgdjw6id"
 const BACKEND_LAUNCHER_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/backend_launcher.gd")
+const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
 const MAX_CONNECT_ATTEMPTS: int = 20
 const CONNECT_RETRY_SECONDS: float = 0.5
 const BACKEND_START_TIMEOUT_MSEC: int = 10000
@@ -240,6 +241,7 @@ var latest_backend_version_check_started: bool
 var latest_backend_version_check_thread: Thread
 var custom_instructions: String
 var next_step_hints_enabled: bool
+var check_for_updates_enabled: bool = true
 var pending_provider_config_api_key: String
 var pending_provider_config_save_after_connect: bool
 var queued_messages: Array[Dictionary] = []
@@ -347,6 +349,7 @@ func _load_frontend_config() -> void:
 	backend_dev_dir = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_DEV_DIR_KEY, "")).strip_edges()
 	custom_instructions = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, "")).strip_edges()
 	next_step_hints_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, false))
+	check_for_updates_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, true))
 	if not _select_model_id(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_MODEL_ID_KEY, MODEL_IDS[0]))):
 		_select_model_id(MODEL_IDS[0])
 	if not _select_approval_mode(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, APPROVAL_MODE_IDS[0]))):
@@ -401,6 +404,7 @@ func _save_frontend_config() -> void:
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, _get_selected_approval_mode())
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, custom_instructions)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, next_step_hints_enabled)
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, check_for_updates_enabled)
 	var save_error: Error = config.save(FRONTEND_CONFIG_PATH)
 	if save_error != OK:
 		push_warning("Failed to save Daedalus frontend config: %s" % error_string(save_error))
@@ -1135,6 +1139,11 @@ func _handle_backend_health_failed(message_text: String) -> void:
 
 
 func _check_latest_backend_version_once() -> void:
+	if not check_for_updates_enabled:
+		backend_manager_button.text = "Backend manager"
+		backend_manager_button.tooltip_text = "Update checks are disabled in Daedalus Settings."
+		return
+
 	if latest_backend_version_check_started:
 		return
 
@@ -1144,45 +1153,27 @@ func _check_latest_backend_version_once() -> void:
 
 
 func _run_latest_backend_version_check() -> void:
-	var latest_version_text: String = _read_latest_backend_version_from_npm()
+	var latest_version_text: String = _read_latest_backend_version_from_manager()
 	call_deferred("_finish_latest_backend_version_check", latest_version_text)
 
 
-func _read_latest_backend_version_from_npm() -> String:
-	var output_lines: Array = []
-	var exit_code: int
-	if OS.get_name() == "Windows":
-		exit_code = OS.execute(
-			_get_windows_shell_path(),
-			PackedStringArray(["/d", "/s", "/c", "npm view %s version" % BACKEND_PACKAGE_NAME]),
-			output_lines,
-			true
-		)
-	else:
-		exit_code = OS.execute(
-			"/bin/sh",
-			PackedStringArray(["-lc", "npm view %s version" % BACKEND_PACKAGE_NAME]),
-			output_lines,
-			true
-		)
-
-	if exit_code != 0:
+func _read_latest_backend_version_from_manager() -> String:
+	var manager_cli: RefCounted = MANAGER_CLI_SCRIPT.new()
+	var manager_result: Dictionary = manager_cli.call("run_json", PackedStringArray(["status", "--project", ProjectSettings.globalize_path("res://")])) as Dictionary
+	if not bool(manager_result.get("ok", false)):
 		return ""
 
-	for line_value: Variant in output_lines:
-		var line_text: String = str(line_value).strip_edges()
-		if not line_text.is_empty():
-			return line_text
+	var status_value: Variant = manager_result.get("status", {})
+	if typeof(status_value) != TYPE_DICTIONARY:
+		return ""
 
-	return ""
+	var status_dictionary: Dictionary = status_value as Dictionary
+	var backend_value: Variant = status_dictionary.get("backend", {})
+	if typeof(backend_value) != TYPE_DICTIONARY:
+		return ""
 
-
-func _get_windows_shell_path() -> String:
-	var shell_path: String = OS.get_environment("COMSPEC").strip_edges()
-	if shell_path.is_empty():
-		return "cmd.exe"
-
-	return shell_path
+	var backend_status: Dictionary = backend_value as Dictionary
+	return str(backend_status.get("latestVersion", "")).strip_edges()
 
 
 func _finish_latest_backend_version_check(latest_version_text: String) -> void:
@@ -5478,6 +5469,7 @@ func _open_backend_manager() -> void:
 		return
 
 	var backend_manager: AcceptDialog = packed_scene.instantiate()
+	backend_manager.call("setup_frontend_config", _get_frontend_config_snapshot())
 	add_child(backend_manager)
 	backend_manager.connect("backend_update_started", Callable(self, "_on_backend_manager_backend_update_started"))
 	backend_manager.connect("backend_update_finished", Callable(self, "_on_backend_manager_backend_update_finished"))
@@ -5521,7 +5513,8 @@ func _get_frontend_config_snapshot() -> Dictionary:
 		"model": _get_selected_model_id(),
 		"approvalMode": _get_selected_approval_mode(),
 		"customInstructions": custom_instructions,
-		"nextStepHintsEnabled": next_step_hints_enabled
+		"nextStepHintsEnabled": next_step_hints_enabled,
+		"checkForUpdatesEnabled": check_for_updates_enabled
 	}
 
 
@@ -5661,7 +5654,8 @@ func _on_settings_frontend_config_save_requested(
 	next_backend_url: String,
 	next_backend_dev_dir: String,
 	next_custom_instructions: String,
-	next_step_hints_enabled_value: bool
+	next_step_hints_enabled_value: bool,
+	next_check_for_updates_enabled: bool
 ) -> void:
 	var normalized_backend_url: String = _normalize_backend_url(next_backend_url)
 	var normalized_backend_dev_dir: String = next_backend_dev_dir.strip_edges()
@@ -5671,6 +5665,11 @@ func _on_settings_frontend_config_save_requested(
 	backend_dev_dir = normalized_backend_dev_dir
 	custom_instructions = next_custom_instructions.strip_edges()
 	next_step_hints_enabled = next_step_hints_enabled_value
+	check_for_updates_enabled = next_check_for_updates_enabled
+	if not check_for_updates_enabled:
+		latest_backend_version_check_started = false
+		backend_manager_button.text = "Backend manager"
+		backend_manager_button.tooltip_text = "Update checks are disabled in Daedalus Settings."
 	_save_frontend_config()
 	if not next_step_hints_enabled:
 		_clear_next_step_hint_entries()

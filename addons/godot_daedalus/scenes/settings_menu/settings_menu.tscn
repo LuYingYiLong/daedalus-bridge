@@ -115,11 +115,25 @@ icon = ExtResource("2_y8kc5")
 layout_mode = 2
 text = "Daedalus will mask the API key"
 
-[node name="NextStepHintsCheckBox" type="CheckBox" parent="TabContainer/General/VBoxContainer" unique_id=942113094]
+[node name="CheckForUpdatesLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1765588519]
+layout_mode = 2
+text = "Check for updates"
+
+[node name="CheckForUpdatesCheckBox" type="CheckBox" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1023545494]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Enabled"
+
+[node name="NextStepHintsLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1041727010]
+layout_mode = 2
+text = "Next-step hints"
+
+[node name="NextStepHintsCheckBox" type="CheckBox" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=942113094]
 unique_name_in_owner = true
 layout_mode = 2
 tooltip_text = "Generate short next-step suggestions after a response finishes or pauses. This uses one extra temporary LLM call and consumes additional tokens."
-text = "Next-step hints"
+text = "Enabled"
 
 [node name="Personalization" type="VBoxContainer" parent="TabContainer" unique_id=444173481]
 visible = false

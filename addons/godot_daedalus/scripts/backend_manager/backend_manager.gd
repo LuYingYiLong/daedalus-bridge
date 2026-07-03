@@ -5,6 +5,7 @@ signal backend_update_started
 signal backend_update_finished(exit_code: int)
 
 const DOWNLOAD_DIALOG_SCENE: PackedScene = preload("uid://dg0dps48fpc7h")
+const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
 const PACKAGE_NAME: String = "godot-daedalus_backend"
 const BACKEND_BIN_FILES: Array[String] = [
 	"godot-daedalus-backend",
@@ -22,24 +23,40 @@ const BACKEND_BIN_FILES: Array[String] = [
 @onready var npm_current_version_label: Label = %NPMCurrentVersionLabel
 @onready var current_backend_version_label: Label = %CurrentBackendVersionLabel
 @onready var latest_backend_version_label: Label = %LatestBackendVersionLabel
+@onready var current_frontend_version_label: Label = %CurrentFrontendVersionLabel
+@onready var latest_frontend_version_label: Label = %LatestFrontendVersionLabel
+@onready var pending_frontend_version_label: Label = %PendingFrontendVersionLabel
 @onready var download_node_js_button: Button = $VBoxContainer/NodeJsContainer/HBoxContainer/DownloadNodeJsButton
 @onready var download_npm_button: Button = $VBoxContainer/NPMContainer/HBoxContainer/DownloadNPMButton
 @onready var repair_button: Button = %RepairButton
 @onready var download_backend_button: Button = %DownloadBackendButton
 @onready var install_from_file_button: Button = $VBoxContainer/BackendContainer/HBoxContainer/InstallFromFileButton
+@onready var stage_frontend_update_button: Button = %StageFrontendUpdateButton
 @onready var file_dialog: EditorFileDialog = %EditorFileDialog
 
 var node_command_path: String
 var npm_command_path: String
 var installed_backend_version: String
 var latest_backend_version: String
+var installed_frontend_version: String
+var latest_frontend_version: String
+var pending_frontend_version: String
 var refresh_thread: Thread
 var refresh_generation: int
 var refresh_running: bool
+var manager_command_thread: Thread
+var manager_command_running: bool
+var manager_cli: RefCounted
+var check_for_updates_enabled: bool = true
 
 
 func _ready() -> void:
+	manager_cli = MANAGER_CLI_SCRIPT.new()
 	refresh_status()
+
+
+func setup_frontend_config(frontend_config: Dictionary) -> void:
+	check_for_updates_enabled = bool(frontend_config.get("checkForUpdatesEnabled", true))
 
 
 func refresh_status() -> void:
@@ -62,8 +79,33 @@ func _run_refresh_status_thread(current_generation: int) -> void:
 	var next_npm_command_path: String = str(npm_result.get("path", ""))
 	var npm_version: String = str(npm_result.get("version", ""))
 
-	var next_latest_backend_version: String = _read_latest_backend_version(next_npm_command_path)
-	var next_installed_backend_version: String = _read_installed_backend_version()
+	var manager_result: Dictionary = { "ok": false }
+	if check_for_updates_enabled:
+		var manager_args: PackedStringArray = PackedStringArray(["status", "--project", ProjectSettings.globalize_path("res://")])
+		manager_result = MANAGER_CLI_SCRIPT.new().call("run_json", manager_args) as Dictionary
+	var backend_status: Dictionary = {}
+	var frontend_status: Dictionary = {}
+	if bool(manager_result.get("ok", false)):
+		var status_value: Variant = manager_result.get("status", {})
+		if typeof(status_value) == TYPE_DICTIONARY:
+			var status_dictionary: Dictionary = status_value as Dictionary
+			var backend_value: Variant = status_dictionary.get("backend", {})
+			if typeof(backend_value) == TYPE_DICTIONARY:
+				backend_status = backend_value as Dictionary
+			var frontend_value: Variant = status_dictionary.get("frontend", {})
+			if typeof(frontend_value) == TYPE_DICTIONARY:
+				frontend_status = frontend_value as Dictionary
+
+	var next_latest_backend_version: String = str(backend_status.get("latestVersion", ""))
+	var next_installed_backend_version: String = str(backend_status.get("installedVersion", ""))
+	var next_installed_frontend_version: String = str(frontend_status.get("installedVersion", ""))
+	var next_latest_frontend_version: String = str(frontend_status.get("latestVersion", ""))
+	var next_pending_frontend_version: String = str(frontend_status.get("pendingVersion", ""))
+	if not bool(manager_result.get("ok", false)):
+		next_installed_backend_version = _read_installed_backend_version()
+		if check_for_updates_enabled:
+			next_latest_backend_version = _read_latest_backend_version(next_npm_command_path)
+		next_installed_frontend_version = _read_installed_frontend_version()
 	call_deferred(
 		"_finish_refresh_status",
 		current_generation,
@@ -72,7 +114,10 @@ func _run_refresh_status_thread(current_generation: int) -> void:
 		next_npm_command_path,
 		npm_version,
 		next_installed_backend_version,
-		next_latest_backend_version
+		next_latest_backend_version,
+		next_installed_frontend_version,
+		next_latest_frontend_version,
+		next_pending_frontend_version
 	)
 
 
@@ -83,7 +128,10 @@ func _finish_refresh_status(
 	next_npm_command_path: String,
 	npm_version: String,
 	next_installed_backend_version: String,
-	next_latest_backend_version: String
+	next_latest_backend_version: String,
+	next_installed_frontend_version: String,
+	next_latest_frontend_version: String,
+	next_pending_frontend_version: String
 ) -> void:
 	if refresh_thread != null:
 		refresh_thread.wait_to_finish()
@@ -97,11 +145,16 @@ func _finish_refresh_status(
 	npm_command_path = next_npm_command_path
 	installed_backend_version = next_installed_backend_version
 	latest_backend_version = next_latest_backend_version
+	installed_frontend_version = next_installed_frontend_version
+	latest_frontend_version = next_latest_frontend_version
+	pending_frontend_version = next_pending_frontend_version
 
 	node_js_current_version_label.text = "Current version: %s" % _format_missing_version(node_version)
 	npm_current_version_label.text = "Current version: %s" % _format_missing_version(npm_version)
 	current_backend_version_label.text = "Current version: %s" % _format_missing_version(installed_backend_version)
-	if latest_backend_version.is_empty():
+	if not check_for_updates_enabled:
+		latest_backend_version_label.text = "Latest version: update checks disabled"
+	elif latest_backend_version.is_empty():
 		latest_backend_version_label.text = "Latest version: unavailable"
 	else:
 		latest_backend_version_label.text = "Latest version: %s" % latest_backend_version
@@ -121,15 +174,44 @@ func _finish_refresh_status(
 		download_backend_button.show()
 		repair_button.hide()
 
+	current_frontend_version_label.text = "Current version: %s" % _format_missing_version(installed_frontend_version)
+	if not check_for_updates_enabled:
+		latest_frontend_version_label.text = "Latest version: update checks disabled"
+	elif latest_frontend_version.is_empty():
+		latest_frontend_version_label.text = "Latest version: unavailable"
+	else:
+		latest_frontend_version_label.text = "Latest version: %s" % latest_frontend_version
+	if pending_frontend_version.is_empty():
+		pending_frontend_version_label.text = "Pending version: none"
+	else:
+		pending_frontend_version_label.text = "Pending version: %s" % pending_frontend_version
+
+	stage_frontend_update_button.disabled = latest_frontend_version.is_empty() or not check_for_updates_enabled
+	if not check_for_updates_enabled:
+		stage_frontend_update_button.text = "Disabled"
+		stage_frontend_update_button.disabled = true
+	elif not pending_frontend_version.is_empty() and pending_frontend_version == latest_frontend_version:
+		stage_frontend_update_button.text = "Staged"
+		stage_frontend_update_button.disabled = true
+	elif not latest_frontend_version.is_empty() and installed_frontend_version == latest_frontend_version:
+		stage_frontend_update_button.text = "Up to date"
+		stage_frontend_update_button.disabled = true
+	else:
+		stage_frontend_update_button.text = "Stage update"
+
 
 func _set_loading_state() -> void:
 	node_js_current_version_label.text = "Current version: checking..."
 	npm_current_version_label.text = "Current version: checking..."
 	current_backend_version_label.text = "Current version: checking..."
 	latest_backend_version_label.text = "Latest version: checking..."
+	current_frontend_version_label.text = "Current version: checking..."
+	latest_frontend_version_label.text = "Latest version: checking..."
+	pending_frontend_version_label.text = "Pending version: checking..."
 	download_backend_button.disabled = true
 	repair_button.disabled = true
 	install_from_file_button.disabled = true
+	stage_frontend_update_button.disabled = true
 
 
 func _find_command(candidates: Array[String], version_args: PackedStringArray) -> Dictionary:
@@ -200,17 +282,49 @@ func _format_missing_version(version_text: String) -> String:
 
 
 func _read_installed_backend_version() -> String:
-	var package_json_path: String = _get_backend_package_json_path()
-	if not FileAccess.file_exists(package_json_path):
+	var package_json_path: String = _get_current_backend_package_json_path()
+	if package_json_path.is_empty():
+		package_json_path = _get_legacy_backend_package_json_path()
+
+	return _read_package_version(package_json_path)
+
+
+func _read_installed_frontend_version() -> String:
+	return _read_plugin_cfg_value(ProjectSettings.globalize_path("res://addons/godot_daedalus/plugin.cfg"), "version")
+
+
+func _read_package_version(package_json_path: String) -> String:
+	if package_json_path.is_empty() or not FileAccess.file_exists(package_json_path):
 		return ""
 
 	var content: String = FileAccess.get_file_as_string(package_json_path)
-	var parsed_json: Variant = JSON.parse_string(content)
-	if typeof(parsed_json) != TYPE_DICTIONARY:
+	var parser: JSON = JSON.new()
+	var parse_error: Error = parser.parse(content)
+	if parse_error != OK:
 		return ""
 
-	var package_data: Dictionary = parsed_json as Dictionary
+	var parsed_data: Variant = parser.data
+	if typeof(parsed_data) != TYPE_DICTIONARY:
+		return ""
+
+	var package_data: Dictionary = parsed_data as Dictionary
 	return str(package_data.get("version", "")).strip_edges()
+
+
+func _read_plugin_cfg_value(file_path: String, key_name: String) -> String:
+	if not FileAccess.file_exists(file_path):
+		return ""
+
+	var content: String = FileAccess.get_file_as_string(file_path)
+	for raw_line: String in content.split("\n", false):
+		var line_text: String = raw_line.strip_edges()
+		if not line_text.begins_with("%s=" % key_name):
+			continue
+
+		var value_text: String = line_text.substr(key_name.length() + 1).strip_edges()
+		return value_text.trim_prefix("\"").trim_suffix("\"")
+
+	return ""
 
 
 func _read_latest_backend_version(command_path: String) -> String:
@@ -233,8 +347,34 @@ func _get_backend_install_dir() -> String:
 	return appdata_path.path_join(".godot_daedalus").path_join("backend")
 
 
-func _get_backend_package_json_path() -> String:
+func _get_legacy_backend_package_json_path() -> String:
 	return _get_backend_install_dir().path_join("node_modules").path_join(PACKAGE_NAME).path_join("package.json")
+
+
+func _get_current_backend_package_json_path() -> String:
+	var current_json_path: String = _get_backend_install_dir().path_join("current.json")
+	if not FileAccess.file_exists(current_json_path):
+		return ""
+
+	var parser: JSON = JSON.new()
+	var parse_error: Error = parser.parse(FileAccess.get_file_as_string(current_json_path))
+	if parse_error != OK:
+		return ""
+
+	var parsed_data: Variant = parser.data
+	if typeof(parsed_data) != TYPE_DICTIONARY:
+		return ""
+
+	var current_data: Dictionary = parsed_data as Dictionary
+	var current_path: String = str(current_data.get("path", "")).strip_edges()
+	if current_path.is_empty():
+		return ""
+
+	var package_json_path: String = current_path.path_join("node_modules").path_join(PACKAGE_NAME).path_join("package.json")
+	if FileAccess.file_exists(package_json_path):
+		return package_json_path
+
+	return current_path.path_join("package.json")
 
 
 func _ensure_backend_install_dir() -> bool:
@@ -269,53 +409,53 @@ func _build_npm_repair_args(package_spec: String) -> PackedStringArray:
 
 
 func _start_install_command(title_text: String, package_spec: String) -> void:
-	if npm_command_path.is_empty():
-		_show_command_message("npm was not found. Install Node.js first, then reopen this dialog.")
-		return
-
-	if not _ensure_backend_install_dir():
-		return
-
 	backend_update_started.emit()
-	var stop_error: String = _stop_backend_processes_for_update()
-	if not stop_error.is_empty():
-		backend_update_finished.emit(1)
-		_show_command_message(stop_error)
-		return
-
-	var download_dialog: AcceptDialog = DOWNLOAD_DIALOG_SCENE.instantiate()
-	add_child(download_dialog)
-	download_dialog.connect("command_finished", Callable(self, "_on_download_dialog_command_finished"))
-	download_dialog.popup_centered()
-	download_dialog.call("start_command", title_text, npm_command_path, _build_npm_install_args(package_spec))
+	var manager_args: PackedStringArray = PackedStringArray(["backend", "install"])
+	if package_spec != "%s@latest" % PACKAGE_NAME:
+		manager_args.append_array(PackedStringArray(["--version", package_spec.trim_prefix("%s@" % PACKAGE_NAME)]))
+	_start_manager_command(title_text, manager_args)
 
 
 func _start_repair_command(title_text: String, package_spec: String) -> void:
-	if npm_command_path.is_empty():
-		_show_command_message("npm was not found. Install Node.js first, then reopen this dialog.")
-		return
-
-	if not _ensure_backend_install_dir():
-		return
-
 	backend_update_started.emit()
-	var stop_error: String = _stop_backend_processes_for_update()
-	if not stop_error.is_empty():
-		backend_update_finished.emit(1)
-		_show_command_message(stop_error)
+	var manager_args: PackedStringArray = PackedStringArray(["backend", "update"])
+	if package_spec != "%s@latest" % PACKAGE_NAME:
+		manager_args.append_array(PackedStringArray(["--version", package_spec.trim_prefix("%s@" % PACKAGE_NAME)]))
+	_start_manager_command(title_text, manager_args)
+
+
+func _start_manager_command(title_text: String, manager_args: PackedStringArray) -> void:
+	if manager_command_running:
 		return
 
-	var repair_error: String = _prepare_backend_repair()
-	if not repair_error.is_empty():
-		backend_update_finished.emit(1)
-		_show_command_message(repair_error)
-		return
+	manager_command_running = true
+	_set_loading_state()
+	manager_command_thread = Thread.new()
+	manager_command_thread.start(Callable(self, "_run_manager_command_thread").bind(title_text, manager_args))
 
-	var download_dialog: AcceptDialog = DOWNLOAD_DIALOG_SCENE.instantiate()
-	add_child(download_dialog)
-	download_dialog.connect("command_finished", Callable(self, "_on_download_dialog_command_finished"))
-	download_dialog.popup_centered()
-	download_dialog.call("start_command", title_text, npm_command_path, _build_npm_repair_args(package_spec))
+
+func _run_manager_command_thread(title_text: String, manager_args: PackedStringArray) -> void:
+	var result: Dictionary = MANAGER_CLI_SCRIPT.new().call("run_json", manager_args) as Dictionary
+	call_deferred("_finish_manager_command", title_text, result)
+
+
+func _finish_manager_command(title_text: String, result: Dictionary) -> void:
+	if manager_command_thread != null:
+		manager_command_thread.wait_to_finish()
+		manager_command_thread = null
+	manager_command_running = false
+
+	var ok: bool = bool(result.get("ok", false))
+	backend_update_finished.emit(0 if ok else 1)
+	if ok:
+		_show_command_message("%s completed successfully." % title_text)
+	else:
+		_show_command_message("%s failed.\n\n%s\n\n%s" % [
+			title_text,
+			str(result.get("message", "Unknown manager error.")),
+			str(result.get("details", ""))
+		])
+	refresh_status()
 
 
 func _stop_backend_processes_for_update() -> String:
@@ -487,6 +627,10 @@ func _on_open_backend_page_button_pressed() -> void:
 	OS.shell_open("https://www.npmjs.com/package/godot-daedalus_backend")
 
 
+func _on_open_frontend_page_button_pressed() -> void:
+	OS.shell_open("https://github.com/LuYingYiLong/godot-daedalus/releases")
+
+
 func _on_download_backend_button_pressed() -> void:
 	var package_spec: String = "%s@latest" % PACKAGE_NAME
 	if installed_backend_version.is_empty():
@@ -516,6 +660,14 @@ func _on_backend_package_file_selected(file_path: String) -> void:
 func _on_repair_button_pressed() -> void:
 	var package_spec: String = "%s@latest" % PACKAGE_NAME
 	_start_repair_command("Repair Daedalus backend", package_spec)
+
+
+func _on_stage_frontend_update_button_pressed() -> void:
+	if latest_frontend_version.is_empty():
+		_show_command_message("Latest frontend version is unavailable. Check your network connection, then refresh this dialog.")
+		return
+
+	_start_manager_command("Stage Daedalus plugin update", PackedStringArray(["frontend", "stage", "--version", latest_frontend_version]))
 
 
 func _exit_tree() -> void:
