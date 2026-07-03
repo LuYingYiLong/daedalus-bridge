@@ -1,0 +1,18 @@
+[gd_scene format=3 uid="uid://dg0dps48fpc7h"]
+
+[ext_resource type="Script" uid="uid://ca43buvvlhwu2" path="res://addons/godot_daedalus/scripts/version_manager/download_dialog.gd" id="1_kdt4r"]
+
+[node name="DownloadDialog" type="AcceptDialog" unique_id=1027461107]
+oversampling_override = 1.0
+title = "Downloading..."
+initial_position = 2
+size = Vector2i(700, 500)
+ok_button_text = "Cancel"
+script = ExtResource("1_kdt4r")
+
+[node name="LogLabel" type="RichTextLabel" parent="." unique_id=1853132880]
+unique_name_in_owner = true
+offset_left = 9.0
+offset_top = 9.0
+offset_right = 691.0
+offset_bottom = 449.0

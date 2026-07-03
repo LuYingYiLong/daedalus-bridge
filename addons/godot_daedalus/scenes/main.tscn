@@ -221,7 +221,7 @@ mouse_filter = 0
 [node name="AddContextButton" type="MenuButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=562787815]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "添加当前编辑器或项目上下文到下一条消息"
+tooltip_text = "Add the current editor or project context to the next message"
 theme_type_variation = &"FlatButton"
 icon = ExtResource("1_tukfc")
 item_count = 9
@@ -314,10 +314,11 @@ popup/item_2/id = 2
 layout_mode = 2
 size_flags_horizontal = 3
 
-[node name="HasNewVersionButton" type="LinkButton" parent="MainViewer/FooterContainer" unique_id=2011334191]
+[node name="BackendManagerButton" type="LinkButton" parent="MainViewer/FooterContainer" unique_id=2011334191]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
-text = "Has new version: {version}"
+text = "Backend manager"
 underline = 1
 
 [node name="BootSplash" parent="." unique_id=1741691643 instance=ExtResource("5_boot")]
@@ -333,12 +334,12 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/HeaderContainer/CreateNewSessionButton" to="." method="_on_create_new_session_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/StatusButton" to="." method="_on_status_button_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21966" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21966" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21966" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21966" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21966" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21966" method="_on_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21967" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21967" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21967" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21967" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21967" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21967" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" method="_on_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/ApproveButton" to="." method="_on_approve_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/RejectButton" to="." method="_on_reject_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/SkipButton" to="." method="_on_skip_approval_button_pressed"]
@@ -350,4 +351,6 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/SendButton" to="." method="_on_send_button_pressed"]
 [connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/StopButton" to="." method="_on_stop_button_pressed"]
 [connection signal="item_selected" from="MainViewer/FooterContainer/ApprovalModeButton" to="." method="_on_approval_mode_button_item_selected"]
+[connection signal="pressed" from="MainViewer/FooterContainer/BackendManagerButton" to="." method="_on_backend_manager_button_pressed"]
+[connection signal="backend_check_requested" from="BootSplash" to="." method="_on_boot_splash_backend_check_requested"]
 [connection signal="reconnect_requested" from="BootSplash" to="." method="_on_boot_splash_reconnect_requested"]

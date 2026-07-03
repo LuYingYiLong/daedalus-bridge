@@ -1,0 +1,130 @@
+[gd_scene format=3 uid="uid://c08tpkgdjw6id"]
+
+[ext_resource type="Script" uid="uid://iuhv67mniduh" path="res://addons/godot_daedalus/scripts/version_manager/backend_manager.gd" id="1_51q6j"]
+[ext_resource type="Texture2D" uid="uid://c5rbvirywf83c" path="res://addons/godot_daedalus/assets/icons/external_link.svg" id="2_06yhw"]
+[ext_resource type="Texture2D" uid="uid://qfq5odxqx0ci" path="res://addons/godot_daedalus/assets/icons/install.svg" id="3_djbet"]
+[ext_resource type="Texture2D" uid="uid://c7af3axgcc10p" path="res://addons/godot_daedalus/assets/icons/file_browse.svg" id="4_ud3fg"]
+
+[node name="BackendManager" type="AcceptDialog" unique_id=97889299]
+oversampling_override = 1.0
+title = "Backend manager"
+initial_position = 2
+size = Vector2i(648, 302)
+ok_button_text = "Close"
+script = ExtResource("1_51q6j")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1576016206]
+offset_left = 9.0
+offset_top = 9.0
+offset_right = 639.0
+offset_bottom = 251.0
+
+[node name="NodeJsContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=745112678]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/NodeJsContainer" unique_id=448837828]
+layout_mode = 2
+
+[node name="NodeJsLabel" type="Label" parent="VBoxContainer/NodeJsContainer/HBoxContainer" unique_id=1694341699]
+layout_mode = 2
+theme_type_variation = &"HeaderLarge"
+text = "Node.js"
+
+[node name="OpenNodeJsPageButton" type="Button" parent="VBoxContainer/NodeJsContainer/HBoxContainer" unique_id=1941547075]
+layout_mode = 2
+size_flags_horizontal = 2
+icon = ExtResource("2_06yhw")
+
+[node name="DownloadNodeJsButton" type="Button" parent="VBoxContainer/NodeJsContainer/HBoxContainer" unique_id=858969437]
+layout_mode = 2
+text = "Download"
+icon = ExtResource("3_djbet")
+
+[node name="NodeJsCurrentVersionLabel" type="Label" parent="VBoxContainer/NodeJsContainer" unique_id=1090584617]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Current version: {version}"
+
+[node name="NPMContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=1357685257]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/NPMContainer" unique_id=143407826]
+layout_mode = 2
+
+[node name="NPMLabel" type="Label" parent="VBoxContainer/NPMContainer/HBoxContainer" unique_id=2121001480]
+layout_mode = 2
+theme_type_variation = &"HeaderLarge"
+text = "NPM"
+
+[node name="OpenNPMPageButton" type="Button" parent="VBoxContainer/NPMContainer/HBoxContainer" unique_id=193082339]
+layout_mode = 2
+size_flags_horizontal = 2
+icon = ExtResource("2_06yhw")
+
+[node name="DownloadNPMButton" type="Button" parent="VBoxContainer/NPMContainer/HBoxContainer" unique_id=1012384853]
+layout_mode = 2
+text = "Download"
+icon = ExtResource("3_djbet")
+
+[node name="NPMCurrentVersionLabel" type="Label" parent="VBoxContainer/NPMContainer" unique_id=119098764]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Current version: {version}"
+
+[node name="BackendContainer" type="VBoxContainer" parent="VBoxContainer" unique_id=2041244809]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer/BackendContainer" unique_id=1008381260]
+layout_mode = 2
+
+[node name="BackendLabel" type="Label" parent="VBoxContainer/BackendContainer/HBoxContainer" unique_id=1356254999]
+layout_mode = 2
+theme_type_variation = &"HeaderLarge"
+text = "Daedalus backend"
+
+[node name="OpenBackendPageButton" type="Button" parent="VBoxContainer/BackendContainer/HBoxContainer" unique_id=1186670063]
+layout_mode = 2
+size_flags_horizontal = 2
+icon = ExtResource("2_06yhw")
+
+[node name="DownloadBackendButton" type="Button" parent="VBoxContainer/BackendContainer/HBoxContainer" unique_id=1910831024]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Install or update from npm"
+text = "Install"
+icon = ExtResource("3_djbet")
+
+[node name="InstallFromFileButton" type="Button" parent="VBoxContainer/BackendContainer/HBoxContainer" unique_id=627284914]
+layout_mode = 2
+tooltip_text = "Install from a local .tgz package"
+text = "Install from file"
+icon = ExtResource("4_ud3fg")
+
+[node name="CurrentBackendVersionLabel" type="Label" parent="VBoxContainer/BackendContainer" unique_id=671052104]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Current version: {version}"
+
+[node name="LatestBackendVersionLabel" type="Label" parent="VBoxContainer/BackendContainer" unique_id=2053572059]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Latest version: {version}"
+
+[node name="EditorFileDialog" type="EditorFileDialog" parent="." unique_id=668270008]
+unique_name_in_owner = true
+oversampling_override = 1.0
+title = "Install Daedalus backend from package"
+initial_position = 2
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.tgz ; npm package archive")
+
+[connection signal="focus_entered" from="." to="." method="refresh_status"]
+[connection signal="pressed" from="VBoxContainer/NodeJsContainer/HBoxContainer/OpenNodeJsPageButton" to="." method="_on_open_node_js_page_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/NodeJsContainer/HBoxContainer/DownloadNodeJsButton" to="." method="_on_download_node_js_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/NPMContainer/HBoxContainer/OpenNPMPageButton" to="." method="_on_open_npm_page_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/NPMContainer/HBoxContainer/DownloadNPMButton" to="." method="_on_download_npm_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/OpenBackendPageButton" to="." method="_on_open_backend_page_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/DownloadBackendButton" to="." method="_on_download_backend_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/BackendContainer/HBoxContainer/InstallFromFileButton" to="." method="_on_install_from_file_button_pressed"]
+[connection signal="file_selected" from="EditorFileDialog" to="." method="_on_backend_package_file_selected"]

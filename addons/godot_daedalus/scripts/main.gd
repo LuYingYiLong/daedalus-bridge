@@ -26,6 +26,7 @@ const GUIDE_NOW_ICON: Texture2D = preload("uid://3dsfgra6pd2m")
 const EDIT_ICON: Texture2D = preload("uid://pj7m0o4eos6a")
 const DELETE_ICON: Texture2D = preload("uid://qpmvpq6q2q60")
 const SETTINGS_MENU_UID: String = "uid://dp3tsanvojx2k"
+const BACKEND_MANAGER_UID: String = "uid://c08tpkgdjw6id"
 const MAX_CONNECT_ATTEMPTS: int = 5
 const CONNECT_RETRY_SECONDS: float = 0.8
 const WEBSOCKET_BUFFER_SIZE: int = 4194304
@@ -123,6 +124,7 @@ const APPROVAL_MODE_IDS: Array[String] = [
 @onready var approval_title_label: Label = %ApprovalTitleLabel
 @onready var approval_description_label: TextEdit = %ApprovalDescriptionLabel
 @onready var boot_splash: CenterContainer = %BootSplash
+@onready var backend_manager_button: LinkButton = %BackendManagerButton
 @onready var todo_list: FoldableContainer = %TodoList
 @onready var todo_container: VBoxContainer = %TodoContainer
 @onready var message_queue_panel: PanelContainer = %MessageQueue
@@ -425,18 +427,7 @@ func _setup_add_context_menu() -> void:
 	if add_context_button == null:
 		return
 
-	add_context_button.tooltip_text = "添加当前编辑器或项目上下文到下一条消息"
 	var popup_menu: PopupMenu = add_context_button.get_popup()
-	popup_menu.clear()
-	popup_menu.add_item("添加选中节点", ADD_CONTEXT_SELECTED_NODES_ID)
-	popup_menu.add_item("添加当前场景", ADD_CONTEXT_ACTIVE_SCENE_ID)
-	popup_menu.add_item("添加当前脚本选区", ADD_CONTEXT_SCRIPT_SELECTION_ID)
-	popup_menu.add_item("添加文件系统选中项", ADD_CONTEXT_FILESYSTEM_SELECTION_ID)
-	popup_menu.add_separator()
-	popup_menu.add_item("添加文件", ADD_CONTEXT_FILE_ID)
-	popup_menu.add_item("添加文件夹", ADD_CONTEXT_FOLDER_ID)
-	popup_menu.add_separator()
-	popup_menu.add_item("清除未固定上下文", ADD_CONTEXT_CLEAR_UNPINNED_ID)
 	if not popup_menu.id_pressed.is_connected(_on_add_context_menu_id_pressed):
 		popup_menu.id_pressed.connect(_on_add_context_menu_id_pressed)
 
@@ -967,6 +958,10 @@ func _on_socket_opened() -> void:
 
 func _on_boot_splash_reconnect_requested() -> void:
 	_start_backend_connection_attempts()
+
+
+func _on_boot_splash_backend_check_requested() -> void:
+	_open_backend_manager()
 
 
 func _on_status_button_pressed() -> void:
@@ -5106,6 +5101,20 @@ func _on_settings_button_pressed() -> void:
 	settings_menu.tree_exited.connect(_on_settings_menu_tree_exited.bind(settings_menu))
 	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
 	_load_mcp_config()
+
+
+func _open_backend_manager() -> void:
+	var packed_scene: PackedScene = load(BACKEND_MANAGER_UID)
+	if packed_scene == null:
+		return
+
+	var backend_manager: AcceptDialog = packed_scene.instantiate()
+	add_child(backend_manager)
+	backend_manager.popup_centered()
+
+
+func _on_backend_manager_button_pressed() -> void:
+	_open_backend_manager()
 
 
 func _get_frontend_config_snapshot() -> Dictionary:
