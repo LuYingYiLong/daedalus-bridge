@@ -1,0 +1,28 @@
+# GitHub / git archive 下载包只保留 Godot Daedalus 插件主体。
+.godot/** export-ignore
+.vscode/** export-ignore
+android/** export-ignore
+scenes/** export-ignore
+scripts/** export-ignore
+tools/** export-ignore
+
+addons/godot_gif/** export-ignore
+addons/godot_jieba/** export-ignore
+addons/markdown_label/** export-ignore
+
+addons/godot_daedalus/AGENTS.md export-ignore
+addons/godot_daedalus/tests/** export-ignore
+addons/godot_daedalus/assets/icons/normalize_daedalus_icons.py export-ignore
+
+.editorconfig export-ignore
+.gitignore export-ignore
+default_bus_layout.tres export-ignore
+export_presets.cfg export-ignore
+FMODExample.csproj export-ignore
+FMODExample.sln export-ignore
+icon.png export-ignore
+icon.png.import export-ignore
+project.godot export-ignore
+
+*.log export-ignore
+*.tmp export-ignore

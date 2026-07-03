@@ -2,6 +2,8 @@
 extends VBoxContainer
 
 const DEFAULT_BACKEND_URL: String = "ws://localhost:8080"
+const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
+const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
 const USER_MESSAGE_ITEM_SCENE: PackedScene = preload("uid://c0qgg77075lmq")
 const ASSISTANT_MARKDOWN_ITEM_SCENE: PackedScene = preload("uid://c3s4jlxtm21ci")
 const TOOL_CALL_ITEM_SCENE: PackedScene = preload("uid://c2a5o7qi58fus")
@@ -754,14 +756,14 @@ func _render_message_panel() -> void:
 			"message": str(queued_message.get("text", ""))
 		}
 		var queue_status: String = str(queued_message.get("status", MESSAGE_QUEUE_STATUS_PENDING))
-		queue_item.set_text(MESSAGE_TREE_STATUS_COLUMN, _format_queue_status(queue_status))
-		queue_item.set_text(MESSAGE_TREE_MESSAGE_COLUMN, _format_message_preview(str(queued_message.get("text", ""))))
+		queue_item.set_text(MESSAGE_TREE_STATUS_COLUMN, MAIN_HELPERS.format_queue_status(queue_status))
+		queue_item.set_text(MESSAGE_TREE_MESSAGE_COLUMN, MAIN_HELPERS.format_message_preview(str(queued_message.get("text", ""))))
 		queue_item.set_tooltip_text(MESSAGE_TREE_MESSAGE_COLUMN, str(queued_message.get("text", "")))
 		queue_item.set_metadata(MESSAGE_TREE_STATUS_COLUMN, metadata)
 		queue_item.set_metadata(MESSAGE_TREE_MESSAGE_COLUMN, metadata)
 		queue_item.set_metadata(MESSAGE_TREE_ACTIONS_COLUMN, metadata)
-		queue_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, EDIT_ICON, MESSAGE_TREE_BUTTON_EDIT, not _can_edit_queue_message(queue_status), "Edit")
-		queue_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, DELETE_ICON, MESSAGE_TREE_BUTTON_DELETE, not _can_delete_queue_message(queue_status), "Delete")
+		queue_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, EDIT_ICON, MESSAGE_TREE_BUTTON_EDIT, not MAIN_HELPERS.can_edit_queue_message(queue_status), "Edit")
+		queue_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, DELETE_ICON, MESSAGE_TREE_BUTTON_DELETE, not MAIN_HELPERS.can_delete_queue_message(queue_status), "Delete")
 
 	for manual_guide: Dictionary in manual_guides:
 		var guide_item: TreeItem = message_tree.create_item(root_item)
@@ -774,84 +776,15 @@ func _render_message_panel() -> void:
 			"status": guide_status,
 			"message": str(manual_guide.get("text", ""))
 		}
-		guide_item.set_text(MESSAGE_TREE_STATUS_COLUMN, _format_guide_status(guide_status))
-		guide_item.set_text(MESSAGE_TREE_MESSAGE_COLUMN, _format_message_preview(str(manual_guide.get("text", ""))))
+		guide_item.set_text(MESSAGE_TREE_STATUS_COLUMN, MAIN_HELPERS.format_guide_status(guide_status))
+		guide_item.set_text(MESSAGE_TREE_MESSAGE_COLUMN, MAIN_HELPERS.format_message_preview(str(manual_guide.get("text", ""))))
 		guide_item.set_tooltip_text(MESSAGE_TREE_MESSAGE_COLUMN, str(manual_guide.get("text", "")))
 		guide_item.set_metadata(MESSAGE_TREE_STATUS_COLUMN, guide_metadata)
 		guide_item.set_metadata(MESSAGE_TREE_MESSAGE_COLUMN, guide_metadata)
 		guide_item.set_metadata(MESSAGE_TREE_ACTIONS_COLUMN, guide_metadata)
-		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, GUIDE_NOW_ICON, MESSAGE_TREE_BUTTON_GUIDE_NOW, not _can_submit_manual_guide(guide_status), "Guide now")
-		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, EDIT_ICON, MESSAGE_TREE_BUTTON_EDIT, not _can_edit_manual_guide(guide_status), "Edit")
-		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, DELETE_ICON, MESSAGE_TREE_BUTTON_DELETE, not _can_delete_manual_guide(guide_status), "Delete")
-
-
-func _format_queue_status(status: String) -> String:
-	if status == str(MESSAGE_QUEUE_STATUS_PENDING):
-		return "Queued"
-	if status == str(MESSAGE_QUEUE_STATUS_SENDING):
-		return "Sending"
-	if status == str(MESSAGE_QUEUE_STATUS_APPROVAL):
-		return "Approval"
-	if status == str(MESSAGE_QUEUE_STATUS_CANCELLED):
-		return "Stopped"
-	if status == str(MESSAGE_QUEUE_STATUS_REJECTED):
-		return "Rejected"
-	if status == str(MESSAGE_QUEUE_STATUS_FAILED):
-		return "Failed"
-
-	return status.capitalize()
-
-
-func _can_edit_queue_message(status: String) -> bool:
-	return status == str(MESSAGE_QUEUE_STATUS_PENDING) or status == str(MESSAGE_QUEUE_STATUS_FAILED) or status == str(MESSAGE_QUEUE_STATUS_CANCELLED) or status == str(MESSAGE_QUEUE_STATUS_REJECTED)
-
-
-func _can_delete_queue_message(status: String) -> bool:
-	return status == str(MESSAGE_QUEUE_STATUS_PENDING) or status == str(MESSAGE_QUEUE_STATUS_FAILED) or status == str(MESSAGE_QUEUE_STATUS_CANCELLED) or status == str(MESSAGE_QUEUE_STATUS_REJECTED)
-
-
-func _format_guide_status(status: String) -> String:
-	if status == str(GUIDE_STATUS_DRAFT):
-		return "Guide"
-	if status == str(GUIDE_STATUS_SUBMITTING):
-		return "Sending"
-	if status == str(GUIDE_STATUS_PENDING):
-		return "Pending"
-	if status == str(GUIDE_STATUS_DELETING):
-		return "Deleting"
-	if status == str(GUIDE_STATUS_APPLIED):
-		return "Applied"
-	if status == str(GUIDE_STATUS_FAILED):
-		return "Failed"
-
-	return status.capitalize()
-
-
-func _can_submit_manual_guide(status: String) -> bool:
-	return status == str(GUIDE_STATUS_DRAFT) or status == str(GUIDE_STATUS_FAILED)
-
-
-func _can_edit_manual_guide(status: String) -> bool:
-	return status == str(GUIDE_STATUS_DRAFT) or status == str(GUIDE_STATUS_PENDING) or status == str(GUIDE_STATUS_FAILED) or status == str(GUIDE_STATUS_APPLIED)
-
-
-func _can_delete_manual_guide(status: String) -> bool:
-	return status != str(GUIDE_STATUS_SUBMITTING) and status != str(GUIDE_STATUS_DELETING)
-
-
-func _format_message_preview(message_text: String) -> String:
-	var preview_text: String = message_text.replace("\n", " ").strip_edges()
-	if preview_text.length() > 96:
-		return preview_text.substr(0, 96) + "..."
-
-	return preview_text
-
-
-func _string_or_empty(value: Variant) -> String:
-	if value == null:
-		return ""
-
-	return str(value)
+		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, GUIDE_NOW_ICON, MESSAGE_TREE_BUTTON_GUIDE_NOW, not MAIN_HELPERS.can_submit_manual_guide(guide_status), "Guide now")
+		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, EDIT_ICON, MESSAGE_TREE_BUTTON_EDIT, not MAIN_HELPERS.can_edit_manual_guide(guide_status), "Edit")
+		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, DELETE_ICON, MESSAGE_TREE_BUTTON_DELETE, not MAIN_HELPERS.can_delete_manual_guide(guide_status), "Delete")
 
 
 func _on_message_tree_item_activated() -> void:
@@ -1029,7 +962,7 @@ func _on_socket_opened() -> void:
 		)
 		if not session_id_to_restore.is_empty():
 			pending_recovery_status_after_session_open = true
-			_send_request("session.open", { "sessionId": session_id_to_restore, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-recover-open")
+			_send_request(RPC_METHODS.SESSION_OPEN, { "sessionId": session_id_to_restore, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-recover-open")
 		else:
 			_finalize_recovery_status(false)
 
@@ -1076,7 +1009,7 @@ func _handle_recovered_session_open(result_dictionary: Dictionary) -> void:
 		_apply_session_metadata(metadata_value as Dictionary)
 	_sync_pending_guides_from_result(result_dictionary)
 	_apply_latest_workflow_snapshot(result_dictionary)
-	_send_request("session.info", {}, "session-info")
+	_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 	_finalize_recovery_status(true)
 
 
@@ -1103,11 +1036,11 @@ func _on_status_item_action_requested(action_id: String) -> void:
 
 
 func _load_provider_config() -> void:
-	_send_request("provider.config.get", {}, "provider-config-get")
+	_send_request(RPC_METHODS.PROVIDER_CONFIG_GET, {}, "provider-config-get")
 
 
 func _load_mcp_config() -> void:
-	_send_request("mcp.config.list", {}, "mcp-config-list")
+	_send_request(RPC_METHODS.MCP_CONFIG_LIST, {}, "mcp-config-list")
 
 
 func _send_environment_config() -> void:
@@ -1197,12 +1130,12 @@ func _send_editor_context_update() -> void:
 		"selectedNodes": selected_nodes,
 		"scriptContext": script_context if not script_context.is_empty() else null,
 		"filesystemSelection": filesystem_selection_context if not filesystem_selection_context.is_empty() else null,
-		"updatedAt": _get_utc_timestamp()
+		"updatedAt": MAIN_HELPERS.get_utc_timestamp()
 	}
 	if edited_root != null:
 		params["editedSceneRoot"] = _serialize_editor_node_summary(edited_root, edited_root)
 
-	_send_request("editor.context.update", params, "editor-context")
+	_send_request(RPC_METHODS.EDITOR_CONTEXT_UPDATE, params, "editor-context")
 
 
 func _sync_live_editor_selection_context(edited_root: Node, selected_nodes: Array[Dictionary]) -> void:
@@ -1617,6 +1550,8 @@ func _handle_editor_tool_requested(data: Dictionary) -> void:
 		result = _execute_editor_inspect_node(args)
 	elif tool_name == "apply_scene_patch":
 		result = _execute_editor_apply_scene_patch(args)
+	elif tool_name == "refresh_filesystem":
+		result = _execute_editor_refresh_filesystem(args)
 	else:
 		ok = false
 		error_message = "Unknown editor tool: %s" % tool_name
@@ -1626,7 +1561,7 @@ func _handle_editor_tool_requested(data: Dictionary) -> void:
 		error_message = str((result as Dictionary).get("error", "Editor tool failed"))
 
 	_send_request(
-		"editor.tool.result",
+		RPC_METHODS.EDITOR_TOOL_RESULT,
 		{
 			"callId": call_id,
 			"ok": ok,
@@ -1648,6 +1583,35 @@ func _execute_editor_inspect_node(args: Dictionary) -> Dictionary:
 	return {
 		"ok": true,
 		"node": _serialize_editor_node_deep(target_node, edited_root)
+	}
+
+
+func _execute_editor_refresh_filesystem(args: Dictionary) -> Dictionary:
+	if editor_interface == null:
+		return { "ok": false, "error": "editor_interface_unavailable" }
+
+	var resource_filesystem: EditorFileSystem = editor_interface.get_resource_filesystem()
+	if resource_filesystem == null:
+		return { "ok": false, "error": "editor_filesystem_unavailable" }
+
+	var changed_paths_value: Variant = args.get("changedPaths", [])
+	var changed_paths: Array[String] = []
+	if typeof(changed_paths_value) == TYPE_ARRAY:
+		for path_value: Variant in changed_paths_value as Array:
+			var changed_path: String = str(path_value).strip_edges()
+			if not changed_path.is_empty():
+				changed_paths.append(changed_path)
+
+	var should_scan_sources: bool = bool(args.get("scanSources", true))
+	if should_scan_sources and resource_filesystem.has_method("scan_sources"):
+		resource_filesystem.call("scan_sources")
+	resource_filesystem.scan()
+	_queue_editor_context_update()
+
+	return {
+		"ok": true,
+		"changedPaths": changed_paths,
+		"scanSources": should_scan_sources
 	}
 
 
@@ -1926,14 +1890,14 @@ func _apply_model_config_to_backend() -> void:
 		"provider": "deepseek",
 		"model": _get_selected_model_id()
 	}
-	_send_request("provider.config.set", params, "provider-config-set")
+	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
 
 func _apply_approval_mode_to_backend() -> void:
 	if not _is_socket_open():
 		return
 
-	_send_request("approval.mode.set", { "mode": _get_selected_approval_mode() }, "approval-mode-set")
+	_send_request(RPC_METHODS.APPROVAL_MODE_SET, { "mode": _get_selected_approval_mode() }, "approval-mode-set")
 
 
 func _on_back_button_pressed() -> void:
@@ -2068,7 +2032,7 @@ func _on_stop_button_pressed() -> void:
 		return
 
 	var request_id_to_cancel: String = active_stream_id
-	_send_request("ai.cancel", { "requestId": request_id_to_cancel }, "ai-cancel")
+	_send_request(RPC_METHODS.AI_CANCEL, { "requestId": request_id_to_cancel }, "ai-cancel")
 	if active_queue_message_id > 0:
 		_finish_active_queue_message(false, MESSAGE_QUEUE_STATUS_CANCELLED)
 	_stop_active_stream_locally(true)
@@ -2117,7 +2081,7 @@ func _restore_paused_stream_context_for_continuation(continuation_request_id: St
 
 	active_stream_started_at_utc = paused_stream_started_at_utc
 	if active_stream_started_at_utc.is_empty():
-		active_stream_started_at_utc = _get_utc_timestamp()
+		active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
 
 	active_assistant_entry_id = paused_assistant_entry_id
 	if not active_assistant_entry_id.is_empty() and _find_timeline_entry_index(active_assistant_entry_id) < 0:
@@ -2140,7 +2104,7 @@ func _on_approve_button_pressed() -> void:
 	if active_queue_message_id > 0:
 		_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_SENDING)
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
-	var continuation_request_id: String = _send_request("approval.approve", { "approvalId": pending_approval_id }, "approval-approve")
+	var continuation_request_id: String = _send_request(RPC_METHODS.APPROVAL_APPROVE, { "approvalId": pending_approval_id }, "approval-approve")
 	if continuation_request_id.is_empty():
 		_show_response_error({ "error": { "message": "发送审批通过请求失败。" } })
 		return
@@ -2156,7 +2120,7 @@ func _on_reject_button_pressed() -> void:
 	if pending_approval_id.is_empty():
 		return
 
-	var reject_request_id: String = _send_request("approval.reject", { "approvalId": pending_approval_id }, "approval-reject")
+	var reject_request_id: String = _send_request(RPC_METHODS.APPROVAL_REJECT, { "approvalId": pending_approval_id }, "approval-reject")
 	if reject_request_id.is_empty():
 		_show_response_error({ "error": { "message": "发送审批拒绝请求失败。" } })
 		return
@@ -2177,7 +2141,7 @@ func _create_session(title_text: String) -> void:
 	if not selected_workspace_filter.is_empty():
 		params["workspaceId"] = selected_workspace_filter
 
-	_send_request("session.create", params, "session-create")
+	_send_request(RPC_METHODS.SESSION_CREATE, params, "session-create")
 
 
 func _open_session(session_id: String) -> void:
@@ -2187,7 +2151,7 @@ func _open_session(session_id: String) -> void:
 	if session_id != active_session_id:
 		_clear_message_queue()
 		_clear_manual_guides()
-	_send_request("session.open", { "sessionId": session_id, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-open")
+	_send_request(RPC_METHODS.SESSION_OPEN, { "sessionId": session_id, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-open")
 
 
 func _dispatch_message_text(message_text: String, additional_contexts: Array = []) -> bool:
@@ -2197,7 +2161,7 @@ func _dispatch_message_text(message_text: String, additional_contexts: Array = [
 	if active_session_id.is_empty():
 		pending_chat_text = message_text
 		pending_chat_additional_context = _clone_additional_context_array(additional_contexts)
-		_create_session(_make_session_title(message_text))
+		_create_session(MAIN_HELPERS.make_session_title(message_text))
 		return true
 
 	return _send_chat_text(message_text, "", additional_contexts)
@@ -2219,7 +2183,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	request_id += 1
 	active_stream_id = "daedalus-chat-%d" % request_id
 	active_stream_request_id = active_stream_id
-	active_stream_started_at_utc = _get_utc_timestamp()
+	active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
 	var additional_context_snapshot: Array[Dictionary] = _clone_additional_context_array(additional_contexts)
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_append_timeline_entry(
@@ -2260,13 +2224,13 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	var payload: Dictionary[String, Variant] = {
 		"type": "request",
 		"id": active_stream_id,
-		"method": "ai.chat",
+		"method": RPC_METHODS.AI_CHAT,
 		"params": chat_params
 	}
 
 	var send_error: Error = socket.send_text(JSON.stringify(payload))
 	if send_error != OK:
-		var completed_at_utc: String = _get_utc_timestamp()
+		var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
 		_show_response_error({
 			"error": {
 				"message": "发送请求失败：%s" % error_string(send_error)
@@ -2314,7 +2278,7 @@ func _enqueue_message(message_text: String, additional_contexts: Array = []) -> 
 		"text": message_text,
 		"additional_context": _clone_additional_context_array(additional_contexts),
 		"status": MESSAGE_QUEUE_STATUS_PENDING,
-		"created_at_utc": _get_utc_timestamp()
+		"created_at_utc": MAIN_HELPERS.get_utc_timestamp()
 	}
 	queued_messages.append(queued_message)
 	_show_background_context_viewer()
@@ -2426,13 +2390,13 @@ func _handle_queue_tree_action(button_id: int, metadata: Dictionary) -> void:
 		return
 
 	if button_id == MESSAGE_TREE_BUTTON_EDIT:
-		if not _can_edit_queue_message(queue_status):
+		if not MAIN_HELPERS.can_edit_queue_message(queue_status):
 			return
 		text_edit.text = queue_message_text
 		text_edit.grab_focus()
 		_remove_queue_message(queue_message_id)
 	elif button_id == MESSAGE_TREE_BUTTON_DELETE:
-		if not _can_delete_queue_message(queue_status):
+		if not MAIN_HELPERS.can_delete_queue_message(queue_status):
 			return
 		_remove_queue_message(queue_message_id)
 
@@ -2473,8 +2437,8 @@ func _create_or_update_manual_guide_from_text_edit() -> void:
 		"client_guide_id": local_id,
 		"text": guide_text,
 		"status": GUIDE_STATUS_DRAFT,
-		"created_at_utc": _get_utc_timestamp(),
-		"updated_at_utc": _get_utc_timestamp(),
+		"created_at_utc": MAIN_HELPERS.get_utc_timestamp(),
+		"updated_at_utc": MAIN_HELPERS.get_utc_timestamp(),
 		"anchor_request_id": active_stream_request_id
 	}
 	manual_guides.append(manual_guide)
@@ -2492,7 +2456,7 @@ func _update_editing_manual_guide(guide_text: String) -> bool:
 	var manual_guide: Dictionary = manual_guides[guide_index]
 	var guide_status: String = str(manual_guide.get("status", GUIDE_STATUS_DRAFT))
 	manual_guide["text"] = guide_text
-	manual_guide["updated_at_utc"] = _get_utc_timestamp()
+	manual_guide["updated_at_utc"] = MAIN_HELPERS.get_utc_timestamp()
 
 	if guide_status == str(GUIDE_STATUS_PENDING):
 		var guide_id: String = str(manual_guide.get("guide_id", ""))
@@ -2503,7 +2467,7 @@ func _update_editing_manual_guide(guide_text: String) -> bool:
 				"guideId": guide_id,
 				"text": guide_text
 			}
-			var update_request_id: String = _send_request("session.guide.update", params, "guide-update")
+			var update_request_id: String = _send_request(RPC_METHODS.SESSION_GUIDE_UPDATE, params, "guide-update")
 			manual_guide["pending_request_id"] = update_request_id
 			manual_guide["status"] = GUIDE_STATUS_PENDING
 	else:
@@ -2528,7 +2492,7 @@ func _submit_manual_guide(local_id: String) -> void:
 
 	var manual_guide: Dictionary = manual_guides[guide_index]
 	var guide_status: String = str(manual_guide.get("status", GUIDE_STATUS_DRAFT))
-	if not _can_submit_manual_guide(guide_status):
+	if not MAIN_HELPERS.can_submit_manual_guide(guide_status):
 		return
 
 	var guide_text: String = str(manual_guide.get("text", "")).strip_edges()
@@ -2543,7 +2507,7 @@ func _submit_manual_guide(local_id: String) -> void:
 	if not anchor_request_id.is_empty():
 		params["anchorRequestId"] = anchor_request_id
 
-	var add_request_id: String = _send_request("session.guide.add", params, "guide-add")
+	var add_request_id: String = _send_request(RPC_METHODS.SESSION_GUIDE_ADD, params, "guide-add")
 	if add_request_id.is_empty():
 		_upsert_connection_status_entry("warning", "无法引导", "引导提交失败，后端连接不可用。")
 		return
@@ -2561,7 +2525,7 @@ func _edit_manual_guide(local_id: String) -> void:
 
 	var manual_guide: Dictionary = manual_guides[guide_index]
 	var guide_status: String = str(manual_guide.get("status", GUIDE_STATUS_DRAFT))
-	if not _can_edit_manual_guide(guide_status):
+	if not MAIN_HELPERS.can_edit_manual_guide(guide_status):
 		return
 
 	text_edit.text = str(manual_guide.get("text", ""))
@@ -2584,13 +2548,13 @@ func _delete_manual_guide(local_id: String) -> void:
 
 	var manual_guide: Dictionary = manual_guides[guide_index]
 	var guide_status: String = str(manual_guide.get("status", GUIDE_STATUS_DRAFT))
-	if not _can_delete_manual_guide(guide_status):
+	if not MAIN_HELPERS.can_delete_manual_guide(guide_status):
 		return
 
 	if guide_status == str(GUIDE_STATUS_PENDING):
 		var guide_id: String = str(manual_guide.get("guide_id", ""))
 		if not guide_id.is_empty() and _is_socket_open():
-			var delete_request_id: String = _send_request("session.guide.delete", { "guideId": guide_id }, "guide-delete")
+			var delete_request_id: String = _send_request(RPC_METHODS.SESSION_GUIDE_DELETE, { "guideId": guide_id }, "guide-delete")
 			manual_guide["status"] = GUIDE_STATUS_DELETING
 			manual_guide["pending_request_id"] = delete_request_id
 			manual_guides[guide_index] = manual_guide
@@ -2629,21 +2593,6 @@ func _clear_manual_guides() -> void:
 	manual_guides.clear()
 	editing_guide_local_id = ""
 	_render_message_panel()
-
-
-func _make_session_title(message_text: String) -> String:
-	var one_line: String = message_text.replace("\n", " ").strip_edges()
-	if one_line.length() > 24:
-		return one_line.substr(0, 24)
-
-	if one_line.is_empty():
-		return "新会话"
-
-	return one_line
-
-
-func _get_utc_timestamp() -> String:
-	return "%sZ" % Time.get_datetime_string_from_system(true, false)
 
 
 func _send_request(method: String, params: Dictionary, id_prefix: String) -> String:
@@ -2783,8 +2732,8 @@ func _handle_response(message: Dictionary) -> void:
 	elif result_dictionary.has("id") and result_dictionary.has("title") and result_dictionary.has("createdAt"):
 		_apply_session_metadata(result_dictionary)
 		_clear_chat_items()
-		_send_request("workspace.list", {}, "workspace-list")
-		_send_request("session.list", {}, "session-list")
+		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
+		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
 
 		if not pending_chat_text.is_empty():
 			var next_message: String = pending_chat_text
@@ -2805,8 +2754,8 @@ func _handle_response(message: Dictionary) -> void:
 		_render_session_timeline(result_dictionary.get("messages", []), result_dictionary.get("events", []), result_dictionary)
 		_sync_pending_guides_from_result(result_dictionary)
 		_apply_latest_workflow_snapshot(result_dictionary)
-		_send_request("workspace.list", {}, "workspace-list")
-		_send_request("session.info", {}, "session-info")
+		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
+		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 	elif bool(result_dictionary.get("timeline", false)):
 		_prepend_session_timeline(result_dictionary)
 	elif bool(result_dictionary.get("paused", false)) and str(result_dictionary.get("approvalId", "")).length() > 0:
@@ -2821,9 +2770,9 @@ func _handle_response(message: Dictionary) -> void:
 	elif bool(result_dictionary.get("configured", false)) and result_dictionary.has("provider"):
 		_update_send_state()
 	elif bool(result_dictionary.get("configured", false)) and result_dictionary.has("godotProjectPath"):
-		_send_request("workspace.list", {}, "workspace-list")
-		_send_request("session.list", {}, "session-list")
-		_send_request("session.info", {}, "session-info")
+		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
+		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
+		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 		_load_mcp_config()
 	elif result_dictionary.has("contextWindowTokens"):
 		_update_context_length(result_dictionary)
@@ -2831,11 +2780,11 @@ func _handle_response(message: Dictionary) -> void:
 			context_popup_open_after_info = false
 			_show_context_popup_menu()
 		if int(result_dictionary.get("pendingApprovals", 0)) > 0 and not approval_dialog.visible:
-			_send_request("approval.list", {}, "approval-list")
+			_send_request(RPC_METHODS.APPROVAL_LIST, {}, "approval-list")
 	elif result_dictionary.has("pending") and result_dictionary.has("mode"):
 		_show_first_pending_approval(result_dictionary)
 	elif bool(result_dictionary.get("saved", false)):
-		_send_request("session.list", {}, "session-list")
+		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
 	elif bool(result_dictionary.get("archived", false)):
 		_apply_archived_session_response(result_dictionary)
 	elif bool(result_dictionary.get("restored", false)):
@@ -2849,7 +2798,7 @@ func _handle_response(message: Dictionary) -> void:
 		if was_rejected and active_queue_message_id > 0:
 			_finish_active_queue_message(false, MESSAGE_QUEUE_STATUS_REJECTED)
 			_process_message_queue()
-		_send_request("session.info", {}, "session-info")
+		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 
 
 func _handle_event(message: Dictionary) -> void:
@@ -2873,7 +2822,7 @@ func _handle_event(message: Dictionary) -> void:
 		_schedule_assistant_delta_flush()
 	elif event_name == "ai.done":
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
-		var completed_at_utc: String = _get_utc_timestamp()
+		var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
 		var completed_request_id: String = active_stream_request_id
 		_flush_pending_assistant_delta()
 		if not active_assistant_entry_id.is_empty():
@@ -2889,8 +2838,8 @@ func _handle_event(message: Dictionary) -> void:
 		active_assistant_text = ""
 		_clear_paused_stream_context()
 		_set_streaming_state(false)
-		_send_request("session.save", {}, "session-save")
-		_send_request("session.info", {}, "session-info")
+		_send_request(RPC_METHODS.SESSION_SAVE, {}, "session-save")
+		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 		_finish_active_queue_message(true)
 		if not _has_pending_queued_messages():
 			_request_next_step_hints(completed_request_id, "done")
@@ -2988,7 +2937,7 @@ func _request_next_step_hints(anchor_request_id: String, trigger: String) -> voi
 	if not anchor_request_id.is_empty():
 		params["anchorRequestId"] = anchor_request_id
 
-	next_step_hint_request_id = _send_request("ai.next_step_hints", params, "next-step-hints")
+	next_step_hint_request_id = _send_request(RPC_METHODS.AI_NEXT_STEP_HINTS, params, "next-step-hints")
 	next_step_hint_anchor_request_id = anchor_request_id
 	if next_step_hint_request_id.is_empty():
 		next_step_hint_anchor_request_id = ""
@@ -3115,8 +3064,8 @@ func _apply_guide_upsert_response(result_dictionary: Dictionary) -> void:
 	manual_guide["text"] = str(guide_dictionary.get("text", manual_guide.get("text", "")))
 	manual_guide["status"] = GUIDE_STATUS_PENDING
 	manual_guide["pending_request_id"] = ""
-	manual_guide["updated_at_utc"] = str(guide_dictionary.get("updatedAt", _get_utc_timestamp()))
-	manual_guide["anchor_request_id"] = _string_or_empty(guide_dictionary.get("anchorRequestId", ""))
+	manual_guide["updated_at_utc"] = str(guide_dictionary.get("updatedAt", MAIN_HELPERS.get_utc_timestamp()))
+	manual_guide["anchor_request_id"] = MAIN_HELPERS.string_or_empty(guide_dictionary.get("anchorRequestId", ""))
 	manual_guides[guide_index] = manual_guide
 	_render_message_panel()
 
@@ -3175,7 +3124,7 @@ func _sync_pending_guides_from_result(result_dictionary: Dictionary) -> void:
 			"pending_request_id": "",
 			"created_at_utc": str(guide_dictionary.get("createdAt", "")),
 			"updated_at_utc": str(guide_dictionary.get("updatedAt", "")),
-			"anchor_request_id": _string_or_empty(guide_dictionary.get("anchorRequestId", ""))
+			"anchor_request_id": MAIN_HELPERS.string_or_empty(guide_dictionary.get("anchorRequestId", ""))
 		})
 
 	_render_message_panel()
@@ -3343,7 +3292,7 @@ func _render_workspace_group(workspace_id: String) -> void:
 
 		var session_item: Button = SESSION_ITEM_SCENE.instantiate() as Button
 		session_list.add_child(session_item)
-		session_item.call("setup", session_id, title_text, _format_relative_time(updated_at))
+		session_item.call("setup", session_id, title_text, MAIN_HELPERS.format_relative_time(updated_at))
 		session_item.connect("open_requested", Callable(self, "_on_dynamic_session_item_pressed"))
 		session_item.connect("archive_requested", Callable(self, "_on_session_archive_requested"))
 
@@ -3419,7 +3368,7 @@ func _on_session_archive_requested(session_id: String) -> void:
 	if not _is_socket_open() or session_id.is_empty():
 		return
 
-	_send_request("session.archive", { "sessionId": session_id }, "session-archive")
+	_send_request(RPC_METHODS.SESSION_ARCHIVE, { "sessionId": session_id }, "session-archive")
 
 
 func _apply_archived_session_response(result_dictionary: Dictionary) -> void:
@@ -3454,8 +3403,8 @@ func _remove_archived_session(session_id: String) -> void:
 
 
 func _refresh_session_and_archive_lists() -> void:
-	_send_request("session.list", {}, "session-list")
-	_send_request("session.archived.list", {}, "session-archived-list")
+	_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
+	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
 
 
 func _apply_session_metadata(metadata: Dictionary) -> void:
@@ -3564,7 +3513,7 @@ func _request_previous_timeline_page() -> void:
 		"beforeOffset": timeline_message_offset,
 		"limit": SESSION_OPEN_MESSAGE_LIMIT
 	}
-	_send_request("session.timeline", params, "session-timeline")
+	_send_request(RPC_METHODS.SESSION_TIMELINE, params, "session-timeline")
 
 
 func _prepend_session_timeline(page_info: Dictionary) -> void:
@@ -4575,7 +4524,7 @@ func _scroll_to_bottom_if_following(should_follow_bottom: bool) -> void:
 
 func _add_user_message_item(message_text: String) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
-	var sent_at_utc: String = _get_utc_timestamp()
+	var sent_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
 	if active_stream_started_at_utc.is_empty():
 		active_stream_started_at_utc = sent_at_utc
 	_append_timeline_entry("user", active_stream_request_id, message_text, "", { "sent_at_utc": sent_at_utc })
@@ -4584,7 +4533,7 @@ func _add_user_message_item(message_text: String) -> void:
 
 func _add_assistant_message_item(message_text: String) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
-	var completed_at_utc: String = _get_utc_timestamp()
+	var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
 	var metadata: Dictionary = { "completed_at_utc": completed_at_utc }
 	if not active_stream_started_at_utc.is_empty():
 		metadata["started_at_utc"] = active_stream_started_at_utc
@@ -4883,12 +4832,12 @@ func _show_approval_dialog(event_data: Dictionary) -> void:
 	if active_queue_message_id > 0:
 		_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_APPROVAL)
 	var tool_name: String = str(event_data.get("toolName", event_data.get("llmToolName", "")))
-	approval_title_label.text = "需要审批：%s" % _localize_tool_name_for_display(tool_name)
+	approval_title_label.text = "需要审批：%s" % MAIN_HELPERS.localize_tool_name_for_display(tool_name)
 	approval_description_label.text = "\n".join([
 		"审批 ID：`%s`" % pending_approval_id,
 		"原因：%s" % str(event_data.get("reason", "")),
 		"参数：",
-		_format_approval_args_preview(event_data.get("args", {}))
+		MAIN_HELPERS.format_approval_args_preview(event_data.get("args", {}), APPROVAL_ARGS_PREVIEW_LIMIT)
 	])
 	approval_dialog.visible = true
 	_update_send_state()
@@ -4914,75 +4863,6 @@ func _show_first_pending_approval(result_dictionary: Dictionary) -> void:
 	if not pending_data.has("toolName"):
 		pending_data["toolName"] = str(pending_data.get("llmToolName", ""))
 	_show_approval_dialog(pending_data)
-
-
-func _format_approval_args_preview(args_value: Variant) -> String:
-	var args_text: String = JSON.stringify(args_value, "\t")
-	if args_text.length() <= APPROVAL_ARGS_PREVIEW_LIMIT:
-		return args_text
-
-	return "%s\n\n... 已截断显示，完整参数保存在后端审批队列中，批准时仍会执行完整内容。" % args_text.substr(0, APPROVAL_ARGS_PREVIEW_LIMIT)
-
-
-func _localize_tool_name_for_display(raw_tool_name: String) -> String:
-	match raw_tool_name:
-		"mcp_godot_read_text_file", "read_text_file":
-			return "读取文件"
-		"mcp_godot_search_text", "search_text":
-			return "搜索文本"
-		"mcp_godot_create_text_file", "mcp_godot_propose_create_text_file", "create_text_file":
-			return "创建文件"
-		"mcp_godot_overwrite_text_file", "mcp_godot_propose_overwrite_text_file", "overwrite_text_file":
-			return "覆盖文件"
-		"mcp_godot_replace_text_in_file", "mcp_godot_propose_replace_text_in_file", "replace_text_in_file":
-			return "替换文件内容"
-		"mcp_godot_delete_file", "delete_file":
-			return "删除文件"
-		"mcp_godot_inspect_scene_tree", "inspect_scene_tree":
-			return "查看场景树"
-		"mcp_godot_create_scene", "mcp_godot_propose_create_scene", "create_scene":
-			return "创建场景"
-		"mcp_godot_add_node_to_scene", "mcp_godot_propose_add_node_to_scene", "add_node_to_scene":
-			return "添加场景节点"
-		"mcp_godot_attach_script_to_node", "mcp_godot_propose_attach_script_to_node", "attach_script_to_node":
-			return "挂载脚本"
-		"mcp_godot_connect_signal_in_scene", "mcp_godot_propose_connect_signal_in_scene", "connect_signal_in_scene":
-			return "连接信号"
-		"mcp_godot_apply_scene_patch", "mcp_godot_propose_apply_scene_patch", "apply_scene_patch":
-			return "批量编辑场景"
-		"mcp_godot_lsp_get_status", "lsp_get_status":
-			return "检查 LSP 状态"
-		"mcp_godot_lsp_get_file_diagnostics", "lsp_get_file_diagnostics":
-			return "读取脚本诊断"
-		"mcp_godot_lsp_get_document_symbols", "lsp_get_document_symbols":
-			return "查看脚本符号"
-		"mcp_godot_lsp_hover", "lsp_hover":
-			return "查看 Hover 信息"
-		"mcp_godot_lsp_goto_definition", "lsp_goto_definition":
-			return "查找定义"
-		"mcp_godot_dap_get_status", "dap_get_status":
-			return "检查 DAP 状态"
-		"mcp_godot_dap_get_last_error", "dap_get_last_error":
-			return "读取运行错误"
-		"mcp_godot_dap_get_stack_trace", "dap_get_stack_trace":
-			return "读取调用栈"
-		"mcp_godot_dap_get_variables", "dap_get_variables":
-			return "读取变量"
-		"mcp_terminal_run_safe_preset", "run_safe_preset":
-			return "运行验证命令"
-		"mcp_terminal_run_write_preset", "run_write_preset":
-			return "运行写入命令"
-		"mcp_terminal_run_godot_scene_script", "run_godot_scene_script":
-			return "执行场景脚本"
-
-	if raw_tool_name.begins_with("mcp_custom_"):
-		return "自定义 MCP 工具"
-
-	if raw_tool_name.begins_with("mcp_"):
-		return "内部工具"
-
-	return raw_tool_name
-
 
 func _update_context_length(info: Dictionary) -> void:
 	latest_context_info = info.duplicate(true)
@@ -5014,46 +4894,24 @@ func _set_context_length_icon(ratio: float, is_empty: bool, history_tokens_store
 
 	if ratio >= 0.96:
 		context_length_button.tooltip_text = "Context usage: %s (%s / %s). The context might be too long, it's suggested to condense the conversation." % [
-			_format_context_usage_percent(ratio),
-			_format_compact_token_count(history_tokens_stored),
-			_format_compact_token_count(context_window_tokens)
+			MAIN_HELPERS.format_context_usage_percent(ratio),
+			MAIN_HELPERS.format_compact_token_count(history_tokens_stored),
+			MAIN_HELPERS.format_compact_token_count(context_window_tokens)
 		]
 	elif is_empty:
 		if context_window_tokens > 0:
 			context_length_button.tooltip_text = "Context usage: 0%% (%s / %s)" % [
-				_format_compact_token_count(history_tokens_stored),
-				_format_compact_token_count(context_window_tokens)
+				MAIN_HELPERS.format_compact_token_count(history_tokens_stored),
+				MAIN_HELPERS.format_compact_token_count(context_window_tokens)
 			]
 		else:
 			context_length_button.tooltip_text = "Context usage: 0%"
 	else:
 		context_length_button.tooltip_text = "Context usage: %s (%s / %s)" % [
-			_format_context_usage_percent(ratio),
-			_format_compact_token_count(history_tokens_stored),
-			_format_compact_token_count(context_window_tokens)
+			MAIN_HELPERS.format_context_usage_percent(ratio),
+			MAIN_HELPERS.format_compact_token_count(history_tokens_stored),
+			MAIN_HELPERS.format_compact_token_count(context_window_tokens)
 		]
-
-
-func _format_context_usage_percent(ratio: float) -> String:
-	var percent: float = ratio * 100.0
-	if percent > 0.0 and percent < 0.01:
-		return "<0.01%"
-	if percent < 1.0:
-		return "%.2f%%" % percent
-	if percent < 10.0:
-		return "%.1f%%" % percent
-
-	return "%d%%" % int(round(percent))
-
-
-func _format_compact_token_count(token_count: int) -> String:
-	var absolute_count: int = absi(token_count)
-	if absolute_count >= 1000000:
-		return "%.1fM" % (float(token_count) / 1000000.0)
-	if absolute_count >= 1000:
-		return "%.1fk" % (float(token_count) / 1000.0)
-
-	return str(token_count)
 
 
 func _on_context_length_button_pressed() -> void:
@@ -5063,7 +4921,7 @@ func _on_context_length_button_pressed() -> void:
 
 	if _is_socket_open() and not active_session_id.is_empty():
 		context_popup_open_after_info = true
-		var context_info_request_id: String = _send_request("session.info", {}, "context-popup-info")
+		var context_info_request_id: String = _send_request(RPC_METHODS.SESSION_INFO, {}, "context-popup-info")
 		if context_info_request_id.is_empty():
 			context_popup_open_after_info = false
 
@@ -5105,13 +4963,6 @@ func _get_context_popup_menu() -> PopupPanel:
 	context_popup_menu = next_context_popup_menu
 	add_child(context_popup_menu)
 	return context_popup_menu
-
-
-func _format_relative_time(timestamp: String) -> String:
-	if timestamp.is_empty():
-		return ""
-
-	return timestamp.replace("T", " ").replace("Z", "")
 
 
 func _set_streaming_state(_is_streaming: bool) -> void:
@@ -5210,34 +5061,8 @@ func _apply_workflow_todo_snapshot(snapshot: Dictionary) -> void:
 	todo_list.show()
 
 
-func _workflow_status_prefix(status: String) -> String:
-	if status == "done":
-		return "[x]"
-	if status == "running":
-		return "[~]"
-	if status == "failed":
-		return "[!]"
-	if status == "paused":
-		return "[pause]"
-
-	return "[ ]"
-
-
-func _workflow_status_color(status: String) -> Color:
-	if status == "running":
-		return Color(0.7, 0.86, 1.0, 1.0)
-	if status == "done":
-		return Color(0.72, 1.0, 0.76, 1.0)
-	if status == "failed":
-		return Color(1.0, 0.55, 0.55, 1.0)
-	if status == "paused":
-		return Color(1.0, 0.88, 0.48, 1.0)
-
-	return Color(0.86, 0.86, 0.86, 1.0)
-
-
 func _update_todo_list_from_text(text: String) -> void:
-	var todos: Array[Dictionary] = _extract_todo_items(text)
+	var todos: Array[Dictionary] = MAIN_HELPERS.extract_todo_items(text)
 	if todos.is_empty():
 		return
 
@@ -5261,57 +5086,6 @@ func _update_todo_list_from_text(text: String) -> void:
 
 	todo_list.show()
 
-
-func _extract_todo_items(text: String) -> Array[Dictionary]:
-	var todos: Array[Dictionary] = []
-	var lines: PackedStringArray = text.split("\n")
-	var has_task_marker: bool = false
-	var current_task_block: Array[Dictionary] = []
-
-	for raw_line: String in lines:
-		var line: String = raw_line.strip_edges()
-		if line.begins_with("- [ ] ") or line.begins_with("* [ ] "):
-			has_task_marker = true
-			current_task_block.append({ "text": line.substr(6).strip_edges(), "checked": false })
-		elif line.begins_with("- [x] ") or line.begins_with("- [X] ") or line.begins_with("* [x] ") or line.begins_with("* [X] "):
-			has_task_marker = true
-			current_task_block.append({ "text": line.substr(6).strip_edges(), "checked": true })
-		elif not line.is_empty() and not current_task_block.is_empty():
-			todos = current_task_block.duplicate()
-			current_task_block.clear()
-
-	if has_task_marker:
-		if not current_task_block.is_empty():
-			todos = current_task_block.duplicate()
-		return todos
-
-	var in_todo_block: bool = false
-	for raw_line: String in lines:
-		var line: String = raw_line.strip_edges()
-		var lower_line: String = line.to_lower()
-		if lower_line == "todo" or lower_line == "todo:" or lower_line.contains("待办"):
-			in_todo_block = true
-			continue
-
-		if not in_todo_block:
-			continue
-
-		if line.is_empty():
-			if not todos.is_empty():
-				break
-			continue
-
-		var dot_index: int = line.find(". ")
-		if dot_index > 0 and line.substr(0, dot_index).is_valid_int():
-			todos.append({ "text": line.substr(dot_index + 2).strip_edges(), "checked": false })
-		elif line.begins_with("- ") or line.begins_with("* "):
-			todos.append({ "text": line.substr(2).strip_edges(), "checked": false })
-		elif not todos.is_empty():
-			break
-
-	return todos
-
-
 func _on_settings_button_pressed() -> void:
 	var packed_scene: PackedScene = load(SETTINGS_MENU_UID)
 	if packed_scene == null:
@@ -5332,7 +5106,7 @@ func _on_settings_button_pressed() -> void:
 	settings_menu.connect("mcp_server_remove_requested", Callable(self, "_on_settings_mcp_server_remove_requested"))
 	settings_menu.connect("mcp_server_enabled_requested", Callable(self, "_on_settings_mcp_server_enabled_requested"))
 	settings_menu.tree_exited.connect(_on_settings_menu_tree_exited.bind(settings_menu))
-	_send_request("session.archived.list", {}, "session-archived-list")
+	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
 	_load_mcp_config()
 
 
@@ -5409,14 +5183,14 @@ func _on_settings_archived_session_restore_requested(session_id: String) -> void
 	if not _is_socket_open() or session_id.is_empty():
 		return
 
-	_send_request("session.archived.restore", { "sessionId": session_id }, "session-archived-restore")
+	_send_request(RPC_METHODS.SESSION_ARCHIVED_RESTORE, { "sessionId": session_id }, "session-archived-restore")
 
 
 func _on_settings_archived_session_delete_requested(session_id: String) -> void:
 	if not _is_socket_open() or session_id.is_empty():
 		return
 
-	_send_request("session.archived.delete", { "sessionId": session_id }, "session-archived-delete")
+	_send_request(RPC_METHODS.SESSION_ARCHIVED_DELETE, { "sessionId": session_id }, "session-archived-delete")
 
 
 func _on_settings_mcp_server_add_requested(config: Dictionary) -> void:
@@ -5425,7 +5199,7 @@ func _on_settings_mcp_server_add_requested(config: Dictionary) -> void:
 			active_settings_menu.call("show_mcp_error", "Backend is disconnected. Reconnect before adding an MCP server.")
 		return
 
-	var add_request_id: String = _send_request("mcp.config.add", config, "mcp-config-add")
+	var add_request_id: String = _send_request(RPC_METHODS.MCP_CONFIG_ADD, config, "mcp-config-add")
 	if add_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server configuration to backend.")
 
@@ -5436,7 +5210,7 @@ func _on_settings_mcp_server_remove_requested(server_id: String) -> void:
 			active_settings_menu.call("show_mcp_error", "Backend is disconnected. Reconnect before removing an MCP server.")
 		return
 
-	var remove_request_id: String = _send_request("mcp.config.remove", { "serverId": server_id }, "mcp-config-remove")
+	var remove_request_id: String = _send_request(RPC_METHODS.MCP_CONFIG_REMOVE, { "serverId": server_id }, "mcp-config-remove")
 	if remove_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server removal to backend.")
 
@@ -5448,7 +5222,7 @@ func _on_settings_mcp_server_enabled_requested(server_id: String, enabled: bool)
 		_sync_settings_mcp_servers()
 		return
 
-	var enabled_request_id: String = _send_request("mcp.config.setEnabled", { "serverId": server_id, "enabled": enabled }, "mcp-config-enabled")
+	var enabled_request_id: String = _send_request(RPC_METHODS.MCP_CONFIG_SET_ENABLED, { "serverId": server_id, "enabled": enabled }, "mcp-config-enabled")
 	if enabled_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server state change to backend.")
 
@@ -5471,11 +5245,11 @@ func _save_provider_config_to_backend(api_key: String) -> void:
 	if not api_key.strip_edges().is_empty():
 		params["apiKey"] = api_key.strip_edges()
 
-	_send_request("provider.config.set", params, "provider-config-set")
+	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
 
 func _on_settings_provider_config_clear_requested() -> void:
-	_send_request("provider.config.clear", {}, "provider-config-clear")
+	_send_request(RPC_METHODS.PROVIDER_CONFIG_CLEAR, {}, "provider-config-clear")
 
 
 func _on_settings_frontend_config_save_requested(

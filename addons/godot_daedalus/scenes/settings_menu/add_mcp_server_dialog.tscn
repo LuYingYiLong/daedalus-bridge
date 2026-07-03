@@ -6,14 +6,14 @@
 oversampling_override = 1.0
 title = "Add MCP server"
 initial_position = 2
-size = Vector2i(510, 407)
+size = Vector2i(510, 440)
 script = ExtResource("1_loefn")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=2062931845]
 offset_left = 9.0
 offset_top = 9.0
 offset_right = 501.0
-offset_bottom = 356.0
+offset_bottom = 389.0
 
 [node name="GridContainer" type="GridContainer" parent="VBoxContainer" unique_id=1960152658]
 layout_mode = 2
@@ -136,10 +136,10 @@ caret_blink = true
 
 [node name="ErrorLabel" type="Label" parent="VBoxContainer" unique_id=103504071]
 unique_name_in_owner = true
-visible = false
+custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 theme_type_variation = &"WarningLabel"
-text = "Error"
+text = "Name is required."
 autowrap_mode = 2
 
 [connection signal="confirmed" from="." to="." method="_on_confirmed"]
