@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c08tpkgdjw6id"]
 
-[ext_resource type="Script" uid="uid://iuhv67mniduh" path="res://addons/godot_daedalus/scripts/version_manager/backend_manager.gd" id="1_51q6j"]
+[ext_resource type="Script" uid="uid://iuhv67mniduh" path="res://addons/godot_daedalus/scripts/backend_manager/backend_manager.gd" id="1_51q6j"]
 [ext_resource type="Texture2D" uid="uid://c5rbvirywf83c" path="res://addons/godot_daedalus/assets/icons/external_link.svg" id="2_06yhw"]
 [ext_resource type="Texture2D" uid="uid://qfq5odxqx0ci" path="res://addons/godot_daedalus/assets/icons/install.svg" id="3_djbet"]
 [ext_resource type="Texture2D" uid="uid://c7af3axgcc10p" path="res://addons/godot_daedalus/assets/icons/file_browse.svg" id="4_ud3fg"]

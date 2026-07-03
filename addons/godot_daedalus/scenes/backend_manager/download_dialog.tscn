@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dg0dps48fpc7h"]
 
-[ext_resource type="Script" uid="uid://ca43buvvlhwu2" path="res://addons/godot_daedalus/scripts/version_manager/download_dialog.gd" id="1_kdt4r"]
+[ext_resource type="Script" uid="uid://ca43buvvlhwu2" path="res://addons/godot_daedalus/scripts/backend_manager/download_dialog.gd" id="1_kdt4r"]
 
 [node name="DownloadDialog" type="AcceptDialog" unique_id=1027461107]
 oversampling_override = 1.0
