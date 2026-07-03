@@ -101,6 +101,7 @@ const APPROVAL_MODE_IDS: Array[String] = [
 	"read-only"
 ]
 
+@onready var main_viewer: VBoxContainer = %MainViewer
 @onready var workspace_filter_button: OptionButton = %WorkspaceFilterButton
 @onready var search_session_line_edit: LineEdit = %SearchSessionLineEdit
 @onready var session_option_button: OptionButton = %SessionOptionButton
@@ -115,7 +116,7 @@ const APPROVAL_MODE_IDS: Array[String] = [
 @onready var send_button: Button = %SendButton
 @onready var stop_button: Button = %StopButton
 @onready var status_button: Button = %StatusButton
-@onready var text_edit: TextEdit = $TextEdit
+@onready var text_edit: TextEdit = %TextEdit
 @onready var model_button: OptionButton = %ModelButton
 @onready var effort_button: OptionButton = %EffortButton
 @onready var approval_mode_button: OptionButton = %ApprovalModeButton
@@ -229,9 +230,7 @@ var dismissed_live_context_signatures: Dictionary[String, String] = {}
 
 
 func _ready() -> void:
-	session_list_viewer.hide()
-	background_context_viewer.hide()
-	text_edit.hide()
+	main_viewer.hide()
 	boot_splash.show()
 	_setup_options()
 	_load_frontend_config()
@@ -860,11 +859,9 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 		pending_recovery_status_after_session_open = false
 		connection_status_entry_id = ""
 	if show_boot_screen:
+		main_viewer.hide()
 		boot_splash.show()
 		boot_splash.call("show_connecting")
-		session_list_viewer.hide()
-		background_context_viewer.hide()
-		text_edit.hide()
 	_connect_to_backend()
 
 
@@ -907,12 +904,12 @@ func _retry_backend_connection() -> void:
 			_upsert_connection_status_entry(
 				"error",
 				"重连失败",
-				"已经尝试 %d 次，仍无法连接后端。\n请确认后端已启动：npm run dev\n地址：%s" % [MAX_CONNECT_ATTEMPTS, backend_url],
+				"已经尝试 %d 次，仍无法连接后端。\n请确认地址：%s" % [MAX_CONNECT_ATTEMPTS, backend_url],
 				"重试",
 				"reconnect"
 			)
 		else:
-			boot_splash.call("show_error", "Cannot connect to Daedalus backend", "请确认后端已启动：npm run dev\n地址：%s" % backend_url)
+			boot_splash.call("show_error", "Cannot connect to Daedalus backend", "请确认后端已启动：npm exec -- godot-daedalus-backend\n地址：%s" % backend_url)
 		return
 
 	is_connecting = false
@@ -936,6 +933,7 @@ func _on_socket_opened() -> void:
 	status_button.icon = CONNECTED_ICON
 	status_button.tooltip_text = "Connected"
 	boot_splash.hide()
+	main_viewer.show()
 	if not was_recovering:
 		_show_session_list_viewer()
 	elif active_session_id.is_empty():
