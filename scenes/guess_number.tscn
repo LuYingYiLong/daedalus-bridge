@@ -1,0 +1,60 @@
+[gd_scene format=3 uid="uid://lfje63a3doaj"]
+
+[ext_resource type="Script" uid="uid://dg5hfenip5wlh" path="res://scripts/guess_number.gd" id="1_script"]
+
+[node name="GuessNumberGame" type="Control" unique_id=1360957681]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_script")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=878052692]
+layout_mode = 0
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = -120.0
+offset_right = 150.0
+offset_bottom = 120.0
+
+[node name="TitleLabel" type="Label" parent="VBoxContainer" unique_id=1287558547]
+unique_name_in_owner = true
+layout_mode = 2
+text = "猜数字游戏 (1 ~ 100)"
+horizontal_alignment = 1
+
+[node name="HintLabel" type="Label" parent="VBoxContainer" unique_id=578170852]
+unique_name_in_owner = true
+layout_mode = 2
+text = "请输入你猜的数字"
+horizontal_alignment = 1
+
+[node name="InputLine" type="LineEdit" parent="VBoxContainer" unique_id=696911122]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "输入数字..."
+
+[node name="GuessButton" type="Button" parent="VBoxContainer" unique_id=1315561311]
+unique_name_in_owner = true
+layout_mode = 2
+text = "猜测"
+
+[node name="ResultLabel" type="Label" parent="VBoxContainer" unique_id=1344495545]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+
+[node name="ReplayButton" type="Button" parent="VBoxContainer" unique_id=1974032086]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "再来一局"
+
+[connection signal="text_submitted" from="VBoxContainer/InputLine" to="." method="_on_input_line_text_submitted"]
+[connection signal="pressed" from="VBoxContainer/GuessButton" to="." method="_on_guess_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/ReplayButton" to="." method="_on_replay_button_pressed"]

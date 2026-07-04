@@ -1,7 +1,10 @@
 @tool
 extends MarginContainer
 
+signal action_requested(action_id: String)
+
 const TOOL_CALL_ITEM_SCENE: PackedScene = preload("uid://c2a5o7qi58fus")
+const STATUS_ITEM_SCENE: PackedScene = preload("uid://cljnln76ye4o5")
 const MARKDOWN_THEME: Theme = preload("uid://dhartxld7pqyb")
 const ELAPSED_UPDATE_INTERVAL_SECONDS: float = 1.0
 const STREAM_MARKDOWN_LAYOUT_FLUSH_MSEC: int = 96
@@ -135,6 +138,23 @@ func get_thinking_item() -> Node:
 	return thinking_item if thinking_item != null and is_instance_valid(thinking_item) and not thinking_finished_current else null
 
 
+func add_status(status_data: Dictionary) -> Node:
+	_finish_current_markdown_label()
+	var status_item: Node = STATUS_ITEM_SCENE.instantiate()
+	body_container.add_child(status_item)
+	if status_item.has_signal("action_requested"):
+		status_item.connect("action_requested", Callable(self, "_on_status_item_action_requested"))
+	status_item.call(
+		"setup",
+		str(status_data.get("status", "message")),
+		str(status_data.get("title", "")),
+		str(status_data.get("details", status_data.get("detail", ""))),
+		str(status_data.get("actionLabel", status_data.get("action_label", ""))),
+		str(status_data.get("actionId", status_data.get("action_id", "")))
+	)
+	return status_item
+
+
 func _on_mouse_entered() -> void:
 	footer_container.modulate.a = 1.0
 
@@ -199,6 +219,8 @@ func _setup_body_parts(body_parts: Array) -> void:
 				add_thinking()
 			if bool(part.get("done", false)):
 				finish_thinking()
+		elif part_type == "status":
+			add_status(part)
 
 
 func _ensure_current_markdown_label() -> MarkdownLabel:
@@ -233,6 +255,10 @@ func _finish_current_markdown_label() -> void:
 
 func _on_body_child_content_height_changed() -> void:
 	queue_sort()
+
+
+func _on_status_item_action_requested(action_id: String) -> void:
+	action_requested.emit(action_id)
 
 
 func _set_completion_times(started_at_utc: String, completed_at_utc: String) -> void:

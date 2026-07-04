@@ -114,12 +114,6 @@ const MODEL_NAMES: Array[String] = [
 	"V4 Pro"
 ]
 
-const APPROVAL_MODE_NAMES: Array[String] = [
-	"Manual",
-	"Auto Safe",
-	"Read Only"
-]
-
 const APPROVAL_MODE_IDS: Array[String] = [
 	"manual",
 	"auto-safe",
@@ -127,6 +121,7 @@ const APPROVAL_MODE_IDS: Array[String] = [
 ]
 
 @onready var main_viewer: VBoxContainer = %MainViewer
+@onready var back_button: Button = %BackButton
 @onready var workspace_filter_button: OptionButton = %WorkspaceFilterButton
 @onready var search_session_line_edit: LineEdit = %SearchSessionLineEdit
 @onready var session_option_button: OptionButton = %SessionOptionButton
@@ -175,6 +170,7 @@ var pending_chat_additional_context: Array[Dictionary] = []
 var pending_approval_id: String
 var sessions_by_id: Dictionary[String, Dictionary]
 var session_ids_in_order: Array[String]
+var renamed_session_metadata_by_id: Dictionary[String, Dictionary]
 var archived_sessions_by_id: Dictionary[String, Dictionary]
 var archived_session_ids_in_order: Array[String]
 var custom_mcp_servers: Array[Dictionary] = []
@@ -211,6 +207,7 @@ var active_thinking_entry_id: String
 var active_tool_entry_ids_by_call_id: Dictionary[String, String]
 var active_stream_request_id: String
 var active_stream_started_at_utc: String
+var active_stream_status_code: String
 var paused_stream_request_id: String
 var paused_stream_started_at_utc: String
 var paused_assistant_entry_id: String
@@ -289,6 +286,7 @@ func _ready() -> void:
 	_clear_template_items()
 	_render_additional_context_items()
 	_update_send_state()
+	_update_navigation_state()
 	_set_context_length_icon(0.0, true)
 	_start_backend_connection_attempts()
 
@@ -346,10 +344,6 @@ func _setup_options() -> void:
 
 	effort_button.clear()
 	effort_button.add_item("Normal", 0)
-
-	approval_mode_button.clear()
-	for index: int in range(APPROVAL_MODE_NAMES.size()):
-		approval_mode_button.add_item(APPROVAL_MODE_NAMES[index], index)
 
 
 func _setup_slash_command_popup() -> void:
@@ -1608,6 +1602,8 @@ func _finalize_recovery_status(session_restored: bool) -> void:
 func _on_status_item_action_requested(action_id: String) -> void:
 	if action_id == "reconnect":
 		_restart_backend_connection(true)
+	elif action_id == "provider-settings":
+		_on_settings_button_pressed()
 	elif action_id.begins_with(NEXT_STEP_HINT_ACTION_PREFIX):
 		var hint_message: String = next_step_hints_by_action_id.get(action_id, "")
 		if not hint_message.is_empty():
@@ -2482,10 +2478,20 @@ func _apply_approval_mode_to_backend() -> void:
 
 
 func _on_back_button_pressed() -> void:
+	if active_session_id.is_empty():
+		return
+
 	if background_context_viewer.visible:
 		_show_session_list_viewer()
 	else:
 		_show_background_context_viewer()
+
+
+func _update_navigation_state() -> void:
+	if back_button == null:
+		return
+
+	back_button.disabled = active_session_id.is_empty()
 
 
 func _show_session_list_viewer() -> void:
@@ -2495,16 +2501,22 @@ func _show_session_list_viewer() -> void:
 	search_session_line_edit.show()
 	session_option_button.hide()
 	context_length_button.hide()
+	_update_navigation_state()
 	_render_message_panel()
 
 
 func _show_background_context_viewer() -> void:
+	if active_session_id.is_empty():
+		_show_session_list_viewer()
+		return
+
 	session_list_viewer.hide()
 	background_context_viewer.show()
 	workspace_filter_button.hide()
 	search_session_line_edit.hide()
 	session_option_button.show()
 	context_length_button.show()
+	_update_navigation_state()
 	_render_message_panel()
 
 
@@ -2601,6 +2613,7 @@ func _trim_timeline_from_request(request_id_to_retry: String) -> void:
 	active_thinking_entry_id = ""
 	active_assistant_text = ""
 	active_stream_started_at_utc = ""
+	active_stream_status_code = ""
 	_clear_paused_stream_context()
 	_rebuild_timeline_index_cache()
 	_rebuild_timeline_height_cache()
@@ -2630,6 +2643,7 @@ func _stop_active_stream_locally(prepare_continue: bool) -> void:
 	active_stream_id = ""
 	active_stream_request_id = ""
 	active_stream_started_at_utc = ""
+	active_stream_status_code = ""
 	active_assistant_item = null
 	active_thinking_item = null
 	active_assistant_entry_id = ""
@@ -2639,7 +2653,6 @@ func _stop_active_stream_locally(prepare_continue: bool) -> void:
 	_set_streaming_state(false)
 
 	if prepare_continue and text_edit.text.strip_edges().is_empty():
-		text_edit.text = "继续"
 		text_edit.grab_focus()
 
 
@@ -2765,6 +2778,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	active_stream_id = "daedalus-chat-%d" % request_id
 	active_stream_request_id = active_stream_id
 	active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
+	active_stream_status_code = ""
 	var additional_context_snapshot: Array[Dictionary] = _clone_additional_context_array(additional_contexts)
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_append_timeline_entry(
@@ -2821,6 +2835,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 			_set_timeline_entry_times(active_assistant_entry_id, active_stream_started_at_utc, completed_at_utc)
 		active_stream_id = ""
 		active_stream_started_at_utc = ""
+		active_stream_status_code = ""
 		active_assistant_item = null
 		active_assistant_entry_id = ""
 		_set_streaming_state(false)
@@ -3287,6 +3302,7 @@ func _handle_response(message: Dictionary) -> void:
 			active_stream_id = ""
 			active_stream_request_id = ""
 			active_stream_started_at_utc = ""
+			active_stream_status_code = ""
 			active_assistant_item = null
 			active_assistant_entry_id = ""
 			active_assistant_text = ""
@@ -3354,6 +3370,7 @@ func _handle_response(message: Dictionary) -> void:
 		active_stream_id = ""
 		active_stream_request_id = ""
 		active_stream_started_at_utc = ""
+		active_stream_status_code = ""
 		active_assistant_item = null
 		active_assistant_entry_id = ""
 		active_assistant_text = ""
@@ -3404,7 +3421,7 @@ func _handle_event(message: Dictionary) -> void:
 		return
 
 	var data_dictionary: Dictionary = data as Dictionary
-	if event_name == "ai.delta":
+	if event_name == "agent.message.delta" or event_name == "ai.delta":
 		_ensure_active_assistant_item()
 		var delta_text: String = str(data_dictionary.get("text", ""))
 		active_assistant_text += delta_text
@@ -3412,7 +3429,9 @@ func _handle_event(message: Dictionary) -> void:
 		if active_workflow_id.is_empty():
 			_update_todo_list_from_text(active_assistant_text)
 		_schedule_assistant_delta_flush()
-	elif event_name == "ai.done":
+	elif event_name == "ai.status":
+		_append_assistant_status_event(data_dictionary)
+	elif event_name == "agent.message.done" or event_name == "ai.done":
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
 		var completed_request_id: String = active_stream_request_id
@@ -3427,6 +3446,7 @@ func _handle_event(message: Dictionary) -> void:
 		active_stream_id = ""
 		active_stream_request_id = ""
 		active_stream_started_at_utc = ""
+		active_stream_status_code = ""
 		active_assistant_text = ""
 		_clear_paused_stream_context()
 		_set_streaming_state(false)
@@ -3436,7 +3456,7 @@ func _handle_event(message: Dictionary) -> void:
 		if not _has_pending_queued_messages():
 			_request_next_step_hints(completed_request_id, "done")
 		_process_message_queue()
-	elif event_name == "ai.paused":
+	elif event_name == "agent.run.paused" or event_name == "ai.paused":
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		var paused_request_id: String = active_stream_request_id
 		var has_approval_request: bool = str(data_dictionary.get("approvalId", "")).length() > 0
@@ -3448,6 +3468,7 @@ func _handle_event(message: Dictionary) -> void:
 		active_stream_id = ""
 		active_stream_request_id = ""
 		active_stream_started_at_utc = ""
+		active_stream_status_code = ""
 		active_assistant_text = ""
 		if not has_approval_request:
 			_clear_paused_stream_context()
@@ -3457,11 +3478,11 @@ func _handle_event(message: Dictionary) -> void:
 				_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_APPROVAL)
 			_show_approval_dialog(data_dictionary)
 		_request_next_step_hints(paused_request_id, "paused")
-	elif event_name == "ai.cancelled":
+	elif event_name == "agent.run.cancelled" or event_name == "ai.cancelled":
 		_stop_active_stream_locally(false)
-	elif event_name == "ai.thinking.delta":
+	elif event_name == "agent.thinking.delta" or event_name == "ai.thinking.delta":
 		_append_thinking_event(str(data_dictionary.get("text", "")))
-	elif event_name == "ai.thinking.done":
+	elif event_name == "agent.thinking.done" or event_name == "ai.thinking.done":
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		_flush_pending_thinking_delta()
 		if not active_assistant_entry_id.is_empty():
@@ -3471,17 +3492,18 @@ func _handle_event(message: Dictionary) -> void:
 			_schedule_timeline_render(should_follow_bottom)
 		active_thinking_item = null
 		active_thinking_entry_id = ""
-	elif event_name == "tool.call":
-		_add_tool_event(data_dictionary)
-	elif event_name == "tool.result":
-		_append_tool_event(data_dictionary)
-	elif event_name == "tool.error":
-		_append_tool_event(data_dictionary)
-	elif event_name == "tool.approval_required":
-		_add_tool_event(data_dictionary)
-		_show_approval_dialog(data_dictionary)
-	elif event_name == "tool.approved" or event_name == "tool.rejected":
-		var tool_was_rejected: bool = event_name == "tool.rejected"
+	elif event_name == "agent.tool.call" or event_name == "tool.call":
+		_add_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
+	elif event_name == "agent.tool.result" or event_name == "tool.result":
+		_append_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
+	elif event_name == "agent.tool.error" or event_name == "tool.error":
+		_append_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
+	elif event_name == "agent.tool.approval_required" or event_name == "tool.approval_required":
+		var approval_tool_event: Dictionary = _normalize_agent_tool_event_data(event_name, data_dictionary)
+		_add_tool_event(approval_tool_event)
+		_show_approval_dialog(approval_tool_event)
+	elif event_name == "agent.tool.approved" or event_name == "agent.tool.rejected" or event_name == "tool.approved" or event_name == "tool.rejected":
+		var tool_was_rejected: bool = event_name == "tool.rejected" or event_name == "agent.tool.rejected"
 		pending_approval_id = ""
 		approval_dialog.visible = false
 		_update_send_state()
@@ -3492,14 +3514,16 @@ func _handle_event(message: Dictionary) -> void:
 				_process_message_queue()
 		elif active_queue_message_id > 0:
 			_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_SENDING)
-	elif event_name == "workflow.started":
-		active_workflow_id = str(data_dictionary.get("workflowId", ""))
-	elif event_name == "workflow.todo.updated":
+	elif event_name == "agent.run.started" or event_name == "workflow.started":
+		active_workflow_id = str(data_dictionary.get("runId", data_dictionary.get("workflowId", "")))
+	elif event_name == "agent.run.snapshot" or event_name == "workflow.todo.updated":
 		_apply_workflow_todo_snapshot(data_dictionary)
 	elif event_name == "guide.applied":
 		_apply_guide_applied_event(data_dictionary)
 	elif event_name == "guide.deleted":
 		_apply_guide_deleted_event(data_dictionary)
+	elif event_name == "session.renamed":
+		_apply_session_renamed_event(data_dictionary)
 	elif event_name == "mcp.config.updated":
 		_apply_mcp_config_response(data_dictionary)
 		var mcp_error_text: String = str(data_dictionary.get("error", "")).strip_edges()
@@ -3510,7 +3534,16 @@ func _handle_event(message: Dictionary) -> void:
 
 
 func _is_global_event(event_name: String) -> bool:
-	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("workflow.") or event_name.begins_with("guide.")
+	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("agent.")
+
+
+func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary) -> Dictionary:
+	if not event_name.begins_with("agent.tool."):
+		return event_data
+
+	var normalized_data: Dictionary = event_data.duplicate(true)
+	normalized_data["type"] = event_name.replace("agent.tool.", "tool.")
+	return normalized_data
 
 
 func _request_next_step_hints(anchor_request_id: String, trigger: String) -> void:
@@ -3741,6 +3774,7 @@ func _update_session_list(result: Dictionary) -> void:
 		if session_id.is_empty():
 			continue
 
+		metadata = _apply_renamed_session_override(metadata)
 		sessions_by_id[session_id] = metadata
 		session_ids_in_order.append(session_id)
 
@@ -3979,6 +4013,7 @@ func _apply_archived_session_response(result_dictionary: Dictionary) -> void:
 			archived_session_ids_in_order.insert(0, session_id)
 		if active_session_id == session_id:
 			active_session_id = ""
+			_update_navigation_state()
 
 	_render_session_list()
 	_sync_settings_archived_sessions()
@@ -4001,8 +4036,60 @@ func _refresh_session_and_archive_lists() -> void:
 
 func _apply_session_metadata(metadata: Dictionary) -> void:
 	active_session_id = str(metadata.get("id", ""))
+	if not active_session_id.is_empty():
+		sessions_by_id[active_session_id] = _apply_renamed_session_override(metadata)
+		if not session_ids_in_order.has(active_session_id):
+			session_ids_in_order.insert(0, active_session_id)
+		_render_session_list()
 	_select_active_session()
+	_update_navigation_state()
 	_render_message_panel()
+
+
+func _apply_renamed_session_override(metadata: Dictionary) -> Dictionary:
+	var session_id: String = str(metadata.get("id", ""))
+	if session_id.is_empty() or not renamed_session_metadata_by_id.has(session_id):
+		return metadata
+
+	var override_metadata: Dictionary = renamed_session_metadata_by_id[session_id]
+	var result: Dictionary = metadata.duplicate(true)
+	var metadata_updated_at: String = str(metadata.get("updatedAt", ""))
+	var override_updated_at: String = str(override_metadata.get("updatedAt", ""))
+	if override_updated_at.is_empty() or metadata_updated_at.is_empty() or override_updated_at >= metadata_updated_at:
+		for metadata_key: Variant in override_metadata.keys():
+			result[str(metadata_key)] = override_metadata[metadata_key]
+
+	return result
+
+
+func _apply_session_renamed_event(data_dictionary: Dictionary) -> void:
+	var session_id: String = str(data_dictionary.get("sessionId", ""))
+	if session_id.is_empty():
+		return
+
+	var metadata_value: Variant = data_dictionary.get("metadata", {})
+	var metadata: Dictionary = {}
+	if typeof(metadata_value) == TYPE_DICTIONARY:
+		metadata = metadata_value as Dictionary
+	else:
+		metadata = {
+			"id": session_id,
+			"title": str(data_dictionary.get("title", ""))
+		}
+
+	renamed_session_metadata_by_id[session_id] = metadata.duplicate(true)
+	if sessions_by_id.has(session_id):
+		var existing_metadata: Dictionary = sessions_by_id[session_id]
+		for metadata_key: Variant in metadata.keys():
+			existing_metadata[str(metadata_key)] = metadata[metadata_key]
+		sessions_by_id[session_id] = existing_metadata
+	else:
+		sessions_by_id[session_id] = metadata
+		session_ids_in_order.append(session_id)
+
+	_render_session_list()
+	if active_session_id == session_id:
+		_select_active_session()
 
 
 func _apply_provider_config_status(status: Dictionary) -> void:
@@ -4044,6 +4131,7 @@ func _clear_chat_items() -> void:
 	active_thinking_entry_id = ""
 	active_stream_request_id = ""
 	active_stream_started_at_utc = ""
+	active_stream_status_code = ""
 	_clear_paused_stream_context()
 	connection_status_entry_id = ""
 	active_assistant_text = ""
@@ -4294,11 +4382,13 @@ func _collect_session_events(
 		return
 
 	var events: Array = events_value as Array
-	for item: Variant in events:
+	for event_index: int in range(events.size()):
+		var item: Variant = events[event_index]
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
 
 		var event_record: Dictionary = item as Dictionary
+		event_record["_timelineOrder"] = event_index
 		var request_id: String = str(event_record.get("requestId", ""))
 		if request_id.is_empty() or not message_request_ids.has(request_id):
 			orphan_events.append(event_record)
@@ -4321,7 +4411,7 @@ func _compare_event_records_by_created_at(left: Dictionary, right: Dictionary) -
 	var left_created_at: String = str(left.get("createdAt", ""))
 	var right_created_at: String = str(right.get("createdAt", ""))
 	if left_created_at == right_created_at:
-		return str(left.get("id", "")) < str(right.get("id", ""))
+		return int(left.get("_timelineOrder", 0)) < int(right.get("_timelineOrder", 0))
 
 	return left_created_at < right_created_at
 
@@ -4362,9 +4452,13 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 
 		var event_record: Dictionary = item as Dictionary
 		var event_name: String = str(event_record.get("event", ""))
-		if event_name.begins_with("tool."):
+		if event_name == "ai.delta" or event_name == "agent.message.delta":
 			continue
-		if event_name.begins_with("ai.thinking."):
+		if event_name.begins_with("tool.") or event_name.begins_with("agent.tool."):
+			continue
+		if event_name.begins_with("ai.thinking.") or event_name.begins_with("agent.thinking."):
+			continue
+		if event_name == "ai.status":
 			continue
 
 		filtered_records.append(event_record)
@@ -4374,6 +4468,11 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 
 func _build_assistant_body_parts(records: Array, message_content: String, request_id: String) -> Array[Dictionary]:
 	var body_parts: Array[Dictionary] = []
+	var has_markdown_delta: bool = false
+	var records_have_markdown_delta: bool = _records_have_event(records, "ai.delta") or _records_have_event(records, "agent.message.delta")
+	if not records_have_markdown_delta and not message_content.is_empty():
+		_append_markdown_delta_to_body_parts(body_parts, message_content)
+
 	for item: Variant in records:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
@@ -4389,20 +4488,55 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 		if not event_data.has("type"):
 			event_data["type"] = event_name
 		event_data["_eventRecordId"] = str(event_record.get("id", ""))
-		if event_name.begins_with("tool."):
-			_append_tool_event_to_body_parts(body_parts, event_data, request_id)
-		elif event_name == "ai.thinking.delta":
+		if event_name == "ai.delta" or event_name == "agent.message.delta":
+			var delta_text: String = str(event_data.get("text", ""))
+			if not delta_text.is_empty():
+				_append_markdown_delta_to_body_parts(body_parts, delta_text)
+				has_markdown_delta = true
+		elif event_name.begins_with("tool.") or event_name.begins_with("agent.tool."):
+			_append_tool_event_to_body_parts(body_parts, _normalize_agent_tool_event_data(event_name, event_data), request_id)
+		elif event_name == "ai.thinking.delta" or event_name == "agent.thinking.delta":
 			_append_thinking_event_to_body_parts(body_parts, str(event_data.get("text", "")), false)
-		elif event_name == "ai.thinking.done":
+		elif event_name == "ai.thinking.done" or event_name == "agent.thinking.done":
 			_append_thinking_event_to_body_parts(body_parts, "", true)
+		elif event_name == "ai.status":
+			_append_status_event_to_body_parts(body_parts, event_data)
 
-	if not message_content.is_empty():
-		body_parts.append({
-			"type": "markdown",
-			"text": message_content
-		})
+	if not has_markdown_delta and records_have_markdown_delta and not message_content.is_empty():
+		_append_markdown_delta_to_body_parts(body_parts, message_content)
 
 	return body_parts
+
+
+func _records_have_event(records: Array, target_event_name: String) -> bool:
+	for item: Variant in records:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		if str(event_record.get("event", "")) == target_event_name:
+			return true
+
+	return false
+
+
+func _append_markdown_delta_to_body_parts(body_parts: Array, delta_text: String) -> void:
+	if delta_text.is_empty():
+		return
+
+	if not body_parts.is_empty():
+		var last_part_value: Variant = body_parts[body_parts.size() - 1]
+		if typeof(last_part_value) == TYPE_DICTIONARY:
+			var last_part: Dictionary = last_part_value as Dictionary
+			if str(last_part.get("type", "")) == "markdown":
+				last_part["text"] = str(last_part.get("text", "")) + delta_text
+				body_parts[body_parts.size() - 1] = last_part
+				return
+
+	body_parts.append({
+		"type": "markdown",
+		"text": delta_text
+	})
 
 
 func _append_tool_event_to_body_parts(body_parts: Array, event_data: Dictionary, request_id: String) -> void:
@@ -4459,6 +4593,19 @@ func _append_thinking_event_to_body_parts(body_parts: Array, delta_text: String,
 		"text": delta_text,
 		"done": is_done
 	})
+
+
+func _append_status_event_to_body_parts(body_parts: Array, status_data: Dictionary) -> void:
+	var part: Dictionary = {
+		"type": "status",
+		"status": str(status_data.get("status", "message")),
+		"title": str(status_data.get("title", "")),
+		"details": str(status_data.get("details", status_data.get("detail", ""))),
+		"actionLabel": str(status_data.get("actionLabel", status_data.get("action_label", ""))),
+		"actionId": str(status_data.get("actionId", status_data.get("action_id", ""))),
+		"code": str(status_data.get("code", ""))
+	}
+	body_parts.append(part)
 
 
 func _does_event_list_have_record(events: Array, event_record_id: String) -> bool:
@@ -4543,7 +4690,7 @@ func _upsert_connection_status_entry(
 
 
 func _append_event_to_timeline(event_name: String, event_data: Dictionary, request_id: String) -> void:
-	if event_name == "ai.thinking.delta":
+	if event_name == "ai.thinking.delta" or event_name == "agent.thinking.delta":
 		var delta_text: String = str(event_data.get("text", ""))
 		if delta_text.is_empty():
 			return
@@ -4552,13 +4699,27 @@ func _append_event_to_timeline(event_name: String, event_data: Dictionary, reque
 			active_thinking_entry_id = _append_timeline_entry("thinking", request_id, "", "thinking:%s" % request_id)
 
 		_update_timeline_entry_content(active_thinking_entry_id, _get_timeline_entry_content(active_thinking_entry_id) + delta_text)
-	elif event_name == "ai.thinking.done":
+	elif event_name == "ai.thinking.done" or event_name == "agent.thinking.done":
 		_set_timeline_entry_collapsed(active_thinking_entry_id, true)
 		active_thinking_entry_id = ""
-	elif event_name == "tool.call" or event_name == "tool.approval_required":
-		_append_tool_event_to_timeline(event_data, request_id)
-	elif event_name == "tool.result" or event_name == "tool.error" or event_name == "tool.approved" or event_name == "tool.rejected":
-		_append_tool_event_to_timeline(event_data, request_id)
+	elif event_name == "tool.call" or event_name == "tool.approval_required" or event_name == "agent.tool.call" or event_name == "agent.tool.approval_required":
+		_append_tool_event_to_timeline(_normalize_agent_tool_event_data(event_name, event_data), request_id)
+	elif event_name == "tool.result" or event_name == "tool.error" or event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "agent.tool.result" or event_name == "agent.tool.error" or event_name == "agent.tool.approved" or event_name == "agent.tool.rejected":
+		_append_tool_event_to_timeline(_normalize_agent_tool_event_data(event_name, event_data), request_id)
+	elif event_name == "ai.status":
+		_append_timeline_entry(
+			"status",
+			request_id,
+			str(event_data.get("details", event_data.get("detail", ""))),
+			"status:%s:%s" % [request_id, str(event_data.get("_eventRecordId", Time.get_ticks_msec()))],
+			{
+				"status": str(event_data.get("status", "message")),
+				"title": str(event_data.get("title", "")),
+				"detail": str(event_data.get("details", event_data.get("detail", ""))),
+				"action_label": str(event_data.get("actionLabel", event_data.get("action_label", ""))),
+				"action_id": str(event_data.get("actionId", event_data.get("action_id", "")))
+			}
+		)
 
 
 func _append_tool_event_to_timeline(event_data: Dictionary, request_id: String) -> String:
@@ -4945,6 +5106,8 @@ func _configure_timeline_entry_node(node: Node, entry: Dictionary, _index: int) 
 			str(entry.get("completed_at_utc", "")),
 			entry.get("body_parts", [])
 		)
+		if node.has_signal("action_requested") and not node.is_connected("action_requested", _on_status_item_action_requested):
+			node.connect("action_requested", _on_status_item_action_requested)
 	elif entry_type == "thinking":
 		node.call("setup_thinking")
 		var content: String = str(entry.get("content", ""))
@@ -5192,9 +5355,31 @@ func _show_response_error(message: Dictionary) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	var error_value: Variant = message.get("error", {})
 	var error_message: String = "Unknown backend error"
+	var error_code: String = ""
 	if typeof(error_value) == TYPE_DICTIONARY:
 		var error_dictionary: Dictionary = error_value as Dictionary
 		error_message = str(error_dictionary.get("message", error_message))
+		error_code = str(error_dictionary.get("code", ""))
+
+	if not error_code.is_empty() and error_code == active_stream_status_code:
+		if active_assistant_item != null:
+			active_assistant_item.call("finish_message")
+		_schedule_timeline_render(should_follow_bottom)
+		_scroll_to_bottom_if_following(should_follow_bottom)
+		return
+
+	if error_code == "provider_quota_exhausted":
+		_append_assistant_status_event({
+			"status": "error",
+			"title": "模型额度不足",
+			"details": "DeepSeek 返回额度或余额不足，当前回复已停止。请检查账户余额、套餐额度或切换可用的 API Key 后重试。",
+			"actionLabel": "Open settings",
+			"actionId": "provider-settings",
+			"code": error_code
+		})
+		if active_assistant_item != null:
+			active_assistant_item.call("finish_message")
+		return
 
 	if active_assistant_item != null:
 		var error_delta: String = "\n\n后端返回错误：%s" % error_message
@@ -5301,6 +5486,39 @@ func _append_assistant_tool_event_to_timeline(entry_id: String, event_data: Dict
 	entry["height_actual"] = 0.0
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
+
+
+func _append_assistant_status_to_timeline(entry_id: String, status_data: Dictionary) -> void:
+	var index: int = _find_timeline_entry_index(entry_id)
+	if index < 0:
+		return
+
+	var entry: Dictionary = timeline_entries[index]
+	var body_parts: Array = entry.get("body_parts", []) as Array
+	_append_status_event_to_body_parts(body_parts, status_data)
+	entry["body_parts"] = body_parts
+	entry["height_actual"] = 0.0
+	timeline_entries[index] = entry
+	_mark_timeline_height_dirty(index)
+
+
+func _append_assistant_status_event(status_data: Dictionary) -> void:
+	_show_background_context_viewer()
+	var should_follow_bottom: bool = _should_follow_timeline_updates()
+	_flush_pending_assistant_delta()
+	_ensure_active_assistant_item()
+	active_stream_status_code = str(status_data.get("code", ""))
+	if not active_assistant_entry_id.is_empty():
+		_append_assistant_status_to_timeline(active_assistant_entry_id, status_data)
+
+	active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
+	if active_assistant_item != null:
+		active_assistant_item.call("add_status", status_data)
+		_schedule_timeline_measure()
+		_scroll_to_bottom_if_following(should_follow_bottom)
+		return
+
+	_schedule_timeline_render(should_follow_bottom)
 
 
 func _ensure_active_assistant_thinking_item() -> Node:
@@ -5641,11 +5859,11 @@ func _clear_todo_items() -> void:
 
 
 func _apply_workflow_todo_snapshot(snapshot: Dictionary) -> void:
-	var workflow_id: String = str(snapshot.get("workflowId", ""))
+	var workflow_id: String = str(snapshot.get("runId", snapshot.get("workflowId", "")))
 	if not workflow_id.is_empty():
 		active_workflow_id = workflow_id
 
-	var phases_value: Variant = snapshot.get("phases", [])
+	var phases_value: Variant = snapshot.get("steps", snapshot.get("phases", []))
 	if typeof(phases_value) != TYPE_ARRAY:
 		return
 

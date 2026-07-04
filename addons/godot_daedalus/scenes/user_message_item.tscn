@@ -44,7 +44,6 @@ layout_mode = 2
 
 [node name="AdditionalContextViewer" type="ScrollContainer" parent="VBoxContainer" unique_id=1469524708]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 vertical_scroll_mode = 0
 
