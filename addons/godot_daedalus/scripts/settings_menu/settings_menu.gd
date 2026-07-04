@@ -1,8 +1,8 @@
 @tool
 extends AcceptDialog
 
-signal provider_config_save_requested(api_key: String)
-signal provider_config_clear_requested
+signal provider_config_save_requested(provider_id: String, api_key: String)
+signal provider_config_clear_requested(provider_id: String)
 signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, custom_instructions: String, next_step_hints_enabled: bool, check_for_updates_enabled: bool)
 signal archived_session_restore_requested(session_id: String)
 signal archived_session_delete_requested(session_id: String)
@@ -12,6 +12,7 @@ signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 
 @onready var tab_container: TabContainer = %TabContainer
 @onready var provider_option_button: OptionButton = %ProviderOptionButton
+@onready var api_key_label: Label = %APIKeyLabel
 @onready var backend_url_line_edit: LineEdit = %BackendURLLineEdit
 @onready var backend_dev_dir_line_edit: LineEdit = %BackendDevDirLineEdit
 @onready var deepseek_api_key_line_edit: LineEdit = %DeepseekAPIKeyLineEdit
@@ -46,10 +47,19 @@ const BUTTONS_MIN_HEIGHT_CONSTANT: StringName = &"buttons_min_height"
 const CONFIRM_ACTION_NONE: StringName = &""
 const CONFIRM_ACTION_DELETE_ARCHIVED_SESSION: StringName = &"delete_archived_session"
 const CONFIRM_ACTION_DELETE_ALL_ARCHIVED_SESSIONS: StringName = &"delete_all_archived_sessions"
+const PROVIDER_IDS: Array[String] = [
+	"deepseek",
+	"moonshot"
+]
+const PROVIDER_NAMES: Array[String] = [
+	"DeepSeek",
+	"Moonshot"
+]
 
 var archived_sessions: Array[Dictionary] = []
 var archived_workspaces_by_id: Dictionary[String, Dictionary] = {}
 var custom_mcp_servers: Array[Dictionary] = []
+var provider_status_by_id: Dictionary[String, Dictionary] = {}
 var mcp_backend_available: bool = true
 var mcp_add_pending: bool
 var pending_mcp_server_metadata: Dictionary = {}
@@ -70,6 +80,8 @@ func _ready() -> void:
 	file_dialog.access = EditorFileDialog.ACCESS_FILESYSTEM
 	if not file_dialog.dir_selected.is_connected(_on_backend_dev_dir_selected):
 		file_dialog.dir_selected.connect(_on_backend_dev_dir_selected)
+	if not provider_option_button.item_selected.is_connected(_on_provider_option_button_item_selected):
+		provider_option_button.item_selected.connect(_on_provider_option_button_item_selected)
 	_update_custom_instructions_status()
 	_render_mcp_servers()
 	_update_delete_all_archived_chats_button()
@@ -77,21 +89,30 @@ func _ready() -> void:
 
 
 func setup_provider_config(status: Dictionary, frontend_config: Dictionary = {}) -> void:
-	var configured: bool = bool(status.get("configured", false))
+	var active_provider_id: String = str(status.get("activeProvider", status.get("provider", frontend_config.get("provider", "deepseek"))))
+	provider_status_by_id.clear()
+	var providers_value: Variant = status.get("providers", [])
+	if typeof(providers_value) == TYPE_ARRAY:
+		var providers_array: Array = providers_value as Array
+		for item: Variant in providers_array:
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+
+			var provider_status: Dictionary = item as Dictionary
+			var provider_id: String = str(provider_status.get("provider", "")).strip_edges()
+			if not provider_id.is_empty():
+				provider_status_by_id[provider_id] = provider_status
+
+	if provider_status_by_id.is_empty() and status.has("provider"):
+		provider_status_by_id[str(status.get("provider", active_provider_id))] = status
 	backend_url_line_edit.text = str(frontend_config.get("backendUrl", "ws://localhost:38180"))
 	backend_dev_dir_line_edit.text = str(frontend_config.get("backendDevDir", ""))
 	custom_instructions_edit.text = str(frontend_config.get("customInstructions", ""))
 	next_step_hints_check_box.button_pressed = bool(frontend_config.get("nextStepHintsEnabled", false))
 	check_for_updates_check_box.button_pressed = bool(frontend_config.get("checkForUpdatesEnabled", true))
 	_update_custom_instructions_status()
-
-	if configured:
-		deepseek_api_key_line_edit.placeholder_text = "Set new API key"
-	else:
-		deepseek_api_key_line_edit.placeholder_text = "Set API key"
-
-	clear_deepseek_api_key_button.disabled = not configured
-	provider_option_button.disabled = true
+	_populate_provider_options(active_provider_id)
+	_update_provider_key_labels()
 	show()
 
 
@@ -151,17 +172,61 @@ func _on_confirmed() -> void:
 		next_step_hints_check_box.button_pressed,
 		check_for_updates_check_box.button_pressed
 	)
-	provider_config_save_requested.emit(api_key)
+	provider_config_save_requested.emit(_get_selected_provider_id(), api_key)
 	queue_free()
 
 
 func _on_clear_deepseek_api_key_button_pressed() -> void:
-	provider_config_clear_requested.emit()
+	provider_config_clear_requested.emit(_get_selected_provider_id())
 	queue_free()
 
 
 func _on_close_requested() -> void:
 	queue_free()
+
+
+func _populate_provider_options(active_provider_id: String) -> void:
+	provider_option_button.clear()
+	for index: int in range(PROVIDER_IDS.size()):
+		provider_option_button.add_item(PROVIDER_NAMES[index], index)
+		provider_option_button.set_item_metadata(index, PROVIDER_IDS[index])
+
+	for index: int in range(provider_option_button.get_item_count()):
+		if str(provider_option_button.get_item_metadata(index)) == active_provider_id:
+			provider_option_button.select(index)
+			return
+
+	provider_option_button.select(0)
+
+
+func _get_selected_provider_id() -> String:
+	var selected_index: int = provider_option_button.selected
+	if selected_index >= 0 and selected_index < provider_option_button.get_item_count():
+		return str(provider_option_button.get_item_metadata(selected_index))
+
+	return PROVIDER_IDS[0]
+
+
+func _get_selected_provider_name() -> String:
+	var selected_index: int = provider_option_button.selected
+	if selected_index >= 0 and selected_index < provider_option_button.get_item_count():
+		return provider_option_button.get_item_text(selected_index)
+
+	return PROVIDER_NAMES[0]
+
+
+func _update_provider_key_labels() -> void:
+	var provider_name: String = _get_selected_provider_name()
+	var provider_status: Dictionary = provider_status_by_id.get(_get_selected_provider_id(), {}) as Dictionary
+	var configured: bool = bool(provider_status.get("configured", false))
+	api_key_label.text = "%s API Key" % provider_name
+	deepseek_api_key_line_edit.placeholder_text = "Set new API key" if configured else "Set API key"
+	clear_deepseek_api_key_button.disabled = not configured
+	clear_deepseek_api_key_button.tooltip_text = "Clear saved %s API key" % provider_name
+
+
+func _on_provider_option_button_item_selected(_index: int) -> void:
+	_update_provider_key_labels()
 
 
 func _on_workspace_filter_option_button_item_selected(index: int) -> void:

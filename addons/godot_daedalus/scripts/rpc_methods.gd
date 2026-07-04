@@ -8,6 +8,7 @@ const PROVIDER_CONFIGURE: String = "provider.configure"
 const PROVIDER_CONFIG_GET: String = "provider.config.get"
 const PROVIDER_CONFIG_SET: String = "provider.config.set"
 const PROVIDER_CONFIG_CLEAR: String = "provider.config.clear"
+const PROVIDER_MODELS_LIST: String = "provider.models.list"
 const AI_CHAT: String = "ai.chat"
 const AI_NEXT_STEP_HINTS: String = "ai.next_step_hints"
 const AI_CANCEL: String = "ai.cancel"
@@ -64,6 +65,7 @@ static func all() -> Array[String]:
 		PROVIDER_CONFIG_GET,
 		PROVIDER_CONFIG_SET,
 		PROVIDER_CONFIG_CLEAR,
+		PROVIDER_MODELS_LIST,
 		AI_CHAT,
 		AI_NEXT_STEP_HINTS,
 		AI_CANCEL,

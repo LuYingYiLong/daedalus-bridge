@@ -87,9 +87,10 @@ item_count = 1
 popup/item_0/text = "Deepseek"
 popup/item_0/id = 0
 
-[node name="DeepseekAPIKeyLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=493643975]
+[node name="APIKeyLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=493643975]
+unique_name_in_owner = true
 layout_mode = 2
-text = "Deepseek API Key"
+text = "API Key"
 
 [node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=831029577]
 layout_mode = 2

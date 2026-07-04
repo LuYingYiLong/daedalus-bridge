@@ -32,7 +32,7 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 52, "rpc method count")
+	_expect_equal(methods.size(), 53, "rpc method count")
 	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_TOOL_RESULT), true, "editor tool result listed")
 	_expect_equal(seen.has(RPC_METHODS.WORKSPACE_INFO), true, "workspace info listed")

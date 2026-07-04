@@ -81,7 +81,7 @@ icon = ExtResource("4_v6xl6")
 [node name="StatusButton" type="Button" parent="MainViewer/HeaderContainer" unique_id=142072528]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Provider configured"
+tooltip_text = "Moonshot/Kimi provider configured"
 theme_type_variation = &"FlatButton"
 icon = ExtResource("6_42cu0")
 
@@ -272,13 +272,36 @@ layout_mode = 2
 
 [node name="ModelButton" type="OptionButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1736821875]
 unique_name_in_owner = true
+custom_maximum_size = Vector2(128, -1)
 layout_mode = 2
-selected = 1
-item_count = 2
-popup/item_0/text = "V4 Flash"
+size_flags_horizontal = 3
+tooltip_text = "Moonshot/Kimi / kimi-k2.7-code
+Capabilities: image, video, reasoning"
+text_overrun_behavior = 6
+selected = 4
+item_count = 11
+popup/item_0/text = "Moonshot v1 32K Vision Preview"
 popup/item_0/id = 0
-popup/item_1/text = "V4 Pro"
+popup/item_1/text = "Moonshot v1 32K"
 popup/item_1/id = 1
+popup/item_2/text = "Moonshot v1 8K Vision Preview"
+popup/item_2/id = 2
+popup/item_3/text = "Moonshot v1 Auto"
+popup/item_3/id = 3
+popup/item_4/text = "Kimi K2.7 Code"
+popup/item_4/id = 4
+popup/item_5/text = "Kimi K2.5"
+popup/item_5/id = 5
+popup/item_6/text = "Moonshot v1 128K Vision Preview"
+popup/item_6/id = 6
+popup/item_7/text = "Kimi K2.7 Code Highspeed"
+popup/item_7/id = 7
+popup/item_8/text = "Moonshot v1 8K"
+popup/item_8/id = 8
+popup/item_9/text = "Moonshot v1 128K"
+popup/item_9/id = 9
+popup/item_10/text = "Kimi K2.6"
+popup/item_10/id = 10
 
 [node name="EffortButton" type="OptionButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=596047341]
 unique_name_in_owner = true
@@ -297,7 +320,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_horizontal = 8
-tooltip_text = "Context usage: 0% (0 / 1.0M)"
+tooltip_text = "Context usage: 0% (0 / 256.0k)"
 theme_type_variation = &"FlatButton"
 icon = ExtResource("2_11dqu")
 
@@ -320,6 +343,16 @@ icon = ExtResource("4_gf3fo")
 
 [node name="FooterContainer" type="HBoxContainer" parent="MainViewer" unique_id=1985985829]
 layout_mode = 2
+
+[node name="ProviderOptionButton" type="OptionButton" parent="MainViewer/FooterContainer" unique_id=1876987620]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 2
+popup/item_0/text = "DeepSeek"
+popup/item_0/id = 0
+popup/item_1/text = "Moonshot/Kimi"
+popup/item_1/id = 1
 
 [node name="ApprovalModeButton" type="OptionButton" parent="MainViewer/FooterContainer" unique_id=1350121884]
 unique_name_in_owner = true
@@ -371,6 +404,7 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/ContextLengthButton" to="." method="_on_context_length_button_pressed"]
 [connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/SendButton" to="." method="_on_send_button_pressed"]
 [connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/StopButton" to="." method="_on_stop_button_pressed"]
+[connection signal="item_selected" from="MainViewer/FooterContainer/ProviderOptionButton" to="." method="_on_provider_option_button_item_selected"]
 [connection signal="item_selected" from="MainViewer/FooterContainer/ApprovalModeButton" to="." method="_on_approval_mode_button_item_selected"]
 [connection signal="pressed" from="MainViewer/FooterContainer/BackendManagerButton" to="." method="_on_backend_manager_button_pressed"]
 [connection signal="backend_check_requested" from="BootSplash" to="." method="_on_boot_splash_backend_check_requested"]

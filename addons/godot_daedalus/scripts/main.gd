@@ -19,6 +19,7 @@ const FRONTEND_CONFIG_PATH: String = "user://godot_daedalus_frontend.cfg"
 const FRONTEND_CONFIG_SECTION: String = "frontend"
 const CONFIG_BACKEND_URL_KEY: String = "backend_url"
 const CONFIG_BACKEND_DEV_DIR_KEY: String = "backend_dev_dir"
+const CONFIG_PROVIDER_ID_KEY: String = "provider_id"
 const CONFIG_MODEL_ID_KEY: String = "model_id"
 const CONFIG_APPROVAL_MODE_KEY: String = "approval_mode"
 const CONFIG_CUSTOM_INSTRUCTIONS_KEY: String = "custom_instructions"
@@ -104,14 +105,14 @@ const SCRIPT_LINE_PREVIEW_LIMIT: int = 500
 const FILESYSTEM_CONTEXT_MAX_PATHS: int = 40
 const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 500
 
-const MODEL_IDS: Array[String] = [
-	"deepseek-v4-flash",
-	"deepseek-v4-pro"
+const DEFAULT_PROVIDER_ID: String = "deepseek"
+const PROVIDER_IDS: Array[String] = [
+	"deepseek",
+	"moonshot"
 ]
-
-const MODEL_NAMES: Array[String] = [
-	"V4 Flash",
-	"V4 Pro"
+const PROVIDER_NAMES: Array[String] = [
+	"DeepSeek",
+	"Moonshot/Kimi"
 ]
 
 const APPROVAL_MODE_IDS: Array[String] = [
@@ -137,6 +138,7 @@ const APPROVAL_MODE_IDS: Array[String] = [
 @onready var stop_button: Button = %StopButton
 @onready var status_button: Button = %StatusButton
 @onready var text_edit: TextEdit = %TextEdit
+@onready var provider_option_button: OptionButton = %ProviderOptionButton
 @onready var model_button: OptionButton = %ModelButton
 @onready var effort_button: OptionButton = %EffortButton
 @onready var approval_mode_button: OptionButton = %ApprovalModeButton
@@ -247,7 +249,12 @@ var slash_command_completion_consumed: bool
 var custom_instructions: String
 var next_step_hints_enabled: bool
 var check_for_updates_enabled: bool = true
+var active_provider_id: String = DEFAULT_PROVIDER_ID
+var model_ids: Array[String] = []
+var model_names: Array[String] = []
+var model_capabilities: Array[Dictionary] = []
 var pending_provider_config_api_key: String
+var pending_provider_config_provider: String = DEFAULT_PROVIDER_ID
 var pending_provider_config_save_after_connect: bool
 var queued_messages: Array[Dictionary] = []
 var message_queue_next_id: int
@@ -337,10 +344,8 @@ func _setup_options() -> void:
 	workspace_filter_button.add_item("All", 0)
 	workspace_filter_button.set_item_metadata(0, "")
 
-	model_button.clear()
-	for index: int in range(MODEL_IDS.size()):
-		model_button.add_item(MODEL_NAMES[index], index)
-	model_button.select(0)
+	_populate_provider_button()
+	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
 
 	effort_button.clear()
 	effort_button.add_item("Normal", 0)
@@ -364,6 +369,184 @@ func _load_slash_commands() -> void:
 	_send_request(RPC_METHODS.COMMAND_LIST, {}, "command-list")
 
 
+func _get_fallback_models_for_provider(provider_id: String) -> Array[Dictionary]:
+	if provider_id == "moonshot":
+		return [
+			{ "id": "kimi-k2.7-code", "displayName": "Kimi K2.7 Code", "capabilities": { "reasoning": true } },
+			{ "id": "kimi-k2.7-code-highspeed", "displayName": "Kimi K2.7 Code Highspeed", "capabilities": { "reasoning": true } },
+			{ "id": "kimi-k2.6", "displayName": "Kimi K2.6", "capabilities": { "imageInput": true, "videoInput": true, "reasoning": true } },
+			{ "id": "kimi-k2.5", "displayName": "Kimi K2.5", "capabilities": { "reasoning": true } }
+		]
+
+	return [
+		{ "id": "deepseek-v4-flash", "displayName": "DeepSeek V4 Flash", "capabilities": { "reasoning": true } },
+		{ "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro", "capabilities": { "reasoning": true } }
+	]
+
+
+func _get_provider_model_config_key(provider_id: String) -> String:
+	return "%s_%s" % [CONFIG_MODEL_ID_KEY, provider_id]
+
+
+func _is_known_provider_id(provider_id: String) -> bool:
+	return PROVIDER_IDS.has(provider_id)
+
+
+func _populate_provider_button() -> void:
+	provider_option_button.clear()
+	for index: int in range(PROVIDER_IDS.size()):
+		provider_option_button.add_item(PROVIDER_NAMES[index], index)
+		provider_option_button.set_item_metadata(index, PROVIDER_IDS[index])
+
+	if _select_provider_id(active_provider_id):
+		return
+
+	active_provider_id = DEFAULT_PROVIDER_ID
+	provider_option_button.select(0)
+	_update_provider_button_tooltip()
+
+
+func _select_provider_id(provider_id: String) -> bool:
+	for index: int in range(provider_option_button.get_item_count()):
+		if str(provider_option_button.get_item_metadata(index)) == provider_id:
+			provider_option_button.select(index)
+			_update_provider_button_tooltip()
+			return true
+
+	return false
+
+
+func _get_selected_provider_id() -> String:
+	var selected_index: int = provider_option_button.selected
+	if selected_index >= 0 and selected_index < provider_option_button.get_item_count():
+		var metadata_value: Variant = provider_option_button.get_item_metadata(selected_index)
+		if typeof(metadata_value) == TYPE_STRING:
+			var provider_id: String = str(metadata_value).strip_edges()
+			if _is_known_provider_id(provider_id):
+				return provider_id
+
+	return active_provider_id
+
+
+func _update_provider_button_tooltip() -> void:
+	provider_option_button.tooltip_text = "Provider: %s" % _get_provider_display_name(active_provider_id)
+
+
+func _get_provider_config_model_id(provider_id: String) -> String:
+	var providers_value: Variant = provider_config_status.get("providers", [])
+	if typeof(providers_value) != TYPE_ARRAY:
+		return ""
+
+	var providers: Array = providers_value as Array
+	for provider_item: Variant in providers:
+		if typeof(provider_item) != TYPE_DICTIONARY:
+			continue
+
+		var provider_data: Dictionary = provider_item as Dictionary
+		var status_provider_id: String = str(provider_data.get("provider", provider_data.get("id", ""))).strip_edges()
+		if status_provider_id != provider_id:
+			continue
+
+		return str(provider_data.get("model", "")).strip_edges()
+
+	return ""
+
+
+func _get_saved_model_id_for_provider(provider_id: String) -> String:
+	var config: ConfigFile = ConfigFile.new()
+	if config.load(FRONTEND_CONFIG_PATH) != OK:
+		return ""
+
+	return str(config.get_value(FRONTEND_CONFIG_SECTION, _get_provider_model_config_key(provider_id), "")).strip_edges()
+
+
+func _select_or_add_model_id(model_id: String) -> bool:
+	var normalized_model_id: String = model_id.strip_edges()
+	if normalized_model_id.is_empty():
+		return false
+	if _select_model_id(normalized_model_id):
+		return true
+
+	model_ids.append(normalized_model_id)
+	model_names.append(normalized_model_id)
+	model_capabilities.append({})
+	model_button.add_item(normalized_model_id, model_button.get_item_count())
+	model_button.set_item_metadata(model_button.get_item_count() - 1, normalized_model_id)
+	model_button.select(model_button.get_item_count() - 1)
+	_update_model_button_tooltip()
+	return true
+
+
+func _switch_active_provider(provider_id: String, activate_backend: bool) -> void:
+	if not _is_known_provider_id(provider_id):
+		return
+
+	active_provider_id = provider_id
+	_select_provider_id(active_provider_id)
+	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
+
+	var configured_model_id: String = _get_provider_config_model_id(active_provider_id)
+	if configured_model_id.is_empty():
+		configured_model_id = _get_saved_model_id_for_provider(active_provider_id)
+	_select_or_add_model_id(configured_model_id)
+
+	_save_frontend_config()
+	_load_provider_models(active_provider_id)
+	if activate_backend:
+		_apply_model_config_to_backend()
+
+
+func _populate_model_button(models: Array) -> void:
+	var previous_model_id: String = _get_selected_model_id()
+	model_ids.clear()
+	model_names.clear()
+	model_capabilities.clear()
+	model_button.clear()
+
+	for item: Variant in models:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var model_data: Dictionary = item as Dictionary
+		var model_id: String = str(model_data.get("id", "")).strip_edges()
+		if model_id.is_empty() or model_ids.has(model_id):
+			continue
+
+		var display_name: String = str(model_data.get("displayName", model_id)).strip_edges()
+		if display_name.is_empty():
+			display_name = model_id
+
+		var capabilities_value: Variant = model_data.get("capabilities", {})
+		var capabilities: Dictionary = {}
+		if typeof(capabilities_value) == TYPE_DICTIONARY:
+			capabilities = (capabilities_value as Dictionary).duplicate(true)
+
+		model_ids.append(model_id)
+		model_names.append(display_name)
+		model_capabilities.append(capabilities)
+		model_button.add_item(display_name, model_button.get_item_count())
+		model_button.set_item_metadata(model_button.get_item_count() - 1, model_id)
+
+	if model_ids.is_empty():
+		var fallback_models: Array[Dictionary] = _get_fallback_models_for_provider(active_provider_id)
+		for fallback_model: Dictionary in fallback_models:
+			var fallback_id: String = str(fallback_model.get("id", "")).strip_edges()
+			var fallback_name: String = str(fallback_model.get("displayName", fallback_id)).strip_edges()
+			var fallback_capabilities: Dictionary = fallback_model.get("capabilities", {}) as Dictionary
+			model_ids.append(fallback_id)
+			model_names.append(fallback_name)
+			model_capabilities.append(fallback_capabilities.duplicate(true))
+			model_button.add_item(fallback_name, model_button.get_item_count())
+			model_button.set_item_metadata(model_button.get_item_count() - 1, fallback_id)
+
+	if not previous_model_id.is_empty() and _select_model_id(previous_model_id):
+		_update_model_button_tooltip()
+		return
+
+	model_button.select(0)
+	_update_model_button_tooltip()
+
+
 func _load_frontend_config() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	var load_error: Error = config.load(FRONTEND_CONFIG_PATH)
@@ -374,11 +557,21 @@ func _load_frontend_config() -> void:
 		_normalize_backend_url(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, DEFAULT_BACKEND_URL))),
 		backend_dev_dir
 	)
+	active_provider_id = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_PROVIDER_ID_KEY, DEFAULT_PROVIDER_ID)).strip_edges()
+	if not _is_known_provider_id(active_provider_id):
+		active_provider_id = DEFAULT_PROVIDER_ID
+	_select_provider_id(active_provider_id)
+	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
 	custom_instructions = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, "")).strip_edges()
 	next_step_hints_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, false))
 	check_for_updates_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, true))
-	if not _select_model_id(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_MODEL_ID_KEY, MODEL_IDS[0]))):
-		_select_model_id(MODEL_IDS[0])
+	var saved_model_id: String = str(config.get_value(
+		FRONTEND_CONFIG_SECTION,
+		_get_provider_model_config_key(active_provider_id),
+		config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_MODEL_ID_KEY, "")
+	)).strip_edges()
+	if not saved_model_id.is_empty():
+		_select_or_add_model_id(saved_model_id)
 	if not _select_approval_mode(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, APPROVAL_MODE_IDS[0]))):
 		_select_approval_mode(APPROVAL_MODE_IDS[0])
 
@@ -427,7 +620,9 @@ func _save_frontend_config() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, backend_url)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_DEV_DIR_KEY, backend_dev_dir)
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_PROVIDER_ID_KEY, active_provider_id)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_MODEL_ID_KEY, _get_selected_model_id())
+	config.set_value(FRONTEND_CONFIG_SECTION, _get_provider_model_config_key(active_provider_id), _get_selected_model_id())
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, _get_selected_approval_mode())
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, custom_instructions)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, next_step_hints_enabled)
@@ -468,9 +663,10 @@ func _is_default_backend_url(url: String) -> bool:
 
 
 func _select_model_id(model_id: String) -> bool:
-	for index: int in range(MODEL_IDS.size()):
-		if MODEL_IDS[index] == model_id:
+	for index: int in range(model_ids.size()):
+		if model_ids[index] == model_id:
 			model_button.select(index)
+			_update_model_button_tooltip()
 			return true
 
 	return false
@@ -1510,9 +1706,11 @@ func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String
 	_send_environment_config()
 	if pending_provider_config_save_after_connect:
 		var deferred_api_key: String = pending_provider_config_api_key
+		var deferred_provider_id: String = pending_provider_config_provider
 		pending_provider_config_api_key = ""
+		pending_provider_config_provider = DEFAULT_PROVIDER_ID
 		pending_provider_config_save_after_connect = false
-		_save_provider_config_to_backend(deferred_api_key)
+		_save_provider_config_to_backend(deferred_provider_id, deferred_api_key)
 	else:
 		_load_provider_config()
 	_load_mcp_config()
@@ -1614,6 +1812,17 @@ func _on_status_item_action_requested(action_id: String) -> void:
 
 func _load_provider_config() -> void:
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_GET, {}, "provider-config-get")
+
+
+func _load_provider_models(provider_id: String, refresh: bool = false) -> void:
+	if not _is_socket_open() or provider_id.is_empty():
+		return
+
+	var params: Dictionary[String, Variant] = {
+		"provider": provider_id,
+		"refresh": refresh
+	}
+	_send_request(RPC_METHODS.PROVIDER_MODELS_LIST, params, "provider-models-list")
 
 
 func _load_mcp_config() -> void:
@@ -2445,10 +2654,49 @@ func _save_current_editor_scene() -> Error:
 
 func _get_selected_model_id() -> String:
 	var selected_index: int = model_button.selected
-	if selected_index < 0 or selected_index >= MODEL_IDS.size():
-		return MODEL_IDS[0]
+	if selected_index >= 0 and selected_index < model_button.get_item_count():
+		var metadata_value: Variant = model_button.get_item_metadata(selected_index)
+		if typeof(metadata_value) == TYPE_STRING:
+			return str(metadata_value)
 
-	return MODEL_IDS[selected_index]
+	if selected_index < 0 or selected_index >= model_ids.size():
+		var fallback_models: Array[Dictionary] = _get_fallback_models_for_provider(active_provider_id)
+		if not fallback_models.is_empty():
+			return str(fallback_models[0].get("id", ""))
+		return ""
+
+	return model_ids[selected_index]
+
+
+func _update_model_button_tooltip() -> void:
+	var selected_index: int = model_button.selected
+	if selected_index < 0 or selected_index >= model_ids.size():
+		model_button.tooltip_text = "Select model"
+		return
+
+	var capability_texts: Array[String] = []
+	var capabilities: Dictionary = model_capabilities[selected_index]
+	if bool(capabilities.get("imageInput", false)):
+		capability_texts.append("image")
+	if bool(capabilities.get("videoInput", false)):
+		capability_texts.append("video")
+	if bool(capabilities.get("reasoning", false)):
+		capability_texts.append("reasoning")
+
+	var tooltip_lines: Array[String] = [
+		"%s / %s" % [_get_provider_display_name(active_provider_id), model_ids[selected_index]]
+	]
+	if not capability_texts.is_empty():
+		tooltip_lines.append("Capabilities: %s" % ", ".join(capability_texts))
+	model_button.tooltip_text = "\n".join(tooltip_lines)
+
+
+func _get_provider_display_name(provider_id: String) -> String:
+	for index: int in range(PROVIDER_IDS.size()):
+		if PROVIDER_IDS[index] == provider_id:
+			return PROVIDER_NAMES[index]
+
+	return provider_id
 
 
 func _get_selected_approval_mode() -> String:
@@ -2464,8 +2712,9 @@ func _apply_model_config_to_backend() -> void:
 		return
 
 	var params: Dictionary[String, Variant] = {
-		"provider": "deepseek",
-		"model": _get_selected_model_id()
+		"provider": active_provider_id,
+		"model": _get_selected_model_id(),
+		"activate": true
 	}
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
@@ -2536,11 +2785,19 @@ func _on_session_option_button_item_selected(index: int) -> void:
 
 
 func _on_model_button_item_selected(index: int) -> void:
-	if index < 0 or index >= MODEL_IDS.size():
+	if index < 0 or index >= model_button.get_item_count():
 		return
 
+	_update_model_button_tooltip()
 	_save_frontend_config()
 	_apply_model_config_to_backend()
+
+
+func _on_provider_option_button_item_selected(index: int) -> void:
+	if index < 0 or index >= provider_option_button.get_item_count():
+		return
+
+	_switch_active_provider(_get_selected_provider_id(), true)
 
 
 func _on_approval_mode_button_item_selected(index: int) -> void:
@@ -3337,6 +3594,8 @@ func _handle_response(message: Dictionary) -> void:
 		_update_session_list(result_dictionary)
 	elif result_dictionary.has("keyStorage") and result_dictionary.has("configured"):
 		_apply_provider_config_status(result_dictionary)
+	elif result_dictionary.has("models") and result_dictionary.has("provider") and result_dictionary.has("stale"):
+		_apply_provider_models_list_response(result_dictionary)
 	elif result_dictionary.has("id") and result_dictionary.has("title") and result_dictionary.has("createdAt"):
 		_apply_session_metadata(result_dictionary)
 		_clear_chat_items()
@@ -4095,21 +4354,49 @@ func _apply_session_renamed_event(data_dictionary: Dictionary) -> void:
 func _apply_provider_config_status(status: Dictionary) -> void:
 	provider_config_status = status
 	var configured: bool = bool(status.get("configured", false))
+	var provider_value: String = str(status.get("activeProvider", status.get("provider", active_provider_id))).strip_edges()
+	if _is_known_provider_id(provider_value):
+		active_provider_id = provider_value
+	_select_provider_id(active_provider_id)
 	var model_value: Variant = status.get("model", null)
 
 	if configured:
 		status_button.icon = CONNECTED_ICON
-		status_button.tooltip_text = "Provider configured"
+		status_button.tooltip_text = "%s provider configured" % _get_provider_display_name(active_provider_id)
 	else:
 		status_button.icon = STAUTS_WARNING
-		status_button.tooltip_text = "Open settings and save DeepSeek API key"
+		status_button.tooltip_text = "Open settings and save %s API key" % _get_provider_display_name(active_provider_id)
 
-	if typeof(model_value) == TYPE_STRING and _select_model_id(str(model_value)):
-		_save_frontend_config()
-	else:
+	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
+	if typeof(model_value) == TYPE_STRING:
+		_select_or_add_model_id(str(model_value))
+	_save_frontend_config()
+	_load_provider_models(active_provider_id)
+	if typeof(model_value) != TYPE_STRING:
 		_apply_model_config_to_backend()
 
 	_update_send_state()
+
+
+func _apply_provider_models_list_response(result: Dictionary) -> void:
+	var provider_id: String = str(result.get("provider", "")).strip_edges()
+	if provider_id != active_provider_id:
+		return
+
+	var models_value: Variant = result.get("models", [])
+	if typeof(models_value) != TYPE_ARRAY:
+		return
+
+	var previous_model_id: String = _get_selected_model_id()
+	_populate_model_button(models_value as Array)
+	if not previous_model_id.is_empty():
+		_select_model_id(previous_model_id)
+	_save_frontend_config()
+	if bool(result.get("stale", false)) and result.has("error"):
+		model_button.tooltip_text = "%s\nModel list is using cached/default data: %s" % [
+			model_button.tooltip_text,
+			str(result.get("error", ""))
+		]
 
 
 func _select_active_session() -> void:
@@ -5372,7 +5659,7 @@ func _show_response_error(message: Dictionary) -> void:
 		_append_assistant_status_event({
 			"status": "error",
 			"title": "模型额度不足",
-			"details": "DeepSeek 返回额度或余额不足，当前回复已停止。请检查账户余额、套餐额度或切换可用的 API Key 后重试。",
+			"details": "模型供应商返回额度或余额不足，当前回复已停止。请检查账户余额、套餐额度或切换可用的 API Key 后重试。",
 			"actionLabel": "Open settings",
 			"actionId": "provider-settings",
 			"code": error_code
@@ -6008,6 +6295,7 @@ func _get_frontend_config_snapshot() -> Dictionary:
 	return {
 		"backendUrl": backend_url,
 		"backendDevDir": backend_dev_dir,
+		"provider": active_provider_id,
 		"model": _get_selected_model_id(),
 		"approvalMode": _get_selected_approval_mode(),
 		"customInstructions": custom_instructions,
@@ -6123,19 +6411,24 @@ func _on_settings_mcp_server_enabled_requested(server_id: String, enabled: bool)
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server state change to backend.")
 
 
-func _on_settings_provider_config_save_requested(api_key: String) -> void:
+func _on_settings_provider_config_save_requested(provider_id: String, api_key: String) -> void:
 	if not _is_socket_open():
+		pending_provider_config_provider = provider_id
 		pending_provider_config_api_key = api_key
 		pending_provider_config_save_after_connect = true
 		return
 
-	_save_provider_config_to_backend(api_key)
+	_save_provider_config_to_backend(provider_id, api_key)
 
 
-func _save_provider_config_to_backend(api_key: String) -> void:
+func _save_provider_config_to_backend(provider_id: String, api_key: String) -> void:
+	if _is_known_provider_id(provider_id):
+		_switch_active_provider(provider_id, false)
+
 	var params: Dictionary[String, Variant] = {
-		"provider": "deepseek",
-		"model": _get_selected_model_id()
+		"provider": active_provider_id,
+		"model": _get_selected_model_id(),
+		"activate": true
 	}
 
 	if not api_key.strip_edges().is_empty():
@@ -6144,8 +6437,11 @@ func _save_provider_config_to_backend(api_key: String) -> void:
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
 
-func _on_settings_provider_config_clear_requested() -> void:
-	_send_request(RPC_METHODS.PROVIDER_CONFIG_CLEAR, {}, "provider-config-clear")
+func _on_settings_provider_config_clear_requested(provider_id: String) -> void:
+	var params: Dictionary[String, Variant] = {}
+	if _is_known_provider_id(provider_id):
+		params["provider"] = provider_id
+	_send_request(RPC_METHODS.PROVIDER_CONFIG_CLEAR, params, "provider-config-clear")
 
 
 func _on_settings_frontend_config_save_requested(
