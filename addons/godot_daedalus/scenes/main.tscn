@@ -11,6 +11,12 @@
 [ext_resource type="PackedScene" uid="uid://dftctpgnf7byb" path="res://addons/godot_daedalus/scenes/boot_splash.tscn" id="5_boot"]
 [ext_resource type="Texture2D" uid="uid://1eh7wxaewfje" path="res://addons/godot_daedalus/assets/icons/connected.svg" id="6_kyybk"]
 [ext_resource type="Texture2D" uid="uid://ctpm83h33rpbq" path="res://addons/godot_daedalus/assets/icons/search.svg" id="6_m2uxd"]
+[ext_resource type="Texture2D" uid="uid://dwr0mking83l0" path="res://addons/godot_daedalus/assets/icons/agent.svg" id="8_ga6bp"]
+[ext_resource type="Texture2D" uid="uid://d1nq6i1hauij0" path="res://addons/godot_daedalus/assets/icons/ask.svg" id="9_47d6y"]
+[ext_resource type="Texture2D" uid="uid://b2gn4c0mefhra" path="res://addons/godot_daedalus/assets/icons/plan.svg" id="10_4ygoa"]
+[ext_resource type="Texture2D" uid="uid://ccw4n4twpde11" path="res://addons/godot_daedalus/assets/icons/shield.svg" id="14_42cu0"]
+[ext_resource type="Texture2D" uid="uid://cjjnoxgoriwwi" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="15_5j0us"]
+[ext_resource type="Texture2D" uid="uid://7tyqcprrpdxk" path="res://addons/godot_daedalus/assets/icons/read.svg" id="16_0825u"]
 
 [node name="Main" type="VBoxContainer" unique_id=81601605]
 offset_right = 1152.0
@@ -55,11 +61,13 @@ visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 selected = 0
-item_count = 2
-popup/item_0/text = "New session 2026-07-03 00:32:44"
+item_count = 3
+popup/item_0/text = "/skill"
 popup/item_0/id = 0
-popup/item_1/text = "帮我写一个猜数字的小游戏"
+popup/item_1/text = "帮我拉起一个审批，我需要测试下是否拉起"
 popup/item_1/id = 1
+popup/item_2/text = "帮我写一个猜数字的小游戏"
+popup/item_2/id = 2
 
 [node name="CreateNewSessionButton" type="Button" parent="MainViewer/HeaderContainer" unique_id=1073886672]
 unique_name_in_owner = true
@@ -247,6 +255,24 @@ popup/item_8/id = 7
 [node name="VSeparator" type="VSeparator" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=888860234]
 layout_mode = 2
 
+[node name="ModeButton" type="MenuButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1673356315]
+unique_name_in_owner = true
+layout_mode = 2
+icon = ExtResource("8_ga6bp")
+item_count = 3
+popup/item_0/text = "Agent"
+popup/item_0/icon = ExtResource("8_ga6bp")
+popup/item_0/id = 0
+popup/item_1/text = "Ask"
+popup/item_1/icon = ExtResource("9_47d6y")
+popup/item_1/id = 1
+popup/item_2/text = "Plan"
+popup/item_2/icon = ExtResource("10_4ygoa")
+popup/item_2/id = 2
+
+[node name="VSeparator2" type="VSeparator" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1881099270]
+layout_mode = 2
+
 [node name="ModelButton" type="OptionButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1736821875]
 unique_name_in_owner = true
 layout_mode = 2
@@ -304,10 +330,13 @@ layout_mode = 2
 selected = 0
 item_count = 3
 popup/item_0/text = "Manual"
+popup/item_0/icon = ExtResource("14_42cu0")
 popup/item_0/id = 0
 popup/item_1/text = "Auto Safe"
+popup/item_1/icon = ExtResource("15_5j0us")
 popup/item_1/id = 1
 popup/item_2/text = "Read Only"
+popup/item_2/icon = ExtResource("16_0825u")
 popup/item_2/id = 2
 
 [node name="Control" type="Control" parent="MainViewer/FooterContainer" unique_id=1027525108]
@@ -318,6 +347,7 @@ size_flags_horizontal = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
+tooltip_text = "Daedalus is up to date. Backend: 1.0.4. Plugin: 1.0.0."
 text = "Backend manager"
 underline = 1
 
@@ -334,12 +364,15 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/HeaderContainer/CreateNewSessionButton" to="." method="_on_create_new_session_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/StatusButton" to="." method="_on_status_button_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214077" method="_on_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@214078" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25153" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25153" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25153" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25153" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25153" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25153" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25154" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25154" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25154" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25154" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25154" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25154" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25155" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25155" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25155" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25155" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25155" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25155" method="_on_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/ApproveButton" to="." method="_on_approve_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/RejectButton" to="." method="_on_reject_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/SkipButton" to="." method="_on_skip_approval_button_pressed"]
