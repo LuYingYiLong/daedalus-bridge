@@ -3,7 +3,7 @@ extends SceneTree
 
 const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
 
-var failures: Array[String] = []
+var failures: PackedStringArray
 
 
 func _init() -> void:
@@ -25,8 +25,8 @@ func _run_tests() -> void:
 	_expect_equal(RPC_METHODS.APPROVAL_APPROVE, "approval.approve", "approval approve method")
 	_expect_equal(RPC_METHODS.MCP_CONFIG_ADD, "mcp.config.add", "mcp config add method")
 
-	var methods: Array[String] = RPC_METHODS.all()
-	var seen: Dictionary[String, bool] = {}
+	var methods: PackedStringArray = RPC_METHODS.all()
+	var seen: Dictionary[String, bool]
 	for method_name: String in methods:
 		if seen.has(method_name):
 			failures.append("duplicate RPC method: %s" % method_name)

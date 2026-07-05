@@ -64,6 +64,10 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_horizontal = 3
+selected = 0
+item_count = 1
+popup/item_0/text = "你好，你是什么模型，来自哪个供应商！"
+popup/item_0/id = 0
 
 [node name="CreateNewSessionButton" type="Button" parent="MainViewer/HeaderContainer" unique_id=1073886672]
 unique_name_in_owner = true
@@ -110,7 +114,7 @@ size_flags_vertical = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-scroll_vertical = 8
+scroll_vertical = 946
 
 [node name="BackgroundContextContainer" type="VBoxContainer" parent="MainViewer/BackgroundContextViewer/ScrollContainer" unique_id=2046895021]
 unique_name_in_owner = true
@@ -229,7 +233,7 @@ layout_mode = 2
 tooltip_text = "Add the current editor or project context to the next message"
 theme_type_variation = &"FlatButton"
 icon = ExtResource("1_tukfc")
-item_count = 9
+item_count = 10
 popup/item_0/text = "添加选中节点"
 popup/item_0/id = 1
 popup/item_1/text = "添加当前场景"
@@ -244,10 +248,12 @@ popup/item_5/text = "添加文件"
 popup/item_5/id = 3
 popup/item_6/text = "添加文件夹"
 popup/item_6/id = 4
-popup/item_7/id = -1
-popup/item_7/separator = true
-popup/item_8/text = "清除未固定上下文"
-popup/item_8/id = 7
+popup/item_7/text = "添加图片"
+popup/item_7/id = 8
+popup/item_8/id = -1
+popup/item_8/separator = true
+popup/item_9/text = "清除未固定上下文"
+popup/item_9/id = 7
 
 [node name="VSeparator" type="VSeparator" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=888860234]
 layout_mode = 2
@@ -275,8 +281,8 @@ unique_name_in_owner = true
 custom_maximum_size = Vector2(128, -1)
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Moonshot/Kimi / kimi-k2.7-code
-Capabilities: image, video, reasoning"
+tooltip_text = "Moonshot/Kimi / moonshot-v1-128k-vision-preview
+Capabilities: image"
 text_overrun_behavior = 6
 selected = 4
 item_count = 11
@@ -284,21 +290,21 @@ popup/item_0/text = "Moonshot v1 32K Vision Preview"
 popup/item_0/id = 0
 popup/item_1/text = "Moonshot v1 32K"
 popup/item_1/id = 1
-popup/item_2/text = "Moonshot v1 8K Vision Preview"
+popup/item_2/text = "Kimi K2.7 Code"
 popup/item_2/id = 2
-popup/item_3/text = "Moonshot v1 Auto"
+popup/item_3/text = "Moonshot v1 128K"
 popup/item_3/id = 3
-popup/item_4/text = "Kimi K2.7 Code"
+popup/item_4/text = "Moonshot v1 128K Vision Preview"
 popup/item_4/id = 4
 popup/item_5/text = "Kimi K2.5"
 popup/item_5/id = 5
-popup/item_6/text = "Moonshot v1 128K Vision Preview"
+popup/item_6/text = "Moonshot v1 8K Vision Preview"
 popup/item_6/id = 6
 popup/item_7/text = "Kimi K2.7 Code Highspeed"
 popup/item_7/id = 7
 popup/item_8/text = "Moonshot v1 8K"
 popup/item_8/id = 8
-popup/item_9/text = "Moonshot v1 128K"
+popup/item_9/text = "Moonshot v1 Auto"
 popup/item_9/id = 9
 popup/item_10/text = "Kimi K2.6"
 popup/item_10/id = 10
@@ -320,7 +326,7 @@ unique_name_in_owner = true
 visible = false
 layout_mode = 2
 size_flags_horizontal = 8
-tooltip_text = "Context usage: 0% (0 / 256.0k)"
+tooltip_text = "Context usage: 0% (0 / 131.1k)"
 theme_type_variation = &"FlatButton"
 icon = ExtResource("2_11dqu")
 
@@ -347,7 +353,8 @@ layout_mode = 2
 [node name="ProviderOptionButton" type="OptionButton" parent="MainViewer/FooterContainer" unique_id=1876987620]
 unique_name_in_owner = true
 layout_mode = 2
-selected = 0
+tooltip_text = "Provider: Moonshot/Kimi"
+selected = 1
 item_count = 2
 popup/item_0/text = "DeepSeek"
 popup/item_0/id = 0
@@ -394,6 +401,9 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/HeaderContainer/CreateNewSessionButton" to="." method="_on_create_new_session_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/StatusButton" to="." method="_on_status_button_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" method="_on_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/ApproveButton" to="." method="_on_approve_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/RejectButton" to="." method="_on_reject_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/SkipButton" to="." method="_on_skip_approval_button_pressed"]

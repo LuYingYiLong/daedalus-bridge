@@ -130,7 +130,7 @@ func _create_config() -> Dictionary:
 	config["transport"] = TRANSPORT_STDIO
 	var command_text: String = common_line_edit.text.strip_edges()
 	config["command"] = command_text
-	var args: Array[String] = _normalize_stdio_args(command_text, _parse_args(args_text_edit.text))
+	var args: PackedStringArray = _normalize_stdio_args(command_text, _parse_args(args_text_edit.text))
 	if not args.is_empty():
 		config["args"] = args
 	var env: Dictionary = _parse_key_value_lines(env_text_edit.text, "=", "Env").get("values", {})
@@ -139,8 +139,8 @@ func _create_config() -> Dictionary:
 	return config
 
 
-func _parse_args(text: String) -> Array[String]:
-	var args: Array[String] = []
+func _parse_args(text: String) -> PackedStringArray:
+	var args: PackedStringArray
 	for raw_line: String in text.split("\n", false):
 		var line_text: String = raw_line.strip_edges()
 		if line_text.is_empty():
@@ -151,8 +151,8 @@ func _parse_args(text: String) -> Array[String]:
 	return args
 
 
-func _normalize_stdio_args(command_text: String, args: Array[String]) -> Array[String]:
-	var normalized_args: Array[String] = []
+func _normalize_stdio_args(command_text: String, args: PackedStringArray) -> PackedStringArray:
+	var normalized_args: PackedStringArray
 	for arg_text: String in args:
 		normalized_args.append(arg_text)
 

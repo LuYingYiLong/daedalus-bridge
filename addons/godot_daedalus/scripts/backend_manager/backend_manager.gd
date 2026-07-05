@@ -7,7 +7,7 @@ signal backend_update_finished(exit_code: int)
 const DOWNLOAD_DIALOG_SCENE: PackedScene = preload("uid://dg0dps48fpc7h")
 const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
 const PACKAGE_NAME: String = "godot-daedalus_backend"
-const BACKEND_BIN_FILES: Array[String] = [
+const BACKEND_BIN_FILES: PackedStringArray = [
 	"godot-daedalus-backend",
 	"godot-daedalus-backend.cmd",
 	"godot-daedalus-backend.ps1",
@@ -214,7 +214,7 @@ func _set_loading_state() -> void:
 	stage_frontend_update_button.disabled = true
 
 
-func _find_command(candidates: Array[String], version_args: PackedStringArray) -> Dictionary:
+func _find_command(candidates: PackedStringArray, version_args: PackedStringArray) -> Dictionary:
 	for command_path: String in candidates:
 		var output_lines: Array = []
 		var exit_code: int = _execute_command(command_path, version_args, output_lines)
@@ -510,7 +510,7 @@ func _escape_powershell_single_quoted(value: String) -> String:
 
 
 func _stringify_output_lines(output_lines: Array) -> Array[String]:
-	var text_lines: Array[String] = []
+	var text_lines: PackedStringArray
 	for line_value: Variant in output_lines:
 		text_lines.append(str(line_value).strip_edges())
 

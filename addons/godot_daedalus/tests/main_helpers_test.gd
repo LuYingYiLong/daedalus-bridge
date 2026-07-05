@@ -3,7 +3,7 @@ extends SceneTree
 
 const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
 
-var failures: Array[String] = []
+var failures: PackedStringArray
 
 
 func _init() -> void:
@@ -28,6 +28,35 @@ func _run_tests() -> void:
 	_expect_equal(MAIN_HELPERS.make_session_title("123456789012345678901234567890"), "123456789012345678901234", "long session title")
 	_expect_equal(MAIN_HELPERS.format_context_usage_percent(0.000001), "<0.01%", "tiny context percent")
 	_expect_equal(MAIN_HELPERS.format_compact_token_count(1530), "1.5k", "compact token count")
+	_expect_equal(MAIN_HELPERS.get_image_mime_type("res://icon.PNG"), "image/png", "png mime")
+	_expect_equal(MAIN_HELPERS.get_image_mime_type("res://photo.jpeg"), "image/jpeg", "jpeg mime")
+	_expect_equal(MAIN_HELPERS.is_supported_image_resource_path("res://texture.bmp"), false, "bmp unsupported")
+	_expect_equal(MAIN_HELPERS.format_byte_size(1536), "1.5 KiB", "image byte size")
+	_expect_equal(MAIN_HELPERS.model_capabilities_support_image({ "imageInput": true }), true, "image capability")
+	_expect_equal(MAIN_HELPERS.model_capabilities_support_image({}), false, "missing image capability")
+
+	var image_contexts: Array[Dictionary] = [{
+		"kind": "image",
+		"resourcePath": "res://a.png",
+		"data": { "byteSize": 1024 }
+	}]
+	_expect_equal(MAIN_HELPERS.context_array_has_images(image_contexts), true, "image context detected")
+	var filesystem_image_contexts: Array[Dictionary] = [{
+		"kind": "filesystem_selection",
+		"data": {
+			"selectedPaths": [{
+				"kind": "file",
+				"resourcePath": "res://selected.webp"
+			}]
+		}
+	}]
+	_expect_equal(MAIN_HELPERS.context_array_has_images(filesystem_image_contexts), true, "filesystem image selection detected")
+	_expect_equal(MAIN_HELPERS.validate_image_context_limits(image_contexts, "res://b.png", 1024), "", "small image accepted")
+	_expect_equal(
+		MAIN_HELPERS.validate_image_context_limits([], "res://large.png", MAIN_HELPERS.MAX_IMAGE_BYTES + 1).is_empty(),
+		false,
+		"large image rejected"
+	)
 
 	var todos: Array[Dictionary] = MAIN_HELPERS.extract_todo_items("- [ ] 写测试\n- [x] 跑检查")
 	_expect_equal(todos.size(), 2, "markdown todo count")

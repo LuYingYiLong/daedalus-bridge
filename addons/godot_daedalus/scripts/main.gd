@@ -31,7 +31,7 @@ const LEGACY_MODEL_ID_SETTING: String = "godot_daedalus/model_id"
 const LEGACY_APPROVAL_MODE_SETTING: String = "godot_daedalus/approval_mode"
 const LEGACY_CUSTOM_INSTRUCTIONS_SETTING: String = "godot_daedalus/custom_instructions"
 const LEGACY_NEXT_STEP_HINTS_SETTING: String = "godot_daedalus/next_step_hints_enabled"
-const LEGACY_DEEPSEEK_API_KEY_SETTINGS: Array[String] = [
+const LEGACY_DEEPSEEK_API_KEY_SETTINGS: PackedStringArray = [
 	"Daedalus/deepseek_api_key",
 	"Deadalus/deepseek_api_key",
 	"GodotDaedalus/deepseek_api_key",
@@ -97,6 +97,7 @@ const ADD_CONTEXT_FOLDER_ID: int = 4
 const ADD_CONTEXT_SCRIPT_SELECTION_ID: int = 5
 const ADD_CONTEXT_FILESYSTEM_SELECTION_ID: int = 6
 const ADD_CONTEXT_CLEAR_UNPINNED_ID: int = 7
+const ADD_CONTEXT_IMAGE_ID: int = 8
 const LIVE_EDITOR_SELECTION_CONTEXT_ID: String = "editor-selection-live"
 const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
 const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"
@@ -106,16 +107,16 @@ const FILESYSTEM_CONTEXT_MAX_PATHS: int = 40
 const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 500
 
 const DEFAULT_PROVIDER_ID: String = "deepseek"
-const PROVIDER_IDS: Array[String] = [
+const PROVIDER_IDS: PackedStringArray = [
 	"deepseek",
 	"moonshot"
 ]
-const PROVIDER_NAMES: Array[String] = [
+const PROVIDER_NAMES: PackedStringArray = [
 	"DeepSeek",
 	"Moonshot/Kimi"
 ]
 
-const APPROVAL_MODE_IDS: Array[String] = [
+const APPROVAL_MODE_IDS: PackedStringArray = [
 	"manual",
 	"auto-safe",
 	"read-only"
@@ -168,14 +169,14 @@ var request_id: int
 var active_stream_id: String
 var active_session_id: String
 var pending_chat_text: String
-var pending_chat_additional_context: Array[Dictionary] = []
+var pending_chat_additional_context: Array[Dictionary]
 var pending_approval_id: String
 var sessions_by_id: Dictionary[String, Dictionary]
-var session_ids_in_order: Array[String]
+var session_ids_in_order: PackedStringArray
 var renamed_session_metadata_by_id: Dictionary[String, Dictionary]
 var archived_sessions_by_id: Dictionary[String, Dictionary]
-var archived_session_ids_in_order: Array[String]
-var custom_mcp_servers: Array[Dictionary] = []
+var archived_session_ids_in_order: PackedStringArray
+var custom_mcp_servers: Array[Dictionary]
 var workspaces_by_id: Dictionary[String, Dictionary]
 var selected_workspace_filter: String
 var session_search_text: String
@@ -242,30 +243,30 @@ var connected_backend_version: String
 var latest_backend_version_check_started: bool
 var latest_backend_version_check_thread: Thread
 var slash_command_overlay: Control
-var slash_commands: Array[Dictionary] = []
-var slash_command_items: Array[Dictionary] = []
+var slash_commands: Array[Dictionary]
+var slash_command_items: Array[Dictionary]
 var slash_command_selected_index: int
 var slash_command_completion_consumed: bool
 var custom_instructions: String
 var next_step_hints_enabled: bool
 var check_for_updates_enabled: bool = true
 var active_provider_id: String = DEFAULT_PROVIDER_ID
-var model_ids: Array[String] = []
-var model_names: Array[String] = []
-var model_capabilities: Array[Dictionary] = []
+var model_ids: PackedStringArray
+var model_names: PackedStringArray
+var model_capabilities: Array[Dictionary]
 var pending_provider_config_api_key: String
 var pending_provider_config_provider: String = DEFAULT_PROVIDER_ID
 var pending_provider_config_save_after_connect: bool
-var queued_messages: Array[Dictionary] = []
+var queued_messages: Array[Dictionary]
 var message_queue_next_id: int
 var active_queue_message_id: int
-var manual_guides: Array[Dictionary] = []
+var manual_guides: Array[Dictionary]
 var manual_guide_next_id: int
 var editing_guide_local_id: String
 var next_step_hint_request_id: String
 var next_step_hint_anchor_request_id: String
-var next_step_hint_entry_ids: Array[String] = []
-var next_step_hints_by_action_id: Dictionary[String, String] = {}
+var next_step_hint_entry_ids: PackedStringArray
+var next_step_hints_by_action_id: Dictionary[String, String]
 var editor_plugin: EditorPlugin
 var editor_interface: EditorInterface
 var editor_selection: EditorSelection
@@ -273,9 +274,9 @@ var editor_undo_redo: EditorUndoRedoManager
 var editor_script_editor: Object
 var editor_context_update_queued: bool
 var editor_context_next_poll_msec: int
-var additional_context_items: Array[Dictionary] = []
+var additional_context_items: Array[Dictionary]
 var additional_context_next_id: int
-var dismissed_live_context_signatures: Dictionary[String, String] = {}
+var dismissed_live_context_signatures: Dictionary[String, String]
 
 
 func _ready() -> void:
@@ -541,10 +542,12 @@ func _populate_model_button(models: Array) -> void:
 
 	if not previous_model_id.is_empty() and _select_model_id(previous_model_id):
 		_update_model_button_tooltip()
+		_update_send_state()
 		return
 
 	model_button.select(0)
 	_update_model_button_tooltip()
+	_update_send_state()
 
 
 func _load_frontend_config() -> void:
@@ -753,6 +756,8 @@ func _on_add_context_menu_id_pressed(menu_id: int) -> void:
 		_add_current_script_selection_context()
 	elif menu_id == ADD_CONTEXT_FILESYSTEM_SELECTION_ID:
 		_add_filesystem_selection_context()
+	elif menu_id == ADD_CONTEXT_IMAGE_ID:
+		_show_add_context_resource_dialog(EditorFileDialog.FILE_MODE_OPEN_FILE, "image")
 	elif menu_id == ADD_CONTEXT_FILE_ID:
 		_show_add_context_resource_dialog(EditorFileDialog.FILE_MODE_OPEN_FILE, "file")
 	elif menu_id == ADD_CONTEXT_FOLDER_ID:
@@ -765,7 +770,11 @@ func _show_add_context_resource_dialog(file_mode: int, context_kind: String) -> 
 	var resource_dialog: EditorFileDialog = EditorFileDialog.new()
 	resource_dialog.access = EditorFileDialog.ACCESS_RESOURCES
 	resource_dialog.file_mode = file_mode
-	resource_dialog.title = "添加上下文"
+	resource_dialog.title = "添加图片" if context_kind == "image" else "添加上下文"
+	if context_kind == "image":
+		resource_dialog.filters = PackedStringArray([
+			"*.png, *.jpg, *.jpeg, *.webp, *.gif ; Images"
+		])
 	resource_dialog.size = Vector2i(720, 480)
 	add_child(resource_dialog)
 
@@ -785,6 +794,10 @@ func _on_add_context_resource_selected(resource_path: String, context_kind: Stri
 	if normalized_path.is_empty():
 		return
 
+	if context_kind == "image":
+		_add_image_context(normalized_path)
+		return
+
 	var context: Dictionary = {
 		"id": _make_additional_context_id(context_kind, normalized_path, ""),
 		"kind": context_kind,
@@ -796,6 +809,72 @@ func _on_add_context_resource_selected(resource_path: String, context_kind: Stri
 		"summary": "用户为本轮消息附加了项目 %s 引用；仅在需要时通过 MCP 读取内容。" % context_kind
 	}
 	_add_or_replace_additional_context(context)
+
+
+func _add_image_context(resource_path: String) -> void:
+	var context: Dictionary = _create_image_context(resource_path, additional_context_items, "manual", false)
+	if context.is_empty():
+		return
+
+	_add_or_replace_additional_context(context)
+	if not _selected_model_supports_image_input():
+		_show_image_model_warning()
+
+
+func _create_image_context(resource_path: String, existing_contexts: Array, context_source: String, is_pinned: bool) -> Dictionary:
+	if not MAIN_HELPERS.is_supported_image_resource_path(resource_path):
+		_upsert_connection_status_entry("warning", "图片格式不支持", "第一版仅支持 PNG、JPEG、WebP 和 GIF 图片。")
+		return {}
+
+	var image_file: FileAccess = FileAccess.open(resource_path, FileAccess.READ)
+	if image_file == null:
+		_upsert_connection_status_entry("warning", "图片读取失败", "无法读取图片：%s" % resource_path)
+		return {}
+
+	var byte_size: int = image_file.get_length()
+	var limit_message: String = MAIN_HELPERS.validate_image_context_limits(existing_contexts, resource_path, byte_size)
+	if not limit_message.is_empty():
+		image_file.close()
+		_upsert_connection_status_entry("warning", "图片无法添加", limit_message)
+		return {}
+
+	var image_bytes: PackedByteArray = image_file.get_buffer(byte_size)
+	image_file.close()
+	if image_bytes.size() != byte_size:
+		_upsert_connection_status_entry("warning", "图片读取失败", "图片读取不完整：%s" % resource_path)
+		return {}
+
+	var image_width: int = 0
+	var image_height: int = 0
+	var image_resource: Image = Image.new()
+	if image_resource.load(resource_path) == OK:
+		image_width = image_resource.get_width()
+		image_height = image_resource.get_height()
+
+	var mime_type: String = MAIN_HELPERS.get_image_mime_type(resource_path)
+	var image_data: Dictionary = {
+		"mimeType": mime_type,
+		"dataUrl": "data:%s;base64,%s" % [mime_type, Marshalls.raw_to_base64(image_bytes)],
+		"byteSize": byte_size
+	}
+	if image_width > 0:
+		image_data["width"] = image_width
+	if image_height > 0:
+		image_data["height"] = image_height
+
+	var dimension_text: String = "%dx%d" % [image_width, image_height] if image_width > 0 and image_height > 0 else "未知尺寸"
+	var context: Dictionary = {
+		"id": _make_additional_context_id("image", resource_path, ""),
+		"kind": "image",
+		"title": resource_path.get_file(),
+		"subtitle": "%s · %s · %s" % [mime_type, MAIN_HELPERS.format_byte_size(byte_size), dimension_text],
+		"pinned": is_pinned,
+		"source": context_source,
+		"resourcePath": resource_path,
+		"summary": "用户为本轮消息附加了一张图片；图片二进制会作为多模态输入发送给支持 image 的模型。",
+		"data": image_data
+	}
+	return context
 
 
 func _add_selected_nodes_context() -> void:
@@ -904,10 +983,12 @@ func _add_or_replace_additional_context(context: Dictionary) -> void:
 			context["pinned"] = bool(existing_context.get("pinned", false))
 			additional_context_items[index] = context.duplicate(true)
 			_render_additional_context_items()
+			_update_send_state()
 			return
 
 	additional_context_items.append(context.duplicate(true))
 	_render_additional_context_items()
+	_update_send_state()
 
 
 func _render_additional_context_items() -> void:
@@ -948,10 +1029,98 @@ func _on_additional_context_remove_requested(context_id: String) -> void:
 			additional_context_items.remove_at(index)
 			break
 	_render_additional_context_items()
+	_update_send_state()
 
 
 func _get_additional_context_snapshot() -> Array[Dictionary]:
-	return _clone_additional_context_array(additional_context_items)
+	var cloned_contexts: Array[Dictionary] = _clone_additional_context_array(additional_context_items)
+	return _expand_filesystem_image_selection_contexts(cloned_contexts)
+
+
+func _expand_filesystem_image_selection_contexts(source_contexts: Array[Dictionary]) -> Array[Dictionary]:
+	var expanded_contexts: Array[Dictionary] = []
+	var known_image_paths: Dictionary = {}
+	for context_dictionary: Dictionary in source_contexts:
+		if str(context_dictionary.get("kind", "")) != "image":
+			continue
+
+		var image_path: String = str(context_dictionary.get("resourcePath", "")).strip_edges()
+		if not image_path.is_empty():
+			known_image_paths[image_path] = true
+
+	for context_dictionary: Dictionary in source_contexts:
+		if str(context_dictionary.get("kind", "")) != "filesystem_selection":
+			expanded_contexts.append(context_dictionary)
+			continue
+
+		var image_contexts: Array[Dictionary] = _create_image_contexts_from_filesystem_selection(
+			context_dictionary,
+			expanded_contexts,
+			known_image_paths
+		)
+		for image_context: Dictionary in image_contexts:
+			expanded_contexts.append(image_context)
+
+		if image_contexts.is_empty() or _filesystem_selection_has_non_image_paths(context_dictionary):
+			expanded_contexts.append(context_dictionary)
+
+	return expanded_contexts
+
+
+func _create_image_contexts_from_filesystem_selection(context: Dictionary, existing_contexts: Array[Dictionary], known_image_paths: Dictionary) -> Array[Dictionary]:
+	var image_contexts: Array[Dictionary] = []
+	var data: Dictionary = _get_additional_context_data(context)
+	var selected_paths_value: Variant = data.get("selectedPaths", [])
+	if typeof(selected_paths_value) != TYPE_ARRAY:
+		return image_contexts
+
+	var selected_paths: Array = selected_paths_value as Array
+	var working_contexts: Array[Dictionary] = _clone_additional_context_array(existing_contexts)
+	for selected_path_value: Variant in selected_paths:
+		if typeof(selected_path_value) != TYPE_DICTIONARY:
+			continue
+
+		var selected_path: Dictionary = selected_path_value as Dictionary
+		if str(selected_path.get("kind", "")) != "file":
+			continue
+
+		var resource_path: String = str(selected_path.get("resourcePath", "")).strip_edges()
+		if resource_path.is_empty() or not MAIN_HELPERS.is_supported_image_resource_path(resource_path):
+			continue
+		if bool(known_image_paths.get(resource_path, false)):
+			continue
+
+		var image_context: Dictionary = _create_image_context(resource_path, working_contexts, "editor", false)
+		if image_context.is_empty():
+			continue
+
+		image_contexts.append(image_context)
+		working_contexts.append(image_context)
+		known_image_paths[resource_path] = true
+
+	return image_contexts
+
+
+func _filesystem_selection_has_non_image_paths(context: Dictionary) -> bool:
+	var data: Dictionary = _get_additional_context_data(context)
+	var selected_paths_value: Variant = data.get("selectedPaths", [])
+	if typeof(selected_paths_value) != TYPE_ARRAY:
+		return true
+
+	var selected_paths: Array = selected_paths_value as Array
+	for selected_path_value: Variant in selected_paths:
+		if typeof(selected_path_value) != TYPE_DICTIONARY:
+			continue
+
+		var selected_path: Dictionary = selected_path_value as Dictionary
+		if str(selected_path.get("kind", "")) != "file":
+			return true
+
+		var resource_path: String = str(selected_path.get("resourcePath", "")).strip_edges()
+		if resource_path.is_empty() or not MAIN_HELPERS.is_supported_image_resource_path(resource_path):
+			return true
+
+	return false
 
 
 func _clone_additional_context_array(source_contexts: Array) -> Array[Dictionary]:
@@ -973,6 +1142,7 @@ func _clear_unpinned_additional_context_items() -> void:
 			_dismiss_live_additional_context_if_needed(str(context.get("id", "")), context)
 	additional_context_items = retained_contexts
 	_render_additional_context_items()
+	_update_send_state()
 
 
 func _make_additional_context_id(context_kind: String, resource_path: String, node_path: String) -> String:
@@ -1010,6 +1180,27 @@ func _get_additional_context_data(context: Dictionary) -> Dictionary:
 	return data_value as Dictionary
 
 
+func _context_array_has_images(contexts: Array) -> bool:
+	return MAIN_HELPERS.context_array_has_images(contexts)
+
+
+func _selected_model_supports_image_input() -> bool:
+	var selected_index: int = model_button.selected
+	if selected_index < 0 or selected_index >= model_capabilities.size():
+		return false
+
+	var capabilities: Dictionary = model_capabilities[selected_index]
+	return MAIN_HELPERS.model_capabilities_support_image(capabilities)
+
+
+func _show_image_model_warning() -> void:
+	_upsert_connection_status_entry(
+		"warning",
+		"当前模型不支持图片输入",
+		"请切换到带有 image capability 的模型后再发送图片。"
+	)
+
+
 func _make_script_selection_context_key(context: Dictionary) -> String:
 	var data: Dictionary = _get_additional_context_data(context)
 	return "%d:%d-%d:%d" % [
@@ -1027,7 +1218,7 @@ func _make_filesystem_selection_context_key(context: Dictionary) -> String:
 		return str(context.get("resourcePath", ""))
 
 	var selected_paths: Array = selected_paths_value as Array
-	var path_parts: Array[String] = []
+	var path_parts: PackedStringArray
 	for selected_path_value: Variant in selected_paths:
 		if typeof(selected_path_value) != TYPE_DICTIONARY:
 			continue
@@ -1930,8 +2121,8 @@ func _sync_live_editor_selection_context(edited_root: Node, selected_nodes: Arra
 		return
 
 	var scene_path: String = _get_scene_resource_path(edited_root)
-	var title_text: String = "选中节点 (%d)" % selected_nodes.size()
-	var selected_names: Array[String] = []
+	var title_text: String = "Selected Node (%d)" % selected_nodes.size()
+	var selected_names: PackedStringArray
 	for selected_node_info: Dictionary in selected_nodes:
 		selected_names.append(str(selected_node_info.get("name", "")))
 
@@ -1943,7 +2134,7 @@ func _sync_live_editor_selection_context(edited_root: Node, selected_nodes: Arra
 		"pinned": false,
 		"source": "editor",
 		"resourcePath": scene_path,
-		"summary": "当前编辑器选中节点：%s" % ", ".join(selected_names),
+		"summary": "Currently selected node in the editor: %s" % ", ".join(selected_names),
 		"data": {
 			"selectedNodes": selected_nodes
 		}
@@ -2126,8 +2317,8 @@ func _collect_filesystem_selection_context() -> Dictionary:
 	if selected_paths.is_empty():
 		return {}
 
-	var selected_path_items: Array[Dictionary] = []
-	var selected_names: Array[String] = []
+	var selected_path_items: Array[Dictionary]
+	var selected_names: PackedStringArray
 	var truncated: bool = false
 	for index: int in range(selected_paths.size()):
 		if selected_path_items.size() >= FILESYSTEM_CONTEXT_MAX_PATHS:
@@ -2381,7 +2572,7 @@ func _execute_editor_refresh_filesystem(args: Dictionary) -> Dictionary:
 		return { "ok": false, "error": "editor_filesystem_unavailable" }
 
 	var changed_paths_value: Variant = args.get("changedPaths", [])
-	var changed_paths: Array[String] = []
+	var changed_paths: PackedStringArray
 	if typeof(changed_paths_value) == TYPE_ARRAY:
 		for path_value: Variant in changed_paths_value as Array:
 			var changed_path: String = str(path_value).strip_edges()
@@ -2674,7 +2865,7 @@ func _update_model_button_tooltip() -> void:
 		model_button.tooltip_text = "Select model"
 		return
 
-	var capability_texts: Array[String] = []
+	var capability_texts: PackedStringArray
 	var capabilities: Dictionary = model_capabilities[selected_index]
 	if bool(capabilities.get("imageInput", false)):
 		capability_texts.append("image")
@@ -2683,7 +2874,7 @@ func _update_model_button_tooltip() -> void:
 	if bool(capabilities.get("reasoning", false)):
 		capability_texts.append("reasoning")
 
-	var tooltip_lines: Array[String] = [
+	var tooltip_lines: PackedStringArray = [
 		"%s / %s" % [_get_provider_display_name(active_provider_id), model_ids[selected_index]]
 	]
 	if not capability_texts.is_empty():
@@ -2791,6 +2982,7 @@ func _on_model_button_item_selected(index: int) -> void:
 	_update_model_button_tooltip()
 	_save_frontend_config()
 	_apply_model_config_to_backend()
+	_update_send_state()
 
 
 func _on_provider_option_button_item_selected(index: int) -> void:
@@ -2815,6 +3007,11 @@ func _on_send_button_pressed() -> void:
 		return
 
 	var additional_context_snapshot: Array[Dictionary] = _get_additional_context_snapshot()
+	if _context_array_has_images(additional_context_snapshot) and not _selected_model_supports_image_input():
+		_show_image_model_warning()
+		_update_send_state()
+		return
+
 	if _should_queue_outgoing_message():
 		if _enqueue_message(message_text, additional_context_snapshot):
 			_clear_text_edit_after_submit()
@@ -3020,6 +3217,10 @@ func _dispatch_message_text(message_text: String, additional_contexts: Array = [
 
 func _send_chat_text(message_text: String, retry_from_request_id: String = "", additional_contexts: Array = []) -> bool:
 	if not _is_socket_open():
+		return false
+	if _context_array_has_images(additional_contexts) and not _selected_model_supports_image_input():
+		_show_image_model_warning()
+		_update_send_state()
 		return false
 
 	_show_background_context_viewer()
@@ -4135,7 +4336,7 @@ func _render_session_list() -> void:
 	if not selected_workspace_filter.is_empty():
 		_render_workspace_group(selected_workspace_filter)
 	else:
-		var rendered_workspace_ids: Array[String] = []
+		var rendered_workspace_ids: PackedStringArray
 		for session_id: String in session_ids_in_order:
 			var metadata: Dictionary = sessions_by_id.get(session_id, {}) as Dictionary
 			var workspace_id: String = str(metadata.get("workspaceId", ""))
@@ -4149,7 +4350,7 @@ func _render_session_list() -> void:
 
 
 func _render_workspace_group(workspace_id: String) -> void:
-	var matching_session_ids: Array[String] = []
+	var matching_session_ids: PackedStringArray
 	for session_id: String in session_ids_in_order:
 		var metadata: Dictionary = sessions_by_id.get(session_id, {}) as Dictionary
 		if str(metadata.get("workspaceId", "")) != workspace_id:
@@ -4397,6 +4598,7 @@ func _apply_provider_models_list_response(result: Dictionary) -> void:
 			model_button.tooltip_text,
 			str(result.get("error", ""))
 		]
+	_update_send_state()
 
 
 func _select_active_session() -> void:
@@ -4542,19 +4744,19 @@ func _apply_latest_workflow_snapshot(page_info: Dictionary) -> void:
 
 
 func _append_session_records_to_timeline(messages_value: Variant, events_value: Variant) -> void:
-	var messages: Array = []
+	var messages: Array
 	if typeof(messages_value) == TYPE_ARRAY:
 		messages = messages_value as Array
 
 	var message_request_ids: Dictionary[String, bool] = _collect_message_request_ids(messages)
 	var assistant_request_ids: Dictionary[String, bool] = _collect_message_request_ids_for_role(messages, "assistant")
-	var events_by_request_id: Dictionary[String, Array] = {}
-	var orphan_events: Array[Dictionary] = []
+	var events_by_request_id: Dictionary[String, Array]
+	var orphan_events: Array[Dictionary]
 	_collect_session_events(events_value, message_request_ids, events_by_request_id, orphan_events)
 
-	var consumed_request_ids: Array[String] = []
+	var consumed_request_ids: PackedStringArray
 	var rendered_orphan_events: bool = false
-	var request_started_at_by_id: Dictionary[String, String] = {}
+	var request_started_at_by_id: Dictionary[String, String]
 
 	for item: Variant in messages:
 		if typeof(item) != TYPE_DICTIONARY:
@@ -4703,7 +4905,7 @@ func _compare_event_records_by_created_at(left: Dictionary, right: Dictionary) -
 	return left_created_at < right_created_at
 
 
-func _append_events_for_request(request_id: String, events_by_request_id: Dictionary[String, Array], consumed_request_ids: Array[String]) -> void:
+func _append_events_for_request(request_id: String, events_by_request_id: Dictionary[String, Array], consumed_request_ids: PackedStringArray) -> void:
 	if consumed_request_ids.has(request_id):
 		return
 
@@ -5930,16 +6132,16 @@ func _show_approval_dialog(event_data: Dictionary) -> void:
 		_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_APPROVAL)
 	var tool_name: String = str(event_data.get("toolName", event_data.get("llmToolName", "")))
 	approval_title_label.text = "需要审批：%s" % MAIN_HELPERS.localize_tool_name_for_display(tool_name)
-	var description_lines: Array[String] = [
-		"审批 ID：`%s`" % pending_approval_id,
-		"原因：%s" % str(event_data.get("reason", "")),
-		"参数：",
+	var description_lines: PackedStringArray = [
+		"Approval ID: `%s`" % pending_approval_id,
+		"Reason: %s" % str(event_data.get("reason", "")),
+		"Args: ",
 		MAIN_HELPERS.format_approval_args_preview(event_data.get("args", {}), APPROVAL_ARGS_PREVIEW_LIMIT)
 	]
 	if bool(event_data.get("restored", false)):
-		description_lines.insert(2, "状态：后端重启后恢复")
+		description_lines.insert(2, "Status: Restored after backend restart")
 	if bool(event_data.get("interrupted", false)):
-		description_lines.insert(2, "状态：上次执行中断，可重试")
+		description_lines.insert(2, "Status: Last execution interrupted, retryable")
 	approval_description_label.text = "\n".join(description_lines)
 	approval_dialog.visible = true
 	_update_send_state()
@@ -5975,7 +6177,7 @@ func _clear_stale_approval_dialog(detail_text: String) -> void:
 	approval_dialog.visible = false
 	_clear_paused_stream_context()
 	_update_send_state()
-	_upsert_connection_status_entry("warning", "审批已失效", detail_text)
+	_upsert_connection_status_entry("warning", "Approval has expired", detail_text)
 
 
 func _handle_stale_approval_response(message: Dictionary) -> bool:
@@ -5991,7 +6193,7 @@ func _handle_stale_approval_response(message: Dictionary) -> bool:
 	if str(error_dictionary.get("code", "")) != "approval_not_found":
 		return false
 
-	_clear_stale_approval_dialog("后端当前没有这条待审批记录，通常是后端重启或热更新后审批队列已清空。请重新发起该操作。")
+	_clear_stale_approval_dialog("The backend currently does not have this pending approval record, which usually occurs when the backend has been restarted or hot-updated, resulting in the approval queue being cleared. Please initiate the operation again.")
 	_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 	return true
 
@@ -6012,7 +6214,7 @@ func _update_context_length(info: Dictionary) -> void:
 		context_popup_menu.call("setup", latest_context_info)
 
 	if int(info.get("pendingApprovals", 0)) <= 0:
-		_clear_stale_approval_dialog("后端当前没有待审批记录；如果刚刚重启过后端，需要重新触发写入工具。")
+		_clear_stale_approval_dialog("There are currently no pending approval records in the backend; if the backend was just restarted, the writing tool needs to be triggered again.")
 
 
 func _set_context_length_icon(ratio: float, is_empty: bool, history_tokens_stored: int = 0, context_window_tokens: int = 0) -> void:
@@ -6119,12 +6321,15 @@ func _update_send_state() -> void:
 	var is_streaming: bool = not active_stream_id.is_empty()
 	var has_message_draft: bool = _has_message_draft()
 	var has_pending_queue: bool = _has_pending_queued_messages()
+	var has_unsupported_image: bool = _context_array_has_images(additional_context_items) and not _selected_model_supports_image_input()
 	var should_show_send_button: bool = _should_show_send_button(is_streaming, has_message_draft)
 	send_button.visible = should_show_send_button
 	stop_button.visible = is_streaming
-	send_button.disabled = not text_edit.visible or (not has_message_draft and not has_pending_queue)
+	send_button.disabled = not text_edit.visible or (not has_message_draft and not has_pending_queue) or has_unsupported_image
 	if not socket_ready:
 		send_button.tooltip_text = "Queue message until reconnected"
+	elif has_unsupported_image:
+		send_button.tooltip_text = "Current model does not support image input"
 	elif is_streaming or not pending_approval_id.is_empty():
 		send_button.tooltip_text = "Queue message"
 	elif _has_pending_queued_messages():

@@ -17,7 +17,7 @@ var launch_mode: String
 var command_summary: String
 var launched_pid: int = -1
 var log_file_path: String
-var recent_log_lines: Array[String] = []
+var recent_log_lines: PackedStringArray
 var last_error: String
 var manager_cli: RefCounted
 
@@ -68,7 +68,7 @@ func probe_local_backend_port() -> Dictionary:
 			"port": port_number
 		}
 
-	var probe_hosts: Array[String] = _get_backend_probe_hosts()
+	var probe_hosts: PackedStringArray = _get_backend_probe_hosts()
 	for host_name: String in probe_hosts:
 		if _is_tcp_port_occupied(host_name, port_number):
 			return {
@@ -271,7 +271,7 @@ func get_recent_log_text() -> String:
 
 func build_diagnostic_details() -> String:
 	poll_logs()
-	var lines: Array[String] = []
+	var lines: PackedStringArray
 	lines.append("Backend URL: %s" % backend_url)
 	if not launch_mode.is_empty():
 		lines.append("Launch mode: %s" % launch_mode)
@@ -355,8 +355,8 @@ func _parse_backend_url_host() -> String:
 	return remainder
 
 
-func _get_backend_probe_hosts() -> Array[String]:
-	var hosts: Array[String] = []
+func _get_backend_probe_hosts() -> PackedStringArray:
+	var hosts: PackedStringArray
 	var parsed_host: String = _parse_backend_url_host()
 	_append_unique_probe_host(hosts, parsed_host)
 	var normalized_host: String = parsed_host.to_lower()
@@ -367,7 +367,7 @@ func _get_backend_probe_hosts() -> Array[String]:
 	return hosts
 
 
-func _append_unique_probe_host(hosts: Array[String], host_name: String) -> void:
+func _append_unique_probe_host(hosts: PackedStringArray, host_name: String) -> void:
 	var normalized_host: String = host_name.strip_edges()
 	if normalized_host.is_empty():
 		return
@@ -464,8 +464,8 @@ func _quote_command_part(value: String) -> String:
 	return "\"%s\"" % escaped_value
 
 
-func _stringify_output_lines(output_lines: Array) -> Array[String]:
-	var text_lines: Array[String] = []
+func _stringify_output_lines(output_lines: Array) -> PackedStringArray:
+	var text_lines: PackedStringArray
 	for line_value: Variant in output_lines:
 		text_lines.append(str(line_value).strip_edges())
 

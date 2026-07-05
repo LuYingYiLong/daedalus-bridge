@@ -44,8 +44,8 @@ func _get_powershell_path() -> String:
 	return "powershell.exe"
 
 
-func _stringify_output_lines(output_lines: Array) -> Array[String]:
-	var text_lines: Array[String] = []
+func _stringify_output_lines(output_lines: Array) -> PackedStringArray:
+	var text_lines: PackedStringArray
 	for line_value: Variant in output_lines:
 		text_lines.append(str(line_value).strip_edges())
 

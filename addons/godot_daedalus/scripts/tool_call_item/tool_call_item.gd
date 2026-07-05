@@ -583,7 +583,7 @@ func _get_args(event_data: Dictionary) -> Dictionary:
 	return {}
 
 
-func _get_first_string_arg(args: Dictionary, keys: Array[String]) -> String:
+func _get_first_string_arg(args: Dictionary, keys: PackedStringArray) -> String:
 	for key: String in keys:
 		var value: Variant = args.get(key, "")
 		if typeof(value) == TYPE_STRING and not str(value).strip_edges().is_empty():

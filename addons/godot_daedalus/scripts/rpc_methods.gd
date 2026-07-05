@@ -56,7 +56,7 @@ const WORKSPACE_SELECT: String = "workspace.select"
 const WORKSPACE_INFO: String = "workspace.info"
 
 
-static func all() -> Array[String]:
+static func all() -> PackedStringArray:
 	return [
 		PING,
 		BACKEND_HEALTH,

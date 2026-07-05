@@ -47,27 +47,27 @@ const BUTTONS_MIN_HEIGHT_CONSTANT: StringName = &"buttons_min_height"
 const CONFIRM_ACTION_NONE: StringName = &""
 const CONFIRM_ACTION_DELETE_ARCHIVED_SESSION: StringName = &"delete_archived_session"
 const CONFIRM_ACTION_DELETE_ALL_ARCHIVED_SESSIONS: StringName = &"delete_all_archived_sessions"
-const PROVIDER_IDS: Array[String] = [
+const PROVIDER_IDS: PackedStringArray = [
 	"deepseek",
 	"moonshot"
 ]
-const PROVIDER_NAMES: Array[String] = [
+const PROVIDER_NAMES: PackedStringArray = [
 	"DeepSeek",
 	"Moonshot"
 ]
 
-var archived_sessions: Array[Dictionary] = []
-var archived_workspaces_by_id: Dictionary[String, Dictionary] = {}
-var custom_mcp_servers: Array[Dictionary] = []
-var provider_status_by_id: Dictionary[String, Dictionary] = {}
+var archived_sessions: Array[Dictionary]
+var archived_workspaces_by_id: Dictionary[String, Dictionary]
+var custom_mcp_servers: Array[Dictionary]
+var provider_status_by_id: Dictionary[String, Dictionary]
 var mcp_backend_available: bool = true
 var mcp_add_pending: bool
-var pending_mcp_server_metadata: Dictionary = {}
+var pending_mcp_server_metadata: Dictionary
 var archived_workspace_filter: String
 var archived_search_text: String
 var pending_confirmation_action: StringName = CONFIRM_ACTION_NONE
 var pending_delete_session_id: String
-var pending_delete_session_ids: Array[String] = []
+var pending_delete_session_ids: PackedStringArray
 var pending_delete_mcp_server_id: String
 var archive_delete_confirmation_dialog: ConfirmationDialog
 var custom_instructions_warning_dialog: AcceptDialog
@@ -244,7 +244,7 @@ func _on_search_archived_chat_line_edit_text_changed(new_text: String) -> void:
 
 func _populate_archived_workspace_filter() -> void:
 	var previous_filter: String = archived_workspace_filter
-	var workspace_ids: Array[String] = []
+	var workspace_ids: PackedStringArray
 	for metadata: Dictionary in archived_sessions:
 		var workspace_id: String = str(metadata.get("workspaceId", ""))
 		if workspace_ids.has(workspace_id):
@@ -404,7 +404,7 @@ func _on_archived_chat_item_delete_requested(session_id: String) -> void:
 		return
 
 	var title_text: String = _get_archived_session_title(session_id)
-	var session_ids: Array[String] = [session_id]
+	var session_ids: PackedStringArray = [session_id]
 	_show_archive_delete_confirmation(
 		CONFIRM_ACTION_DELETE_ARCHIVED_SESSION,
 		"Delete archived chat?",
@@ -509,7 +509,7 @@ func _on_delete_all_archived_chats_button_pressed() -> void:
 	if archived_sessions.is_empty():
 		return
 
-	var session_ids: Array[String] = []
+	var session_ids: PackedStringArray
 	for metadata: Dictionary in archived_sessions:
 		var session_id: String = str(metadata.get("id", ""))
 		if session_id.is_empty():
@@ -583,7 +583,7 @@ func _show_archive_delete_confirmation(
 	action: StringName,
 	title_text: String,
 	message_text: String,
-	session_ids: Array[String]
+	session_ids: PackedStringArray
 ) -> void:
 	if session_ids.is_empty():
 		return

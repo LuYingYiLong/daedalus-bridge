@@ -13,6 +13,9 @@ const GUIDE_STATUS_PENDING: String = "pending"
 const GUIDE_STATUS_DELETING: String = "deleting"
 const GUIDE_STATUS_APPLIED: String = "applied"
 const GUIDE_STATUS_FAILED: String = "failed"
+const MAX_IMAGE_ATTACHMENTS: int = 3
+const MAX_IMAGE_BYTES: int = 1024 * 1024
+const MAX_TOTAL_IMAGE_BYTES: int = 2621440
 
 
 static func format_queue_status(status: String) -> String:
@@ -93,6 +96,112 @@ static func make_session_title(message_text: String) -> String:
 		return "新会话"
 
 	return one_line
+
+
+static func get_image_mime_type(resource_path: String) -> String:
+	var extension: String = resource_path.get_extension().to_lower()
+	match extension:
+		"png":
+			return "image/png"
+		"jpg", "jpeg":
+			return "image/jpeg"
+		"webp":
+			return "image/webp"
+		"gif":
+			return "image/gif"
+
+	return ""
+
+
+static func is_supported_image_resource_path(resource_path: String) -> bool:
+	return not get_image_mime_type(resource_path).is_empty()
+
+
+static func context_array_has_images(contexts: Array) -> bool:
+	for context_value: Variant in contexts:
+		if typeof(context_value) != TYPE_DICTIONARY:
+			continue
+
+		var context_dictionary: Dictionary = context_value as Dictionary
+		var context_kind: String = str(context_dictionary.get("kind", ""))
+		if context_kind == "image":
+			return true
+		if context_kind == "filesystem_selection" and filesystem_selection_has_image_paths(context_dictionary):
+			return true
+
+	return false
+
+
+static func filesystem_selection_has_image_paths(context: Dictionary) -> bool:
+	var data_value: Variant = context.get("data", {})
+	if typeof(data_value) != TYPE_DICTIONARY:
+		return false
+
+	var data_dictionary: Dictionary = data_value as Dictionary
+	var selected_paths_value: Variant = data_dictionary.get("selectedPaths", [])
+	if typeof(selected_paths_value) != TYPE_ARRAY:
+		return false
+
+	var selected_paths: Array = selected_paths_value as Array
+	for selected_path_value: Variant in selected_paths:
+		if typeof(selected_path_value) != TYPE_DICTIONARY:
+			continue
+
+		var selected_path: Dictionary = selected_path_value as Dictionary
+		if str(selected_path.get("kind", "")) != "file":
+			continue
+		if is_supported_image_resource_path(str(selected_path.get("resourcePath", ""))):
+			return true
+
+	return false
+
+
+static func model_capabilities_support_image(capabilities: Dictionary) -> bool:
+	return bool(capabilities.get("imageInput", false))
+
+
+static func format_byte_size(byte_size: int) -> String:
+	if byte_size >= 1024 * 1024:
+		return "%.2f MiB" % (float(byte_size) / float(1024 * 1024))
+	if byte_size >= 1024:
+		return "%.1f KiB" % (float(byte_size) / 1024.0)
+
+	return "%d B" % byte_size
+
+
+static func validate_image_context_limits(contexts: Array, resource_path: String, next_byte_size: int) -> String:
+	if next_byte_size <= 0:
+		return "图片文件为空或无法读取。"
+	if next_byte_size > MAX_IMAGE_BYTES:
+		return "单张图片不能超过 %s。" % format_byte_size(MAX_IMAGE_BYTES)
+
+	var normalized_path: String = resource_path.strip_edges()
+	var image_count: int = 0
+	var total_bytes: int = 0
+	for context_value: Variant in contexts:
+		if typeof(context_value) != TYPE_DICTIONARY:
+			continue
+
+		var context_dictionary: Dictionary = context_value as Dictionary
+		if str(context_dictionary.get("kind", "")) != "image":
+			continue
+		if str(context_dictionary.get("resourcePath", "")).strip_edges() == normalized_path:
+			continue
+
+		image_count += 1
+		var data_value: Variant = context_dictionary.get("data", {})
+		if typeof(data_value) != TYPE_DICTIONARY:
+			continue
+
+		var data_dictionary: Dictionary = data_value as Dictionary
+		total_bytes += int(data_dictionary.get("byteSize", 0))
+
+	if image_count >= MAX_IMAGE_ATTACHMENTS:
+		return "每条消息最多附加 %d 张图片。" % MAX_IMAGE_ATTACHMENTS
+	if total_bytes + next_byte_size > MAX_TOTAL_IMAGE_BYTES:
+		return "图片总大小不能超过 %s。" % format_byte_size(MAX_TOTAL_IMAGE_BYTES)
+
+	return ""
 
 
 static func get_utc_timestamp() -> String:
