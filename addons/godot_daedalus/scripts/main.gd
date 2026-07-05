@@ -16,13 +16,16 @@ const CONTEXT_POPUP_MENU_UID: String = "uid://brjsrkaconcvu"
 const CONTEXT_ICON_DIR: String = "res://addons/godot_daedalus/assets/icons"
 const FRONTEND_CONFIG_PATH: String = "user://godot_daedalus_frontend.cfg"
 const FRONTEND_CONFIG_SECTION: String = "frontend"
+
 const CONFIG_BACKEND_URL_KEY: String = "backend_url"
 const CONFIG_BACKEND_DEV_DIR_KEY: String = "backend_dev_dir"
 const CONFIG_PROVIDER_ID_KEY: String = "provider_id"
 const CONFIG_APPROVAL_MODE_KEY: String = "approval_mode"
+const CONFIG_CHAT_MODE_KEY: String = "chat_mode"
 const CONFIG_CUSTOM_INSTRUCTIONS_KEY: String = "custom_instructions"
 const CONFIG_NEXT_STEP_HINTS_KEY: String = "next_step_hints_enabled"
 const CONFIG_CHECK_FOR_UPDATES_KEY: String = "check_for_updates_enabled"
+
 const CONNECTED_ICON: Texture2D = preload("uid://1eh7wxaewfje")
 const CONNECT_FAILED_ICON: Texture2D = preload("uid://chihcwe7t0f2g")
 const DISCONNECTED_ICON: Texture2D = preload("uid://cq15q550jtb21")
@@ -89,6 +92,7 @@ const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
 const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"
 const SCRIPT_SELECTION_PREVIEW_LIMIT: int = 2000
 const SCRIPT_LINE_PREVIEW_LIMIT: int = 500
+const SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT: int = 12000
 const FILESYSTEM_CONTEXT_MAX_PATHS: int = 40
 const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 500
 
@@ -108,6 +112,23 @@ const APPROVAL_MODE_IDS: PackedStringArray = [
 	"read-only"
 ]
 
+const CHAT_MODE_AGENT: String = "agent"
+const CHAT_MODE_ASK: String = "ask"
+const CHAT_MODE_PLAN: String = "plan"
+const CHAT_MODE_ID_AGENT: int = 0
+const CHAT_MODE_ID_ASK: int = 1
+const CHAT_MODE_ID_PLAN: int = 2
+const CHAT_MODE_IDS: PackedStringArray = [
+	CHAT_MODE_AGENT,
+	CHAT_MODE_ASK,
+	CHAT_MODE_PLAN
+]
+const CHAT_MODE_LABELS: PackedStringArray = [
+	"Agent",
+	"Ask",
+	"Plan"
+]
+
 @onready var main_viewer: VBoxContainer = %MainViewer
 @onready var back_button: Button = %BackButton
 @onready var workspace_filter_button: OptionButton = %WorkspaceFilterButton
@@ -125,6 +146,7 @@ const APPROVAL_MODE_IDS: PackedStringArray = [
 @onready var stop_button: Button = %StopButton
 @onready var status_button: Button = %StatusButton
 @onready var text_edit: TextEdit = %TextEdit
+@onready var mode_button: MenuButton = %ModeButton
 @onready var provider_option_button: OptionButton = %ProviderOptionButton
 @onready var model_button: OptionButton = %ModelButton
 @onready var effort_button: OptionButton = %EffortButton
@@ -236,6 +258,7 @@ var slash_command_completion_consumed: bool
 var custom_instructions: String
 var next_step_hints_enabled: bool
 var check_for_updates_enabled: bool = true
+var active_chat_mode: String = CHAT_MODE_AGENT
 var active_provider_id: String = DEFAULT_PROVIDER_ID
 var model_ids: PackedStringArray
 var model_names: PackedStringArray
@@ -288,6 +311,81 @@ func _get_fallback_models_for_provider(provider_id: String) -> Array[Dictionary]
 
 func _get_provider_model_config_key(provider_id: String) -> String:
 	return "model_id_%s" % provider_id
+
+
+func _is_known_chat_mode(chat_mode: String) -> bool:
+	return CHAT_MODE_IDS.has(chat_mode)
+
+
+func _get_chat_mode_label(chat_mode: String) -> String:
+	for index: int in range(CHAT_MODE_IDS.size()):
+		if CHAT_MODE_IDS[index] == chat_mode:
+			return CHAT_MODE_LABELS[index]
+
+	return CHAT_MODE_LABELS[0]
+
+
+func _get_chat_mode_id(chat_mode: String) -> int:
+	if chat_mode == CHAT_MODE_ASK:
+		return CHAT_MODE_ID_ASK
+	if chat_mode == CHAT_MODE_PLAN:
+		return CHAT_MODE_ID_PLAN
+
+	return CHAT_MODE_ID_AGENT
+
+
+func _get_chat_mode_from_menu_id(menu_id: int) -> String:
+	if menu_id == CHAT_MODE_ID_ASK:
+		return CHAT_MODE_ASK
+	if menu_id == CHAT_MODE_ID_PLAN:
+		return CHAT_MODE_PLAN
+
+	return CHAT_MODE_AGENT
+
+
+func _setup_mode_button() -> void:
+	var popup_menu: PopupMenu = mode_button.get_popup()
+	if not popup_menu.id_pressed.is_connected(_on_mode_button_id_pressed):
+		popup_menu.id_pressed.connect(_on_mode_button_id_pressed)
+	for index: int in range(popup_menu.get_item_count()):
+		var menu_id: int = popup_menu.get_item_id(index)
+		popup_menu.set_item_as_checkable(index, true)
+		popup_menu.set_item_disabled(index, menu_id == CHAT_MODE_ID_PLAN)
+	_update_mode_button()
+
+
+func _select_chat_mode(chat_mode: String) -> bool:
+	if chat_mode == CHAT_MODE_PLAN:
+		return false
+	if not _is_known_chat_mode(chat_mode):
+		return false
+
+	active_chat_mode = chat_mode
+	_update_mode_button()
+	return true
+
+
+func _get_selected_chat_mode() -> String:
+	if _is_known_chat_mode(active_chat_mode) and active_chat_mode != CHAT_MODE_PLAN:
+		return active_chat_mode
+
+	return CHAT_MODE_AGENT
+
+
+func _update_mode_button() -> void:
+	if mode_button == null:
+		return
+
+	var selected_chat_mode: String = _get_selected_chat_mode()
+	mode_button.text = ""
+	mode_button.tooltip_text = "Conversation mode: %s" % _get_chat_mode_label(selected_chat_mode)
+	var popup_menu: PopupMenu = mode_button.get_popup()
+	var selected_menu_id: int = _get_chat_mode_id(selected_chat_mode)
+	for index: int in range(popup_menu.get_item_count()):
+		var item_selected: bool = popup_menu.get_item_id(index) == selected_menu_id
+		popup_menu.set_item_checked(index, item_selected)
+		if item_selected:
+			mode_button.icon = popup_menu.get_item_icon(index)
 
 
 func _is_known_provider_id(provider_id: String) -> bool:
@@ -505,8 +603,9 @@ func _create_image_context(resource_path: String, existing_contexts: Array, cont
 
 	var image_width: int = 0
 	var image_height: int = 0
-	var image_resource: Image = Image.new()
-	if image_resource.load(resource_path) == OK:
+	var image_texture: Texture2D = load(resource_path) as Texture2D
+	var image_resource: Image = image_texture.get_image() if image_texture != null else null
+	if image_resource != null:
 		image_width = image_resource.get_width()
 		image_height = image_resource.get_height()
 
@@ -1144,6 +1243,7 @@ func _setup_options() -> void:
 	workspace_filter_button.add_item("All", 0)
 	workspace_filter_button.set_item_metadata(0, "")
 
+	_setup_mode_button()
 	_populate_provider_button()
 	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
 
@@ -1180,6 +1280,8 @@ func _load_frontend_config() -> void:
 	custom_instructions = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, "")).strip_edges()
 	next_step_hints_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, false))
 	check_for_updates_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, true))
+	if not _select_chat_mode(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CHAT_MODE_KEY, CHAT_MODE_AGENT)).strip_edges()):
+		_select_chat_mode(CHAT_MODE_AGENT)
 	var saved_model_id: String = str(config.get_value(
 		FRONTEND_CONFIG_SECTION,
 		_get_provider_model_config_key(active_provider_id),
@@ -1201,6 +1303,7 @@ func _save_frontend_config() -> void:
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_PROVIDER_ID_KEY, active_provider_id)
 	config.set_value(FRONTEND_CONFIG_SECTION, _get_provider_model_config_key(active_provider_id), _get_selected_model_id())
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, _get_selected_approval_mode())
+	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CHAT_MODE_KEY, _get_selected_chat_mode())
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, custom_instructions)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, next_step_hints_enabled)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, check_for_updates_enabled)
@@ -2115,6 +2218,7 @@ func _collect_script_selection_context() -> Dictionary:
 	if line_count <= 0:
 		return {}
 
+	var editor_text: String = base_text_edit.text
 	var resource_path: String = _get_current_script_resource_path(current_editor_object)
 	var caret_line_zero: int = clampi(base_text_edit.get_caret_line(0), 0, maxi(line_count - 1, 0))
 	var caret_column_zero: int = maxi(base_text_edit.get_caret_column(0), 0)
@@ -2126,7 +2230,11 @@ func _collect_script_selection_context() -> Dictionary:
 	var data: Dictionary = {
 		"caretLine": line_start,
 		"caretColumn": column_start,
-		"hasSelection": has_script_selection
+		"hasSelection": has_script_selection,
+		"editorTextPreview": _clip_context_text(editor_text, SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT),
+		"editorTextTruncated": editor_text.length() > SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT,
+		"editorTextLineCount": line_count,
+		"resourcePathAvailable": not resource_path.is_empty()
 	}
 
 	if has_script_selection:
@@ -2874,6 +2982,17 @@ func _on_approval_mode_button_item_selected(index: int) -> void:
 	_apply_approval_mode_to_backend()
 
 
+func _on_mode_button_id_pressed(menu_id: int) -> void:
+	var selected_chat_mode: String = _get_chat_mode_from_menu_id(menu_id)
+	if selected_chat_mode == CHAT_MODE_PLAN:
+		_update_mode_button()
+		return
+	if not _select_chat_mode(selected_chat_mode):
+		_select_chat_mode(CHAT_MODE_AGENT)
+
+	_save_frontend_config()
+
+
 func _on_send_button_pressed() -> void:
 	var message_text: String = text_edit.text.strip_edges()
 	if message_text.is_empty():
@@ -3097,6 +3216,21 @@ func _dispatch_message_text(message_text: String, additional_contexts: Array = [
 
 # --- chat_transport_controller.gd ---
 
+func _create_chat_options_for_mode(chat_mode: String) -> Dictionary[String, Variant]:
+	if chat_mode == CHAT_MODE_ASK:
+		return {
+			"stream": true,
+			"toolBudget": "normal",
+			"workflow": "single"
+		}
+
+	return {
+		"stream": true,
+		"toolBudget": "project_edit",
+		"workflow": "llm_planned"
+	}
+
+
 func _send_chat_text(message_text: String, retry_from_request_id: String = "", additional_contexts: Array = []) -> bool:
 	if not _is_socket_open():
 		return false
@@ -3140,14 +3274,12 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	)
 	_schedule_timeline_render(should_follow_bottom)
 
+	var selected_chat_mode: String = _get_selected_chat_mode()
 	var chat_params: Dictionary[String, Variant] = {
 		"message": message_text,
+		"mode": selected_chat_mode,
 		"promptId": "godot.assistant",
-		"options": {
-			"stream": true,
-			"toolBudget": "project_edit",
-			"workflow": "llm_planned"
-		}
+		"options": _create_chat_options_for_mode(selected_chat_mode)
 	}
 	if not custom_instructions.is_empty():
 		chat_params["systemPrompt"] = custom_instructions

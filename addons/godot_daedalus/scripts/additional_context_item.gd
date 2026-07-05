@@ -134,10 +134,6 @@ func _get_image_thumbnail_texture(resource_path: String, data_url: String) -> Te
 		if loaded_texture != null:
 			return loaded_texture
 
-		var image_resource: Image = Image.new()
-		if image_resource.load(resource_path) == OK:
-			return ImageTexture.create_from_image(image_resource)
-
 	return _get_image_thumbnail_texture_from_data_url(data_url)
 
 
