@@ -361,6 +361,7 @@ func _get_saved_model_id_for_provider(provider_id: String) -> String:
 
 	return str(config.get_value(FRONTEND_CONFIG_SECTION, _get_provider_model_config_key(provider_id), "")).strip_edges()
 
+
 func _select_or_add_model_id(model_id: String) -> bool:
 	var normalized_model_id: String = model_id.strip_edges()
 	if normalized_model_id.is_empty():
@@ -758,6 +759,7 @@ func _create_image_contexts_from_filesystem_selection(context: Dictionary, exist
 
 	return image_contexts
 
+
 func _filesystem_selection_has_non_image_paths(context: Dictionary) -> bool:
 	var data: Dictionary = _get_additional_context_data(context)
 	var selected_paths_value: Variant = data.get("selectedPaths", [])
@@ -779,6 +781,7 @@ func _filesystem_selection_has_non_image_paths(context: Dictionary) -> bool:
 
 	return false
 
+
 func _clone_additional_context_array(source_contexts: Array) -> Array[Dictionary]:
 	var cloned_contexts: Array[Dictionary] = []
 	for context_value: Variant in source_contexts:
@@ -787,6 +790,7 @@ func _clone_additional_context_array(source_contexts: Array) -> Array[Dictionary
 		var context_dictionary: Dictionary = context_value as Dictionary
 		cloned_contexts.append(context_dictionary.duplicate(true))
 	return cloned_contexts
+
 
 func _clear_unpinned_additional_context_items() -> void:
 	var retained_contexts: Array[Dictionary] = []
@@ -799,10 +803,12 @@ func _clear_unpinned_additional_context_items() -> void:
 	_render_additional_context_items()
 	_update_send_state()
 
+
 func _make_additional_context_id(context_kind: String, resource_path: String, node_path: String) -> String:
 	additional_context_next_id += 1
 	var key_text: String = "%s:%s:%s:%d" % [context_kind, resource_path, node_path, additional_context_next_id]
 	return "ctx-%d-%d" % [Time.get_ticks_msec(), abs(hash(key_text))]
+
 
 func _make_additional_context_key(context: Dictionary) -> String:
 	var context_kind: String = str(context.get("kind", ""))
@@ -824,6 +830,7 @@ func _make_additional_context_key(context: Dictionary) -> String:
 		str(context.get("nodePath", ""))
 	]
 
+
 func _get_additional_context_data(context: Dictionary) -> Dictionary:
 	var data_value: Variant = context.get("data", {})
 	if typeof(data_value) != TYPE_DICTIONARY:
@@ -831,8 +838,10 @@ func _get_additional_context_data(context: Dictionary) -> Dictionary:
 
 	return data_value as Dictionary
 
+
 func _context_array_has_images(contexts: Array) -> bool:
 	return MAIN_HELPERS.context_array_has_images(contexts)
+
 
 func _selected_model_supports_image_input() -> bool:
 	var selected_index: int = model_button.selected
@@ -842,12 +851,14 @@ func _selected_model_supports_image_input() -> bool:
 	var capabilities: Dictionary = model_capabilities[selected_index]
 	return MAIN_HELPERS.model_capabilities_support_image(capabilities)
 
+
 func _show_image_model_warning() -> void:
 	_upsert_connection_status_entry(
 		"warning",
 		"当前模型不支持图片输入",
 		"请切换到带有 image capability 的模型后再发送图片。"
 	)
+
 
 func _make_script_selection_context_key(context: Dictionary) -> String:
 	var data: Dictionary = _get_additional_context_data(context)
@@ -857,6 +868,7 @@ func _make_script_selection_context_key(context: Dictionary) -> String:
 		int(data.get("lineEnd", 0)),
 		int(data.get("columnEnd", 0))
 	]
+
 
 func _make_filesystem_selection_context_key(context: Dictionary) -> String:
 	var data: Dictionary = _get_additional_context_data(context)
@@ -872,6 +884,7 @@ func _make_filesystem_selection_context_key(context: Dictionary) -> String:
 		var selected_path: Dictionary = selected_path_value as Dictionary
 		path_parts.append(str(selected_path.get("resourcePath", "")))
 	return "\n".join(path_parts)
+
 
 func _render_message_panel() -> void:
 	if message_queue_panel == null or message_tree == null:
@@ -925,6 +938,7 @@ func _render_message_panel() -> void:
 		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, EDIT_ICON, MESSAGE_TREE_BUTTON_EDIT, not MAIN_HELPERS.can_edit_manual_guide(guide_status), "Edit")
 		guide_item.add_button(MESSAGE_TREE_ACTIONS_COLUMN, DELETE_ICON, MESSAGE_TREE_BUTTON_DELETE, not MAIN_HELPERS.can_delete_manual_guide(guide_status), "Delete")
 
+
 func _on_message_tree_item_activated() -> void:
 	var selected_item: TreeItem = message_tree.get_selected()
 	if selected_item == null:
@@ -955,6 +969,7 @@ func _on_message_tree_item_activated() -> void:
 		text_edit.text = queued_message_text
 		text_edit.grab_focus()
 
+
 func _on_message_tree_button_clicked(item: TreeItem, _column: int, button_id: int, mouse_button_index: int) -> void:
 	if mouse_button_index != MOUSE_BUTTON_LEFT:
 		return
@@ -970,11 +985,13 @@ func _on_message_tree_button_clicked(item: TreeItem, _column: int, button_id: in
 	elif item_kind == "guide":
 		_handle_guide_tree_action(button_id, metadata)
 
+
 func _on_text_edit_text_changed() -> void:
 	if text_edit.text.strip_edges().is_empty():
 		slash_command_completion_consumed = false
 	_update_slash_command_popup()
 	_update_send_state()
+
 
 func _update_slash_command_popup() -> void:
 	if slash_command_completion_consumed:
@@ -993,6 +1010,7 @@ func _update_slash_command_popup() -> void:
 
 	slash_command_selected_index = clampi(slash_command_selected_index, 0, slash_command_items.size() - 1)
 	_show_slash_command_overlay()
+
 
 func _get_slash_command_filter() -> String:
 	var caret_line: int = text_edit.get_caret_line()
@@ -1016,6 +1034,7 @@ func _get_slash_command_filter() -> String:
 
 	return filter_text
 
+
 func _filter_slash_commands(filter_text: String) -> Array[Dictionary]:
 	var filtered_commands: Array[Dictionary] = []
 	var normalized_filter: String = filter_text.to_lower()
@@ -1026,6 +1045,7 @@ func _filter_slash_commands(filter_text: String) -> Array[Dictionary]:
 			filtered_commands.append(command)
 
 	return filtered_commands
+
 
 func _apply_slash_command_list_response(result_dictionary: Dictionary) -> void:
 	slash_commands.clear()
@@ -1055,6 +1075,7 @@ func _apply_slash_command_list_response(result_dictionary: Dictionary) -> void:
 
 	_update_slash_command_popup()
 
+
 func _show_slash_command_overlay() -> void:
 	if slash_command_overlay == null:
 		return
@@ -1067,14 +1088,17 @@ func _show_slash_command_overlay() -> void:
 		get_global_rect()
 	)
 
+
 func _hide_slash_command_popup() -> void:
 	if slash_command_overlay != null:
 		slash_command_overlay.call("hide_commands")
+
 
 func _clear_text_edit_after_submit() -> void:
 	slash_command_completion_consumed = false
 	_hide_slash_command_popup()
 	text_edit.clear()
+
 
 func _move_slash_command_selection(delta: int) -> void:
 	if slash_command_items.is_empty():
@@ -1082,6 +1106,7 @@ func _move_slash_command_selection(delta: int) -> void:
 
 	slash_command_selected_index = posmod(slash_command_selected_index + delta, slash_command_items.size())
 	_show_slash_command_overlay()
+
 
 func _confirm_slash_command_completion() -> void:
 	if slash_command_items.is_empty():
@@ -1092,6 +1117,7 @@ func _confirm_slash_command_completion() -> void:
 	_replace_slash_command_token(str(selected_command.get("insert", "")))
 	_hide_slash_command_popup()
 	_update_send_state()
+
 
 func _replace_slash_command_token(insert_text: String) -> void:
 	var caret_line: int = text_edit.get_caret_line()
@@ -1106,6 +1132,7 @@ func _replace_slash_command_token(insert_text: String) -> void:
 	text_edit.delete_selection()
 	text_edit.insert_text_at_caret(insert_text)
 	text_edit.grab_focus()
+
 
 func _on_timeline_scroll_value_changed(_value: float) -> void:
 	_schedule_timeline_render(false)
@@ -1123,6 +1150,7 @@ func _setup_options() -> void:
 	effort_button.clear()
 	effort_button.add_item("Normal", 0)
 
+
 func _setup_slash_command_popup() -> void:
 	slash_command_overlay = SLASH_COMMAND_OVERLAY_SCRIPT.new() as Control
 	slash_command_overlay.name = "SlashCommandOverlay"
@@ -1133,6 +1161,7 @@ func _setup_slash_command_popup() -> void:
 	add_child(slash_command_overlay)
 	slash_command_overlay.hide()
 	text_edit.gui_input.connect(_on_text_edit_gui_input)
+
 
 func _load_frontend_config() -> void:
 	var config: ConfigFile = ConfigFile.new()
@@ -1164,6 +1193,7 @@ func _load_frontend_config() -> void:
 	if load_error != OK:
 		_save_frontend_config()
 
+
 func _save_frontend_config() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, backend_url)
@@ -1178,12 +1208,14 @@ func _save_frontend_config() -> void:
 	if save_error != OK:
 		push_warning("Failed to save Daedalus frontend config: %s" % error_string(save_error))
 
+
 func _normalize_backend_url(url: String) -> String:
 	var normalized_url: String = url.strip_edges()
 	if normalized_url.is_empty():
 		return DEFAULT_BACKEND_URL
 
 	return normalized_url
+
 
 func _resolve_backend_url_for_mode(normalized_url: String, normalized_backend_dev_dir: String) -> String:
 	if not normalized_backend_dev_dir.strip_edges().is_empty() and _is_default_backend_url(normalized_url):
@@ -1193,8 +1225,10 @@ func _resolve_backend_url_for_mode(normalized_url: String, normalized_backend_de
 
 	return normalized_url
 
+
 func _is_default_backend_url(url: String) -> bool:
 	return url == DEFAULT_BACKEND_URL or url == DEVELOPMENT_BACKEND_URL
+
 
 func _clear_template_items() -> void:
 	_setup_timeline_containers()
@@ -1203,6 +1237,7 @@ func _clear_template_items() -> void:
 
 	for child: Node in additional_context_container.get_children():
 		child.queue_free()
+
 
 func _setup_timeline_containers() -> void:
 	if timeline_visible_container != null and is_instance_valid(timeline_visible_container):
@@ -1226,10 +1261,12 @@ func _setup_timeline_containers() -> void:
 	timeline_bottom_spacer.custom_minimum_size = Vector2(0.0, 0.0)
 	background_context_container.add_child(timeline_bottom_spacer)
 
+
 func _connect_timeline_signals() -> void:
 	var vertical_scroll_bar: VScrollBar = scroll_container.get_v_scroll_bar()
 	if vertical_scroll_bar != null and not vertical_scroll_bar.value_changed.is_connected(_on_timeline_scroll_value_changed):
 		vertical_scroll_bar.value_changed.connect(_on_timeline_scroll_value_changed)
+
 
 func _setup_message_tree() -> void:
 	message_tree.columns = 3
@@ -1246,6 +1283,7 @@ func _setup_message_tree() -> void:
 	if not message_tree.button_clicked.is_connected(_on_message_tree_button_clicked):
 		message_tree.button_clicked.connect(_on_message_tree_button_clicked)
 
+
 func _setup_add_context_menu() -> void:
 	if add_context_button == null:
 		return
@@ -1253,6 +1291,7 @@ func _setup_add_context_menu() -> void:
 	var popup_menu: PopupMenu = add_context_button.get_popup()
 	if not popup_menu.id_pressed.is_connected(_on_add_context_menu_id_pressed):
 		popup_menu.id_pressed.connect(_on_add_context_menu_id_pressed)
+
 
 func _on_add_context_menu_id_pressed(menu_id: int) -> void:
 	if menu_id == ADD_CONTEXT_SELECTED_NODES_ID:
@@ -1272,6 +1311,7 @@ func _on_add_context_menu_id_pressed(menu_id: int) -> void:
 	elif menu_id == ADD_CONTEXT_CLEAR_UNPINNED_ID:
 		_clear_unpinned_additional_context_items()
 
+
 func _show_add_context_resource_dialog(file_mode: int, context_kind: String) -> void:
 	var resource_dialog: EditorFileDialog = EditorFileDialog.new()
 	resource_dialog.access = EditorFileDialog.ACCESS_RESOURCES
@@ -1290,6 +1330,7 @@ func _show_add_context_resource_dialog(file_mode: int, context_kind: String) -> 
 		resource_dialog.file_selected.connect(_on_add_context_resource_selected.bind(context_kind, resource_dialog))
 	resource_dialog.canceled.connect(resource_dialog.queue_free)
 	resource_dialog.popup_centered_ratio(0.7)
+
 
 func _on_add_context_resource_selected(resource_path: String, context_kind: String, resource_dialog: EditorFileDialog) -> void:
 	if resource_dialog != null and is_instance_valid(resource_dialog):
@@ -1315,6 +1356,7 @@ func _on_add_context_resource_selected(resource_path: String, context_kind: Stri
 	}
 	_add_or_replace_additional_context(context)
 
+
 func _on_text_edit_gui_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed):
 		return
@@ -1322,6 +1364,7 @@ func _on_text_edit_gui_input(event: InputEvent) -> void:
 	var key_event: InputEventKey = event as InputEventKey
 	if _handle_slash_command_key(key_event):
 		accept_event()
+
 
 func _handle_slash_command_key(event: InputEventKey) -> bool:
 	if event.is_action_pressed(TEXT_COMPLETION_ACCEPT_ACTION):
@@ -1347,13 +1390,16 @@ func _handle_slash_command_key(event: InputEventKey) -> bool:
 
 	return false
 
+
 func _is_slash_command_popup_open() -> bool:
 	return slash_command_overlay != null and slash_command_overlay.visible and not slash_command_items.is_empty()
+
 
 func _has_valid_slash_command_completion() -> bool:
 	return _is_slash_command_popup_open() and slash_command_selected_index >= 0 and slash_command_selected_index < slash_command_items.size()
 
 # --- backend_connection.gd ---
+
 func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_mode: bool = false) -> void:
 	connection_attempts = 0
 	connection_attempt_generation += 1
@@ -1380,6 +1426,7 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 		boot_splash.show()
 		boot_splash.call("show_status", "Checking backend")
 	_connect_to_backend()
+
 
 func _connect_to_backend() -> void:
 	connection_attempts += 1
@@ -1409,6 +1456,7 @@ func _connect_to_backend() -> void:
 			"正在重连",
 			"正在重新连接 Daedalus 后端（%d/%d）\n地址：%s" % [connection_attempts, MAX_CONNECT_ATTEMPTS, backend_url]
 		)
+
 
 func _retry_backend_connection() -> void:
 	if not backend_recovery_mode:
@@ -1454,6 +1502,7 @@ func _retry_backend_connection() -> void:
 	is_connecting = true
 	_connect_to_backend()
 
+
 func _try_start_backend_process() -> bool:
 	if backend_launcher == null:
 		_show_backend_startup_error("Cannot start Daedalus backend", "Backend launcher is unavailable.")
@@ -1492,11 +1541,13 @@ func _try_start_backend_process() -> bool:
 
 	return true
 
+
 func _get_backend_launcher_details() -> String:
 	if backend_launcher == null:
 		return "Backend launcher is unavailable."
 
 	return str(backend_launcher.call("build_diagnostic_details"))
+
 
 func _show_backend_startup_error(title: String, details: String) -> void:
 	is_connecting = false
@@ -1507,6 +1558,7 @@ func _show_backend_startup_error(title: String, details: String) -> void:
 	if socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
 		socket.close()
 	boot_splash.call("show_error", title, details)
+
 
 func _on_socket_opened() -> void:
 	var was_recovering: bool = backend_recovery_mode
@@ -1526,6 +1578,7 @@ func _on_socket_opened() -> void:
 	if boot_splash.visible:
 		boot_splash.call("show_status", "Checking backend")
 
+
 func _check_backend_health_timeout() -> void:
 	if not backend_health_pending:
 		return
@@ -1533,6 +1586,7 @@ func _check_backend_health_timeout() -> void:
 		return
 
 	_handle_backend_health_failed("The WebSocket opened, but Daedalus health check did not respond in time.")
+
 
 func _handle_backend_health_response(message: Dictionary) -> bool:
 	if str(message.get("id", "")) != backend_health_request_id:
@@ -1569,6 +1623,7 @@ func _handle_backend_health_response(message: Dictionary) -> bool:
 	_finalize_socket_opened(was_recovering, session_id_to_restore)
 	return true
 
+
 func _handle_backend_health_failed(message_text: String) -> void:
 	backend_health_pending = false
 	backend_health_request_id = ""
@@ -1578,6 +1633,7 @@ func _handle_backend_health_failed(message_text: String) -> void:
 		"Cannot verify Daedalus backend",
 		"%s\n\nThis usually means another WebSocket service is using the configured port, or the backend version is too old.\n\n%s" % [message_text, _get_backend_launcher_details()]
 	)
+
 
 func _check_latest_backend_version_once() -> void:
 	if not check_for_updates_enabled:
@@ -1592,9 +1648,11 @@ func _check_latest_backend_version_once() -> void:
 	latest_backend_version_check_thread = Thread.new()
 	latest_backend_version_check_thread.start(Callable(self, "_run_latest_backend_version_check"))
 
+
 func _run_latest_backend_version_check() -> void:
 	var update_status: Dictionary = _read_update_status_from_manager()
 	call_deferred("_finish_latest_backend_version_check", update_status)
+
 
 func _read_update_status_from_manager() -> Dictionary:
 	var manager_cli: RefCounted = MANAGER_CLI_SCRIPT.new()
@@ -1634,6 +1692,7 @@ func _read_update_status_from_manager() -> Dictionary:
 		"frontendLatestVersion": frontend_latest_version
 	}
 
+
 func _finish_latest_backend_version_check(update_status: Dictionary) -> void:
 	if latest_backend_version_check_thread != null:
 		latest_backend_version_check_thread.wait_to_finish()
@@ -1654,11 +1713,13 @@ func _finish_latest_backend_version_check(update_status: Dictionary) -> void:
 			_format_version_for_tooltip(frontend_version)
 		]
 
+
 func _format_version_for_tooltip(version_text: String) -> String:
 	if version_text.is_empty():
 		return "unknown"
 
 	return version_text
+
 
 func _is_semver_newer(candidate_version: String, current_version: String) -> bool:
 	var candidate_parts: Array[int] = _parse_semver_numbers(candidate_version)
@@ -1673,6 +1734,7 @@ func _is_semver_newer(candidate_version: String, current_version: String) -> boo
 			return false
 
 	return false
+
 
 func _parse_semver_numbers(version_text: String) -> Array[int]:
 	var version_parts: PackedStringArray = version_text.strip_edges().split(".")
@@ -1691,6 +1753,7 @@ func _parse_semver_numbers(version_text: String) -> Array[int]:
 		numbers.append(part_text.to_int())
 
 	return numbers
+
 
 func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String) -> void:
 	backend_recovery_mode = false
@@ -1732,17 +1795,21 @@ func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String
 			_finalize_recovery_status(false)
 	_check_latest_backend_version_once()
 
+
 func _on_boot_splash_reconnect_requested() -> void:
 	_start_backend_connection_attempts()
 
+
 func _on_boot_splash_backend_check_requested() -> void:
 	_open_backend_manager()
+
 
 func _on_status_button_pressed() -> void:
 	if socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		return
 
 	_restart_backend_connection(has_connected_once)
+
 
 func _handle_socket_closed_after_ready() -> void:
 	if backend_update_in_progress:
@@ -1759,6 +1826,7 @@ func _handle_socket_closed_after_ready() -> void:
 	_sync_settings_mcp_servers()
 	_begin_backend_recovery(close_detail, session_id_to_restore, was_streaming)
 
+
 func _begin_backend_recovery(close_detail: String, session_id_to_restore: String, was_streaming: bool) -> void:
 	restore_session_after_reconnect_id = session_id_to_restore
 	pending_recovery_status_after_session_open = false
@@ -1771,6 +1839,7 @@ func _begin_backend_recovery(close_detail: String, session_id_to_restore: String
 	_upsert_connection_status_entry("warning", "连接中断", details)
 	_start_backend_connection_attempts(false, true)
 
+
 func _handle_recovered_session_open(result_dictionary: Dictionary) -> void:
 	var metadata_value: Variant = result_dictionary.get("metadata", {})
 	if typeof(metadata_value) == TYPE_DICTIONARY:
@@ -1779,6 +1848,7 @@ func _handle_recovered_session_open(result_dictionary: Dictionary) -> void:
 	_apply_latest_workflow_snapshot(result_dictionary)
 	_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 	_finalize_recovery_status(true)
+
 
 func _finalize_recovery_status(session_restored: bool) -> void:
 	pending_recovery_status_after_session_open = false
@@ -1789,6 +1859,7 @@ func _finalize_recovery_status(session_restored: bool) -> void:
 	_upsert_connection_status_entry("success", "连接已恢复", details)
 	connection_status_entry_id = ""
 	_process_message_queue()
+
 
 func _on_status_item_action_requested(action_id: String) -> void:
 	if action_id == "reconnect":
@@ -1802,8 +1873,10 @@ func _on_status_item_action_requested(action_id: String) -> void:
 			text_edit.grab_focus()
 			_update_send_state()
 
+
 func _load_provider_config() -> void:
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_GET, {}, "provider-config-get")
+
 
 func _load_provider_models(provider_id: String, refresh: bool = false) -> void:
 	if not _is_socket_open() or provider_id.is_empty():
@@ -1815,8 +1888,10 @@ func _load_provider_models(provider_id: String, refresh: bool = false) -> void:
 	}
 	_send_request(RPC_METHODS.PROVIDER_MODELS_LIST, params, "provider-models-list")
 
+
 func _load_mcp_config() -> void:
 	_send_request(RPC_METHODS.MCP_CONFIG_LIST, {}, "mcp-config-list")
+
 
 func _send_environment_config() -> void:
 	if not _is_socket_open():
@@ -1850,11 +1925,14 @@ func setup_editor_bridge(plugin: EditorPlugin) -> void:
 		editor_script_editor.connect("editor_script_changed", script_changed_callable)
 	_queue_editor_context_update()
 
+
 func _on_editor_selection_changed() -> void:
 	_queue_editor_context_update()
 
+
 func _on_editor_script_changed(_script: Resource) -> void:
 	_queue_editor_context_update()
+
 
 func _poll_live_editor_context() -> void:
 	if editor_interface == null:
@@ -1867,12 +1945,14 @@ func _poll_live_editor_context() -> void:
 	editor_context_next_poll_msec = now_msec + EDITOR_CONTEXT_POLL_INTERVAL_MSEC
 	_queue_editor_context_update()
 
+
 func _queue_editor_context_update() -> void:
 	if editor_context_update_queued:
 		return
 
 	editor_context_update_queued = true
 	call_deferred("_send_editor_context_update")
+
 
 func _send_editor_context_update() -> void:
 	editor_context_update_queued = false
@@ -1911,6 +1991,7 @@ func _send_editor_context_update() -> void:
 
 	_send_request(RPC_METHODS.EDITOR_CONTEXT_UPDATE, params, "editor-context")
 
+
 func _sync_live_editor_selection_context(edited_root: Node, selected_nodes: Array[Dictionary]) -> void:
 	if edited_root == null or selected_nodes.is_empty():
 		_upsert_live_additional_context(LIVE_EDITOR_SELECTION_CONTEXT_ID, {})
@@ -1937,11 +2018,14 @@ func _sync_live_editor_selection_context(edited_root: Node, selected_nodes: Arra
 	}
 	_upsert_live_additional_context(LIVE_EDITOR_SELECTION_CONTEXT_ID, context)
 
+
 func _sync_live_script_selection_context(context: Dictionary) -> void:
 	_upsert_live_additional_context(LIVE_SCRIPT_SELECTION_CONTEXT_ID, context)
 
+
 func _sync_live_filesystem_selection_context(context: Dictionary) -> void:
 	_upsert_live_additional_context(LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, context)
+
 
 func _upsert_live_additional_context(context_id: String, context: Dictionary) -> void:
 	_ensure_dismissed_live_context_signatures()
@@ -1973,6 +2057,7 @@ func _upsert_live_additional_context(context_id: String, context: Dictionary) ->
 		additional_context_items.append(live_context)
 	_render_additional_context_items()
 
+
 func _dismiss_live_additional_context_if_needed(context_id: String, context: Dictionary) -> void:
 	if not _is_live_additional_context_id(context_id):
 		return
@@ -1980,9 +2065,11 @@ func _dismiss_live_additional_context_if_needed(context_id: String, context: Dic
 	_ensure_dismissed_live_context_signatures()
 	dismissed_live_context_signatures[context_id] = _make_live_additional_context_signature(context_id, context)
 
+
 func _ensure_dismissed_live_context_signatures() -> void:
 	if typeof(dismissed_live_context_signatures) != TYPE_DICTIONARY:
 		dismissed_live_context_signatures = {}
+
 
 func _is_live_additional_context_id(context_id: String) -> bool:
 	return (
@@ -1991,11 +2078,13 @@ func _is_live_additional_context_id(context_id: String) -> bool:
 		or context_id == LIVE_FILESYSTEM_SELECTION_CONTEXT_ID
 	)
 
+
 func _make_live_additional_context_signature(context_id: String, context: Dictionary) -> String:
 	var signature_context: Dictionary = context.duplicate(true)
 	signature_context["id"] = context_id
 	signature_context["pinned"] = false
 	return JSON.stringify(signature_context)
+
 
 func _find_additional_context_index(context_id: String) -> int:
 	for index: int in range(additional_context_items.size()):
@@ -2003,6 +2092,7 @@ func _find_additional_context_index(context_id: String) -> int:
 		if str(context.get("id", "")) == context_id:
 			return index
 	return -1
+
 
 func _collect_script_selection_context() -> Dictionary:
 	if editor_script_editor == null:
@@ -2077,6 +2167,7 @@ func _collect_script_selection_context() -> Dictionary:
 		context["scriptPath"] = resource_path
 	return context
 
+
 func _get_current_script_resource_path(current_editor_object: Object) -> String:
 	var script_resource: Resource
 	if editor_script_editor != null and editor_script_editor.has_method("get_current_script"):
@@ -2093,6 +2184,7 @@ func _get_current_script_resource_path(current_editor_object: Object) -> String:
 		return ""
 
 	return script_resource.resource_path
+
 
 func _collect_filesystem_selection_context() -> Dictionary:
 	if editor_interface == null:
@@ -2157,15 +2249,18 @@ func _collect_filesystem_selection_context() -> Dictionary:
 		}
 	}
 
+
 func _format_script_selection_range(line_start: int, line_end: int) -> String:
 	if line_start == line_end:
 		return "%d" % line_start
 	return "%d-%d" % [line_start, line_end]
 
+
 func _clip_context_text(source_text: String, max_chars: int) -> String:
 	if source_text.length() <= max_chars:
 		return source_text
 	return source_text.substr(0, max_chars)
+
 
 func _get_edited_scene_root() -> Node:
 	if editor_interface == null:
@@ -2173,10 +2268,12 @@ func _get_edited_scene_root() -> Node:
 
 	return editor_interface.get_edited_scene_root()
 
+
 func _get_scene_resource_path(scene_root: Node) -> String:
 	if scene_root == null:
 		return ""
 	return scene_root.scene_file_path
+
 
 func _get_relative_node_path(scene_root: Node, target_node: Node) -> String:
 	if scene_root == null or target_node == null:
@@ -2184,6 +2281,7 @@ func _get_relative_node_path(scene_root: Node, target_node: Node) -> String:
 	if scene_root == target_node:
 		return "."
 	return str(scene_root.get_path_to(target_node))
+
 
 func _find_editor_node(scene_path: String, node_path: String) -> Node:
 	var edited_root: Node = _get_edited_scene_root()
@@ -2202,6 +2300,7 @@ func _find_editor_node(scene_path: String, node_path: String) -> Node:
 
 	return edited_root.get_node(NodePath(requested_node_path))
 
+
 func _serialize_editor_node_summary(target_node: Node, scene_root: Node) -> Dictionary:
 	var script_path: String = _get_node_script_path(target_node)
 	var summary: Dictionary = {
@@ -2216,6 +2315,7 @@ func _serialize_editor_node_summary(target_node: Node, scene_root: Node) -> Dict
 		summary["scriptPath"] = script_path
 	return summary
 
+
 func _serialize_editor_node_deep(target_node: Node, scene_root: Node, depth: int = 0) -> Dictionary:
 	var summary: Dictionary = _serialize_editor_node_summary(target_node, scene_root)
 	if depth >= 2:
@@ -2227,12 +2327,14 @@ func _serialize_editor_node_deep(target_node: Node, scene_root: Node, depth: int
 	summary["children"] = children
 	return summary
 
+
 func _get_node_script_path(target_node: Node) -> String:
 	var script_value: Variant = target_node.get_script()
 	if script_value is Script:
 		var script_resource: Script = script_value as Script
 		return script_resource.resource_path
 	return ""
+
 
 func _get_node_key_properties(target_node: Node) -> Dictionary:
 	var properties: Dictionary = {}
@@ -2242,11 +2344,13 @@ func _get_node_key_properties(target_node: Node) -> Dictionary:
 			properties[property_name] = _compact_variant_for_json(property_value)
 	return properties
 
+
 func _node_has_property(target_node: Node, property_name: String) -> bool:
 	for property_info: Dictionary in target_node.get_property_list():
 		if str(property_info.get("name", "")) == property_name:
 			return true
 	return false
+
 
 func _compact_variant_for_json(value: Variant) -> Variant:
 	if value is Vector2:
@@ -2275,12 +2379,14 @@ func _compact_variant_for_json(value: Variant) -> Variant:
 		return compact_dictionary
 	return value
 
+
 func _summarize_editor_node(target_node: Node) -> String:
 	var node_path: String = ""
 	var edited_root: Node = _get_edited_scene_root()
 	if edited_root != null:
 		node_path = _get_relative_node_path(edited_root, target_node)
 	return "%s `%s` (%d children)" % [target_node.get_class(), node_path, target_node.get_child_count()]
+
 
 func _handle_editor_tool_requested(data: Dictionary) -> void:
 	var call_id: String = str(data.get("callId", ""))
@@ -2319,6 +2425,7 @@ func _handle_editor_tool_requested(data: Dictionary) -> void:
 		"editor-tool-result"
 	)
 
+
 func _execute_editor_inspect_node(args: Dictionary) -> Dictionary:
 	var scene_path: String = str(args.get("scenePath", ""))
 	var node_path: String = str(args.get("nodePath", "."))
@@ -2331,6 +2438,7 @@ func _execute_editor_inspect_node(args: Dictionary) -> Dictionary:
 		"ok": true,
 		"node": _serialize_editor_node_deep(target_node, edited_root)
 	}
+
 
 func _execute_editor_refresh_filesystem(args: Dictionary) -> Dictionary:
 	if editor_interface == null:
@@ -2359,6 +2467,7 @@ func _execute_editor_refresh_filesystem(args: Dictionary) -> Dictionary:
 		"changedPaths": changed_paths,
 		"scanSources": should_scan_sources
 	}
+
 
 func _execute_editor_apply_scene_patch(args: Dictionary) -> Dictionary:
 	if editor_undo_redo == null:
@@ -2418,6 +2527,7 @@ func _execute_editor_apply_scene_patch(args: Dictionary) -> Dictionary:
 		"error": "" if save_error == OK else "editor_save_failed:%d" % int(save_error)
 	}
 
+
 func _add_editor_patch_operation(operation: Dictionary, edited_root: Node, created_nodes: Array[Node]) -> String:
 	var operation_type: String = str(operation.get("type", ""))
 	if operation_type == "set_property":
@@ -2431,6 +2541,7 @@ func _add_editor_patch_operation(operation: Dictionary, edited_root: Node, creat
 	if operation_type == "connect_signal":
 		return _add_editor_connect_signal_operation(operation, edited_root)
 	return "unsupported_operation:%s" % operation_type
+
 
 func _validate_editor_patch_operation(operation: Dictionary) -> String:
 	var operation_type: String = str(operation.get("type", ""))
@@ -2486,6 +2597,7 @@ func _validate_editor_patch_operation(operation: Dictionary) -> String:
 		return ""
 	return "unsupported_operation:%s" % operation_type
 
+
 func _add_editor_set_property_operation(operation: Dictionary, edited_root: Node) -> String:
 	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
 	var property_name: String = str(operation.get("property", ""))
@@ -2499,6 +2611,7 @@ func _add_editor_set_property_operation(operation: Dictionary, edited_root: Node
 	editor_undo_redo.add_do_property(target_node, property_name, new_value)
 	editor_undo_redo.add_undo_property(target_node, property_name, old_value)
 	return ""
+
 
 func _add_editor_add_node_operation(operation: Dictionary, edited_root: Node, created_nodes: Array[Node]) -> String:
 	var parent_node: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
@@ -2531,6 +2644,7 @@ func _add_editor_add_node_operation(operation: Dictionary, edited_root: Node, cr
 	created_nodes.append(created_node)
 	return ""
 
+
 func _add_editor_rename_node_operation(operation: Dictionary, _edited_root: Node) -> String:
 	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
 	var node_name: String = str(operation.get("name", "")).strip_edges()
@@ -2543,6 +2657,7 @@ func _add_editor_rename_node_operation(operation: Dictionary, _edited_root: Node
 	editor_undo_redo.add_do_property(target_node, "name", node_name)
 	editor_undo_redo.add_undo_property(target_node, "name", old_name)
 	return ""
+
 
 func _add_editor_attach_script_operation(operation: Dictionary, _edited_root: Node) -> String:
 	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
@@ -2560,6 +2675,7 @@ func _add_editor_attach_script_operation(operation: Dictionary, _edited_root: No
 	editor_undo_redo.add_do_method(target_node, "set_script", script_resource)
 	editor_undo_redo.add_undo_method(target_node, "set_script", old_script)
 	return ""
+
 
 func _add_editor_connect_signal_operation(operation: Dictionary, _edited_root: Node) -> String:
 	var source_node: Node = _find_editor_node("", str(operation.get("fromNode", ".")))
@@ -2579,6 +2695,7 @@ func _add_editor_connect_signal_operation(operation: Dictionary, _edited_root: N
 	editor_undo_redo.add_undo_method(source_node, "disconnect", signal_name, callable)
 	return ""
 
+
 func _coerce_property_value(value: Variant, old_value: Variant) -> Variant:
 	if old_value is Vector2 and typeof(value) == TYPE_DICTIONARY:
 		var vector_dictionary: Dictionary = value as Dictionary
@@ -2589,6 +2706,7 @@ func _coerce_property_value(value: Variant, old_value: Variant) -> Variant:
 	if old_value is Color and typeof(value) == TYPE_STRING:
 		return Color(str(value))
 	return value
+
 
 func _save_current_editor_scene() -> Error:
 	if editor_interface == null:
@@ -2614,6 +2732,7 @@ func _get_selected_model_id() -> String:
 
 	return model_ids[selected_index]
 
+
 func _update_model_button_tooltip() -> void:
 	var selected_index: int = model_button.selected
 	if selected_index < 0 or selected_index >= model_ids.size():
@@ -2636,6 +2755,7 @@ func _update_model_button_tooltip() -> void:
 		tooltip_lines.append("Capabilities: %s" % ", ".join(capability_texts))
 	model_button.tooltip_text = "\n".join(tooltip_lines)
 
+
 func _get_provider_display_name(provider_id: String) -> String:
 	for index: int in range(PROVIDER_IDS.size()):
 		if PROVIDER_IDS[index] == provider_id:
@@ -2643,12 +2763,14 @@ func _get_provider_display_name(provider_id: String) -> String:
 
 	return provider_id
 
+
 func _get_selected_approval_mode() -> String:
 	var selected_index: int = approval_mode_button.selected
 	if selected_index < 0 or selected_index >= APPROVAL_MODE_IDS.size():
 		return APPROVAL_MODE_IDS[0]
 
 	return APPROVAL_MODE_IDS[selected_index]
+
 
 func _apply_model_config_to_backend() -> void:
 	if not _is_socket_open():
@@ -2661,11 +2783,13 @@ func _apply_model_config_to_backend() -> void:
 	}
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
+
 func _apply_approval_mode_to_backend() -> void:
 	if not _is_socket_open():
 		return
 
 	_send_request(RPC_METHODS.APPROVAL_MODE_SET, { "mode": _get_selected_approval_mode() }, "approval-mode-set")
+
 
 func _on_back_button_pressed() -> void:
 	if active_session_id.is_empty():
@@ -2676,11 +2800,13 @@ func _on_back_button_pressed() -> void:
 	else:
 		_show_background_context_viewer()
 
+
 func _update_navigation_state() -> void:
 	if back_button == null:
 		return
 
 	back_button.disabled = active_session_id.is_empty()
+
 
 func _show_session_list_viewer() -> void:
 	session_list_viewer.show()
@@ -2691,6 +2817,7 @@ func _show_session_list_viewer() -> void:
 	context_length_button.hide()
 	_update_navigation_state()
 	_render_message_panel()
+
 
 func _show_background_context_viewer() -> void:
 	if active_session_id.is_empty():
@@ -2706,10 +2833,12 @@ func _show_background_context_viewer() -> void:
 	_update_navigation_state()
 	_render_message_panel()
 
+
 func _on_create_new_session_button_pressed() -> void:
 	_clear_message_queue()
 	_clear_manual_guides()
 	_create_session("New session " + Time.get_datetime_string_from_system(false, true))
+
 
 func _on_session_option_button_item_selected(index: int) -> void:
 	if index < 0 or index >= session_option_button.get_item_count():
@@ -2718,6 +2847,7 @@ func _on_session_option_button_item_selected(index: int) -> void:
 	var session_id: String = str(session_option_button.get_item_metadata(index))
 	if not session_id.is_empty():
 		_open_session(session_id)
+
 
 func _on_model_button_item_selected(index: int) -> void:
 	if index < 0 or index >= model_button.get_item_count():
@@ -2728,11 +2858,13 @@ func _on_model_button_item_selected(index: int) -> void:
 	_apply_model_config_to_backend()
 	_update_send_state()
 
+
 func _on_provider_option_button_item_selected(index: int) -> void:
 	if index < 0 or index >= provider_option_button.get_item_count():
 		return
 
 	_switch_active_provider(_get_selected_provider_id(), true)
+
 
 func _on_approval_mode_button_item_selected(index: int) -> void:
 	if index < 0 or index >= APPROVAL_MODE_IDS.size():
@@ -2740,6 +2872,7 @@ func _on_approval_mode_button_item_selected(index: int) -> void:
 
 	_save_frontend_config()
 	_apply_approval_mode_to_backend()
+
 
 func _on_send_button_pressed() -> void:
 	var message_text: String = text_edit.text.strip_edges()
@@ -2767,6 +2900,7 @@ func _on_send_button_pressed() -> void:
 			_clear_text_edit_after_submit()
 			_update_send_state()
 
+
 func _on_user_message_resend_requested(request_id_to_retry: String, message_text: String) -> void:
 	if message_text.strip_edges().is_empty() or not active_stream_id.is_empty():
 		return
@@ -2777,6 +2911,7 @@ func _on_user_message_resend_requested(request_id_to_retry: String, message_text
 
 	_trim_timeline_from_request(request_id_to_retry)
 	_send_chat_text(message_text, request_id_to_retry)
+
 
 func _trim_timeline_from_request(request_id_to_retry: String) -> void:
 	if request_id_to_retry.is_empty():
@@ -2813,6 +2948,7 @@ func _trim_timeline_from_request(request_id_to_retry: String) -> void:
 	_clear_todo_items()
 	_render_visible_timeline(true)
 
+
 func _on_stop_button_pressed() -> void:
 	if active_stream_id.is_empty():
 		return
@@ -2822,6 +2958,7 @@ func _on_stop_button_pressed() -> void:
 	if active_queue_message_id > 0:
 		_finish_active_queue_message(false, MESSAGE_QUEUE_STATUS_CANCELLED)
 	_stop_active_stream_locally(true)
+
 
 func _stop_active_stream_locally(prepare_continue: bool) -> void:
 	_flush_pending_assistant_delta()
@@ -2846,15 +2983,18 @@ func _stop_active_stream_locally(prepare_continue: bool) -> void:
 	if prepare_continue and text_edit.text.strip_edges().is_empty():
 		text_edit.grab_focus()
 
+
 func _save_paused_stream_context() -> void:
 	paused_stream_request_id = active_stream_request_id
 	paused_stream_started_at_utc = active_stream_started_at_utc
 	paused_assistant_entry_id = active_assistant_entry_id
 
+
 func _clear_paused_stream_context() -> void:
 	paused_stream_request_id = ""
 	paused_stream_started_at_utc = ""
 	paused_assistant_entry_id = ""
+
 
 func _restore_paused_stream_context_for_continuation(continuation_request_id: String) -> void:
 	active_stream_request_id = paused_stream_request_id
@@ -2878,6 +3018,7 @@ func _restore_paused_stream_context_for_continuation(continuation_request_id: St
 
 	_ensure_active_assistant_item()
 
+
 func _on_approve_button_pressed() -> void:
 	if pending_approval_id.is_empty():
 		return
@@ -2896,6 +3037,7 @@ func _on_approve_button_pressed() -> void:
 	_scroll_to_bottom_if_following(should_follow_bottom)
 	approval_dialog.visible = false
 
+
 func _on_reject_button_pressed() -> void:
 	if pending_approval_id.is_empty():
 		return
@@ -2908,8 +3050,10 @@ func _on_reject_button_pressed() -> void:
 	_clear_paused_stream_context()
 	approval_dialog.visible = false
 
+
 func _on_skip_approval_button_pressed() -> void:
 	approval_dialog.visible = false
+
 
 func _create_session(title_text: String) -> void:
 	if not _is_socket_open():
@@ -2921,6 +3065,7 @@ func _create_session(title_text: String) -> void:
 
 	_send_request(RPC_METHODS.SESSION_CREATE, params, "session-create")
 
+
 func _open_session(session_id: String) -> void:
 	if not _is_socket_open():
 		return
@@ -2930,11 +3075,13 @@ func _open_session(session_id: String) -> void:
 		_clear_manual_guides()
 	_send_request(RPC_METHODS.SESSION_OPEN, { "sessionId": session_id, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-open")
 
+
 func _clear_message_queue() -> void:
 	queued_messages.clear()
 	active_queue_message_id = 0
 	_render_message_panel()
 	_update_send_state()
+
 
 func _dispatch_message_text(message_text: String, additional_contexts: Array = []) -> bool:
 	if not _is_socket_open():
@@ -3041,6 +3188,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	_set_streaming_state(true)
 	return true
 
+
 func _should_queue_outgoing_message() -> bool:
 	return (
 		not _is_socket_open()
@@ -3051,6 +3199,7 @@ func _should_queue_outgoing_message() -> bool:
 	)
 
 # --- message_queue_controller.gd ---
+
 func _enqueue_message(message_text: String, additional_contexts: Array = []) -> bool:
 	if _get_open_queue_count() >= MAX_QUEUED_MESSAGES:
 		_upsert_connection_status_entry(
@@ -3074,6 +3223,7 @@ func _enqueue_message(message_text: String, additional_contexts: Array = []) -> 
 	_update_send_state()
 	return true
 
+
 func _process_message_queue() -> void:
 	if not _can_dispatch_queued_message():
 		_render_message_panel()
@@ -3096,6 +3246,7 @@ func _process_message_queue() -> void:
 		_finish_active_queue_message(false, MESSAGE_QUEUE_STATUS_FAILED)
 		_process_message_queue()
 
+
 func _can_dispatch_queued_message() -> bool:
 	return (
 		_is_socket_open()
@@ -3104,8 +3255,10 @@ func _can_dispatch_queued_message() -> bool:
 		and pending_chat_text.is_empty()
 	)
 
+
 func _has_pending_queued_messages() -> bool:
 	return _find_next_pending_queue_index() >= 0
+
 
 func _find_next_pending_queue_index() -> int:
 	for index: int in range(queued_messages.size()):
@@ -3115,6 +3268,7 @@ func _find_next_pending_queue_index() -> int:
 
 	return -1
 
+
 func _get_open_queue_count() -> int:
 	var open_count: int = 0
 	for queued_message: Dictionary in queued_messages:
@@ -3123,6 +3277,7 @@ func _get_open_queue_count() -> int:
 			open_count += 1
 
 	return open_count
+
 
 func _set_queue_message_status(queue_message_id: int, status: StringName) -> void:
 	for index: int in range(queued_messages.size()):
@@ -3135,6 +3290,7 @@ func _set_queue_message_status(queue_message_id: int, status: StringName) -> voi
 		_render_message_panel()
 		return
 
+
 func _finish_active_queue_message(remove_message: bool, final_status: StringName = &"failed") -> void:
 	if active_queue_message_id <= 0:
 		return
@@ -3146,6 +3302,7 @@ func _finish_active_queue_message(remove_message: bool, final_status: StringName
 	else:
 		_set_queue_message_status(finished_queue_message_id, final_status)
 	_render_message_panel()
+
 
 func _remove_queue_message(queue_message_id: int) -> void:
 	for index: int in range(queued_messages.size()):
@@ -3177,6 +3334,7 @@ func _handle_queue_tree_action(button_id: int, metadata: Dictionary) -> void:
 	_render_message_panel()
 	_update_send_state()
 
+
 func _handle_guide_tree_action(button_id: int, metadata: Dictionary) -> void:
 	var local_id: String = str(metadata.get("local_id", ""))
 	if local_id.is_empty():
@@ -3188,6 +3346,7 @@ func _handle_guide_tree_action(button_id: int, metadata: Dictionary) -> void:
 		_edit_manual_guide(local_id)
 	elif button_id == MESSAGE_TREE_BUTTON_DELETE:
 		_delete_manual_guide(local_id)
+
 
 func _create_or_update_manual_guide_from_text_edit() -> void:
 	var guide_text: String = text_edit.text.strip_edges()
@@ -3219,6 +3378,7 @@ func _create_or_update_manual_guide_from_text_edit() -> void:
 	_render_message_panel()
 	_update_send_state()
 
+
 func _update_editing_manual_guide(guide_text: String) -> bool:
 	var guide_index: int = _find_manual_guide_index(editing_guide_local_id)
 	if guide_index < 0:
@@ -3247,6 +3407,7 @@ func _update_editing_manual_guide(guide_text: String) -> bool:
 	manual_guides[guide_index] = manual_guide
 	_render_message_panel()
 	return true
+
 
 func _submit_manual_guide(local_id: String) -> void:
 	var guide_index: int = _find_manual_guide_index(local_id)
@@ -3287,6 +3448,7 @@ func _submit_manual_guide(local_id: String) -> void:
 	manual_guides[guide_index] = manual_guide
 	_render_message_panel()
 
+
 func _edit_manual_guide(local_id: String) -> void:
 	var guide_index: int = _find_manual_guide_index(local_id)
 	if guide_index < 0:
@@ -3308,6 +3470,7 @@ func _edit_manual_guide(local_id: String) -> void:
 		editing_guide_local_id = ""
 	_render_message_panel()
 	_update_send_state()
+
 
 func _delete_manual_guide(local_id: String) -> void:
 	var guide_index: int = _find_manual_guide_index(local_id)
@@ -3336,6 +3499,7 @@ func _delete_manual_guide(local_id: String) -> void:
 	_render_message_panel()
 	_update_send_state()
 
+
 func _find_manual_guide_index(local_id: String) -> int:
 	for index: int in range(manual_guides.size()):
 		var manual_guide: Dictionary = manual_guides[index]
@@ -3343,6 +3507,7 @@ func _find_manual_guide_index(local_id: String) -> int:
 			return index
 
 	return -1
+
 
 func _find_manual_guide_index_by_backend_id(guide_id: String, client_guide_id: String = "") -> int:
 	for index: int in range(manual_guides.size()):
@@ -3353,6 +3518,7 @@ func _find_manual_guide_index_by_backend_id(guide_id: String, client_guide_id: S
 			return index
 
 	return -1
+
 
 func _clear_manual_guides() -> void:
 	manual_guides.clear()
@@ -3381,8 +3547,10 @@ func _send_request(method: String, params: Dictionary, id_prefix: String) -> Str
 
 	return next_request_id
 
+
 func _is_socket_open() -> bool:
 	return socket.get_ready_state() == WebSocketPeer.STATE_OPEN
+
 
 func _format_socket_close_tooltip(prefix: String) -> String:
 	var close_code: int = socket.get_close_code()
@@ -3391,6 +3559,7 @@ func _format_socket_close_tooltip(prefix: String) -> String:
 		return "%s (%d)" % [prefix, close_code]
 
 	return "%s (%d): %s" % [prefix, close_code, close_reason]
+
 
 func _receive_messages() -> void:
 	var processed_count: int = 0
@@ -3415,12 +3584,14 @@ func _receive_messages() -> void:
 		if typeof(data) == TYPE_DICTIONARY:
 			_handle_message(data as Dictionary)
 
+
 func _handle_message(message: Dictionary) -> void:
 	var message_type: String = str(message.get("type", ""))
 	if message_type == "response":
 		_handle_response(message)
 	elif message_type == "event":
 		_handle_event(message)
+
 
 func _handle_response(message: Dictionary) -> void:
 	if _handle_backend_health_response(message):
@@ -3577,6 +3748,7 @@ func _handle_response(message: Dictionary) -> void:
 			_process_message_queue()
 		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 
+
 func _handle_event(message: Dictionary) -> void:
 	var event_name: String = str(message.get("event", ""))
 	var event_id: String = str(message.get("id", ""))
@@ -3704,6 +3876,7 @@ func _handle_event(message: Dictionary) -> void:
 func _is_global_event(event_name: String) -> bool:
 	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("agent.")
 
+
 func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary) -> Dictionary:
 	if not event_name.begins_with("agent.tool."):
 		return event_data
@@ -3711,6 +3884,7 @@ func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary
 	var normalized_data: Dictionary = event_data.duplicate(true)
 	normalized_data["type"] = event_name.replace("agent.tool.", "tool.")
 	return normalized_data
+
 
 func _request_next_step_hints(anchor_request_id: String, trigger: String) -> void:
 	if not next_step_hints_enabled:
@@ -3732,6 +3906,7 @@ func _request_next_step_hints(anchor_request_id: String, trigger: String) -> voi
 	next_step_hint_anchor_request_id = anchor_request_id
 	if next_step_hint_request_id.is_empty():
 		next_step_hint_anchor_request_id = ""
+
 
 func _apply_next_step_hints_response(response_id: String, result_dictionary: Dictionary) -> void:
 	if response_id != next_step_hint_request_id:
@@ -3785,6 +3960,7 @@ func _apply_next_step_hints_response(response_id: String, result_dictionary: Dic
 
 	_schedule_timeline_render(_should_follow_timeline_updates())
 
+
 func _clear_next_step_hint_entries() -> void:
 	text_edit.placeholder_text = ""
 	next_step_hints_by_action_id.clear()
@@ -3802,6 +3978,7 @@ func _clear_next_step_hint_entries() -> void:
 	_rebuild_timeline_index_cache()
 	_rebuild_timeline_height_cache()
 	_schedule_timeline_render(_should_follow_timeline_updates())
+
 
 func _handle_guide_response_error(message: Dictionary) -> bool:
 	var response_id: String = str(message.get("id", ""))
@@ -3824,6 +4001,7 @@ func _handle_guide_response_error(message: Dictionary) -> bool:
 	_render_message_panel()
 	_show_response_error(message)
 	return true
+
 
 func _apply_guide_upsert_response(result_dictionary: Dictionary) -> void:
 	var guide_value: Variant = result_dictionary.get("guide", {})
@@ -3856,12 +4034,14 @@ func _apply_guide_upsert_response(result_dictionary: Dictionary) -> void:
 	manual_guides[guide_index] = manual_guide
 	_render_message_panel()
 
+
 func _apply_guide_delete_response(result_dictionary: Dictionary) -> void:
 	var guide_id: String = str(result_dictionary.get("guideId", ""))
 	var guide_index: int = _find_manual_guide_index_by_backend_id(guide_id)
 	if guide_index >= 0:
 		manual_guides.remove_at(guide_index)
 	_render_message_panel()
+
 
 func _apply_guide_applied_event(data_dictionary: Dictionary) -> void:
 	var guide_id: String = str(data_dictionary.get("guideId", ""))
@@ -3876,6 +4056,7 @@ func _apply_guide_applied_event(data_dictionary: Dictionary) -> void:
 	manual_guides[guide_index] = manual_guide
 	_render_message_panel()
 
+
 func _apply_guide_deleted_event(data_dictionary: Dictionary) -> void:
 	var guide_id: String = str(data_dictionary.get("guideId", ""))
 	var client_guide_id: String = str(data_dictionary.get("clientGuideId", ""))
@@ -3883,6 +4064,7 @@ func _apply_guide_deleted_event(data_dictionary: Dictionary) -> void:
 	if guide_index >= 0:
 		manual_guides.remove_at(guide_index)
 	_render_message_panel()
+
 
 func _sync_pending_guides_from_result(result_dictionary: Dictionary) -> void:
 	var guides_value: Variant = result_dictionary.get("pendingGuides", [])
@@ -3941,6 +4123,7 @@ func _update_session_list(result: Dictionary) -> void:
 
 	_render_session_list()
 
+
 func _update_archived_session_list(result: Dictionary) -> void:
 	archived_sessions_by_id.clear()
 	archived_session_ids_in_order.clear()
@@ -3965,6 +4148,7 @@ func _update_archived_session_list(result: Dictionary) -> void:
 
 	_sync_settings_archived_sessions()
 
+
 func _apply_mcp_config_response(result: Dictionary) -> void:
 	custom_mcp_servers.clear()
 	var servers_value: Variant = result.get("customMcpServers", [])
@@ -3977,6 +4161,7 @@ func _apply_mcp_config_response(result: Dictionary) -> void:
 			custom_mcp_servers.append((item as Dictionary).duplicate(true))
 
 	_sync_settings_mcp_servers()
+
 
 func _handle_mcp_config_error(message: Dictionary) -> void:
 	var error_message: String = "MCP configuration failed"
@@ -3991,6 +4176,7 @@ func _handle_mcp_config_error(message: Dictionary) -> void:
 
 	_show_background_context_viewer()
 	_show_response_error(message)
+
 
 func _update_workspace_list(result: Dictionary) -> void:
 	workspaces_by_id.clear()
@@ -4021,6 +4207,7 @@ func _update_workspace_list(result: Dictionary) -> void:
 	_render_session_list()
 	_sync_settings_archived_sessions()
 
+
 func _render_session_list() -> void:
 	session_option_button.clear()
 	_clear_session_buttons()
@@ -4043,6 +4230,7 @@ func _render_session_list() -> void:
 			_render_workspace_group(workspace_id)
 
 	_select_active_session()
+
 
 func _render_workspace_group(workspace_id: String) -> void:
 	var matching_session_ids: PackedStringArray
@@ -4077,6 +4265,7 @@ func _render_workspace_group(workspace_id: String) -> void:
 		session_item.connect("open_requested", Callable(self, "_on_dynamic_session_item_pressed"))
 		session_item.connect("archive_requested", Callable(self, "_on_session_archive_requested"))
 
+
 func _does_session_match_filters(metadata: Dictionary) -> bool:
 	if not selected_workspace_filter.is_empty() and str(metadata.get("workspaceId", "")) != selected_workspace_filter:
 		return false
@@ -4091,6 +4280,7 @@ func _does_session_match_filters(metadata: Dictionary) -> bool:
 
 	return title_text.contains(query) or workspace_id.to_lower().contains(query) or workspace_text.contains(query)
 
+
 func _format_workspace_group_text(workspace_id: String) -> String:
 	if workspace_id.is_empty():
 		return "No workspace"
@@ -4100,6 +4290,7 @@ func _format_workspace_group_text(workspace_id: String) -> String:
 		return "Unknown workspace: %s" % workspace_id
 
 	return workspace.get("name", "Workspace")
+
 
 func _format_workspace_search_text(workspace_id: String) -> String:
 	if workspace_id.is_empty():
@@ -4111,12 +4302,14 @@ func _format_workspace_search_text(workspace_id: String) -> String:
 
 	return "%s %s" % [str(workspace.get("name", "")), str(workspace.get("rootPath", ""))]
 
+
 func _select_workspace_filter(workspace_id: String) -> void:
 	selected_workspace_filter = workspace_id
 	for index: int in range(workspace_filter_button.get_item_count()):
 		if str(workspace_filter_button.get_item_metadata(index)) == workspace_id:
 			workspace_filter_button.select(index)
 			return
+
 
 func _on_workspace_filter_button_item_selected(index: int) -> void:
 	if index < 0 or index >= workspace_filter_button.get_item_count():
@@ -4125,22 +4318,27 @@ func _on_workspace_filter_button_item_selected(index: int) -> void:
 	selected_workspace_filter = str(workspace_filter_button.get_item_metadata(index))
 	_render_session_list()
 
+
 func _on_search_session_line_edit_text_changed(new_text: String) -> void:
 	session_search_text = new_text.strip_edges()
 	_render_session_list()
+
 
 func _clear_session_buttons() -> void:
 	for child: Node in session_list.get_children():
 		child.queue_free()
 
+
 func _on_dynamic_session_item_pressed(session_id: String) -> void:
 	_open_session(session_id)
+
 
 func _on_session_archive_requested(session_id: String) -> void:
 	if not _is_socket_open() or session_id.is_empty():
 		return
 
 	_send_request(RPC_METHODS.SESSION_ARCHIVE, { "sessionId": session_id }, "session-archive")
+
 
 func _apply_archived_session_response(result_dictionary: Dictionary) -> void:
 	var metadata_value: Variant = result_dictionary.get("metadata", {})
@@ -4164,6 +4362,7 @@ func _apply_archived_session_response(result_dictionary: Dictionary) -> void:
 	_sync_settings_archived_sessions()
 	_refresh_session_and_archive_lists()
 
+
 func _remove_archived_session(session_id: String) -> void:
 	if session_id.is_empty():
 		return
@@ -4172,9 +4371,11 @@ func _remove_archived_session(session_id: String) -> void:
 	archived_session_ids_in_order.erase(session_id)
 	_sync_settings_archived_sessions()
 
+
 func _refresh_session_and_archive_lists() -> void:
 	_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
 	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
+
 
 func _apply_session_metadata(metadata: Dictionary) -> void:
 	active_session_id = str(metadata.get("id", ""))
@@ -4186,6 +4387,7 @@ func _apply_session_metadata(metadata: Dictionary) -> void:
 	_select_active_session()
 	_update_navigation_state()
 	_render_message_panel()
+
 
 func _apply_renamed_session_override(metadata: Dictionary) -> Dictionary:
 	var session_id: String = str(metadata.get("id", ""))
@@ -4201,6 +4403,7 @@ func _apply_renamed_session_override(metadata: Dictionary) -> Dictionary:
 			result[str(metadata_key)] = override_metadata[metadata_key]
 
 	return result
+
 
 func _apply_session_renamed_event(data_dictionary: Dictionary) -> void:
 	var session_id: String = str(data_dictionary.get("sessionId", ""))
@@ -4231,6 +4434,7 @@ func _apply_session_renamed_event(data_dictionary: Dictionary) -> void:
 	if active_session_id == session_id:
 		_select_active_session()
 
+
 func _apply_provider_config_status(status: Dictionary) -> void:
 	provider_config_status = status
 	var configured: bool = bool(status.get("configured", false))
@@ -4257,6 +4461,7 @@ func _apply_provider_config_status(status: Dictionary) -> void:
 
 	_update_send_state()
 
+
 func _apply_provider_models_list_response(result: Dictionary) -> void:
 	var provider_id: String = str(result.get("provider", "")).strip_edges()
 	if provider_id != active_provider_id:
@@ -4277,6 +4482,7 @@ func _apply_provider_models_list_response(result: Dictionary) -> void:
 			str(result.get("error", ""))
 		]
 	_update_send_state()
+
 
 func _select_active_session() -> void:
 	for index: int in range(session_option_button.get_item_count()):
@@ -4334,6 +4540,7 @@ func _clear_chat_items() -> void:
 	_set_context_length_icon(0.0, true)
 	_render_message_panel()
 
+
 func _render_session_timeline(messages_value: Variant, events_value: Variant, page_info: Dictionary) -> void:
 	timeline_message_offset = int(page_info.get("messagesOffset", 0))
 	timeline_has_more_before = bool(page_info.get("hasMoreBefore", false))
@@ -4344,6 +4551,7 @@ func _render_session_timeline(messages_value: Variant, events_value: Variant, pa
 	_rebuild_timeline_index_cache()
 	_rebuild_timeline_height_cache()
 	_render_visible_timeline(true)
+
 
 func _request_previous_timeline_page() -> void:
 	if timeline_loading_before or not timeline_has_more_before:
@@ -4360,6 +4568,7 @@ func _request_previous_timeline_page() -> void:
 		"limit": SESSION_OPEN_MESSAGE_LIMIT
 	}
 	_send_request(RPC_METHODS.SESSION_TIMELINE, params, "session-timeline")
+
 
 func _prepend_session_timeline(page_info: Dictionary) -> void:
 	timeline_loading_before = false
@@ -4405,9 +4614,11 @@ func _prepend_session_timeline(page_info: Dictionary) -> void:
 	_render_visible_timeline(false)
 	_restore_scroll_after_prepend(added_height)
 
+
 func _restore_scroll_after_prepend(added_height: float) -> void:
 	await get_tree().process_frame
 	scroll_container.scroll_vertical = int(float(scroll_container.scroll_vertical) + added_height)
+
 
 func _apply_latest_workflow_snapshot(page_info: Dictionary) -> void:
 	var snapshot_value: Variant = page_info.get("latestWorkflowSnapshot", null)
@@ -4415,6 +4626,7 @@ func _apply_latest_workflow_snapshot(page_info: Dictionary) -> void:
 		return
 
 	_apply_workflow_todo_snapshot(snapshot_value as Dictionary)
+
 
 func _append_session_records_to_timeline(messages_value: Variant, events_value: Variant) -> void:
 	var messages: Array
@@ -4493,6 +4705,7 @@ func _append_session_records_to_timeline(messages_value: Variant, events_value: 
 
 		_append_events_for_request(request_id, events_by_request_id, consumed_request_ids)
 
+
 func _make_message_entry_id(message: Dictionary, role: String) -> String:
 	var request_id: String = str(message.get("requestId", ""))
 	var created_at: String = str(message.get("createdAt", ""))
@@ -4500,6 +4713,7 @@ func _make_message_entry_id(message: Dictionary, role: String) -> String:
 		return ""
 
 	return "message:%s:%s:%s" % [request_id, role, created_at]
+
 
 func _collect_message_request_ids(messages: Array) -> Dictionary[String, bool]:
 	var ids: Dictionary[String, bool] = {}
@@ -4513,6 +4727,7 @@ func _collect_message_request_ids(messages: Array) -> Dictionary[String, bool]:
 			ids[request_id] = true
 
 	return ids
+
 
 func _collect_message_request_ids_for_role(messages: Array, target_role: String) -> Dictionary[String, bool]:
 	var ids: Dictionary[String, bool] = {}
@@ -4529,6 +4744,7 @@ func _collect_message_request_ids_for_role(messages: Array, target_role: String)
 			ids[request_id] = true
 
 	return ids
+
 
 func _collect_session_events(
 	events_value: Variant,
@@ -4564,6 +4780,7 @@ func _collect_session_events(
 
 	orphan_events.sort_custom(_compare_event_records_by_created_at)
 
+
 func _compare_event_records_by_created_at(left: Dictionary, right: Dictionary) -> bool:
 	var left_created_at: String = str(left.get("createdAt", ""))
 	var right_created_at: String = str(right.get("createdAt", ""))
@@ -4572,6 +4789,7 @@ func _compare_event_records_by_created_at(left: Dictionary, right: Dictionary) -
 
 	return left_created_at < right_created_at
 
+
 func _append_events_for_request(request_id: String, events_by_request_id: Dictionary[String, Array], consumed_request_ids: PackedStringArray) -> void:
 	if consumed_request_ids.has(request_id):
 		return
@@ -4579,6 +4797,7 @@ func _append_events_for_request(request_id: String, events_by_request_id: Dictio
 	consumed_request_ids.append(request_id)
 	var records: Array = events_by_request_id.get(request_id, []) as Array
 	_append_event_records(records)
+
 
 func _append_event_records(records: Array) -> void:
 	for item: Variant in records:
@@ -4597,6 +4816,7 @@ func _append_event_records(records: Array) -> void:
 		data["_eventRecordId"] = str(event_record.get("id", ""))
 
 		_append_event_to_timeline(event_name, data, str(event_record.get("requestId", "")))
+
 
 func _filter_non_assistant_body_event_records(records: Array) -> Array:
 	var filtered_records: Array = []
@@ -4618,6 +4838,7 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 		filtered_records.append(event_record)
 
 	return filtered_records
+
 
 func _build_assistant_body_parts(records: Array, message_content: String, request_id: String) -> Array[Dictionary]:
 	var body_parts: Array[Dictionary] = []
@@ -4660,6 +4881,7 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 
 	return body_parts
 
+
 func _records_have_event(records: Array, target_event_name: String) -> bool:
 	for item: Variant in records:
 		if typeof(item) != TYPE_DICTIONARY:
@@ -4670,6 +4892,7 @@ func _records_have_event(records: Array, target_event_name: String) -> bool:
 			return true
 
 	return false
+
 
 func _append_markdown_delta_to_body_parts(body_parts: Array, delta_text: String) -> void:
 	if delta_text.is_empty():
@@ -4688,6 +4911,7 @@ func _append_markdown_delta_to_body_parts(body_parts: Array, delta_text: String)
 		"type": "markdown",
 		"text": delta_text
 	})
+
 
 func _append_tool_event_to_body_parts(body_parts: Array, event_data: Dictionary, request_id: String) -> void:
 	var tool_call_id: String = _get_scoped_tool_call_key(event_data, request_id)
@@ -4718,6 +4942,7 @@ func _append_tool_event_to_body_parts(body_parts: Array, event_data: Dictionary,
 		"events": [event_data.duplicate(true)]
 	})
 
+
 func _append_thinking_event_to_body_parts(body_parts: Array, delta_text: String, is_done: bool) -> void:
 	for index: int in range(body_parts.size() - 1, -1, -1):
 		var part_value: Variant = body_parts[index]
@@ -4743,6 +4968,7 @@ func _append_thinking_event_to_body_parts(body_parts: Array, delta_text: String,
 		"done": is_done
 	})
 
+
 func _append_status_event_to_body_parts(body_parts: Array, status_data: Dictionary) -> void:
 	var part: Dictionary = {
 		"type": "status",
@@ -4754,6 +4980,7 @@ func _append_status_event_to_body_parts(body_parts: Array, status_data: Dictiona
 		"code": str(status_data.get("code", ""))
 	}
 	body_parts.append(part)
+
 
 func _does_event_list_have_record(events: Array, event_record_id: String) -> bool:
 	if event_record_id.is_empty():
@@ -4798,6 +5025,7 @@ func _append_timeline_entry(entry_type: String, request_id: String, content: Str
 	timeline_heights_dirty = true
 	return entry_id
 
+
 func _upsert_connection_status_entry(
 	status_text: String,
 	title_text: String,
@@ -4836,6 +5064,7 @@ func _upsert_connection_status_entry(
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_schedule_timeline_render(should_follow_bottom)
 
+
 func _append_event_to_timeline(event_name: String, event_data: Dictionary, request_id: String) -> void:
 	if event_name == "ai.thinking.delta" or event_name == "agent.thinking.delta":
 		var delta_text: String = str(event_data.get("text", ""))
@@ -4867,6 +5096,7 @@ func _append_event_to_timeline(event_name: String, event_data: Dictionary, reque
 				"action_id": str(event_data.get("actionId", event_data.get("action_id", "")))
 			}
 		)
+
 
 func _append_tool_event_to_timeline(event_data: Dictionary, request_id: String) -> String:
 	var tool_call_id: String = _get_scoped_tool_call_key(event_data, request_id)
@@ -4902,6 +5132,7 @@ func _append_tool_event_to_timeline(event_data: Dictionary, request_id: String) 
 
 	return entry_id
 
+
 func _set_timeline_entry_tool_call_id(entry_id: String, tool_call_id: String) -> void:
 	var index: int = _find_timeline_entry_index(entry_id)
 	if index < 0:
@@ -4910,6 +5141,7 @@ func _set_timeline_entry_tool_call_id(entry_id: String, tool_call_id: String) ->
 	var entry: Dictionary = timeline_entries[index]
 	entry["tool_call_id"] = tool_call_id
 	timeline_entries[index] = entry
+
 
 func _set_timeline_entry_collapsed(entry_id: String, collapsed: bool) -> void:
 	if entry_id.is_empty():
@@ -4923,6 +5155,7 @@ func _set_timeline_entry_collapsed(entry_id: String, collapsed: bool) -> void:
 	entry["collapsed"] = collapsed
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
+
 
 func _set_timeline_entry_times(entry_id: String, started_at_utc: String, completed_at_utc: String) -> void:
 	if entry_id.is_empty():
@@ -4940,6 +5173,7 @@ func _set_timeline_entry_times(entry_id: String, started_at_utc: String, complet
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
 
+
 func _get_timeline_entry_content(entry_id: String) -> String:
 	var index: int = _find_timeline_entry_index(entry_id)
 	if index < 0:
@@ -4947,6 +5181,7 @@ func _get_timeline_entry_content(entry_id: String) -> String:
 
 	var entry: Dictionary = timeline_entries[index]
 	return str(entry.get("content", ""))
+
 
 func _update_timeline_entry_content(entry_id: String, content: String) -> void:
 	var index: int = _find_timeline_entry_index(entry_id)
@@ -4959,6 +5194,7 @@ func _update_timeline_entry_content(entry_id: String, content: String) -> void:
 	entry["height_actual"] = 0.0
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
+
 
 func _append_assistant_delta_to_timeline(entry_id: String, delta_text: String, preserve_stream_height: bool = false) -> void:
 	var index: int = _find_timeline_entry_index(entry_id)
@@ -4994,6 +5230,7 @@ func _append_assistant_delta_to_timeline(entry_id: String, delta_text: String, p
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
 
+
 func _find_timeline_entry_index(entry_id: String) -> int:
 	if entry_id.is_empty():
 		return -1
@@ -5006,6 +5243,7 @@ func _find_timeline_entry_index(entry_id: String) -> int:
 	return -1
 
 # --- timeline_virtual_controller.gd ---
+
 func _rebuild_timeline_index_cache() -> void:
 	timeline_entry_ids.clear()
 	active_tool_entry_ids_by_call_id.clear()
@@ -5034,6 +5272,7 @@ func _estimate_timeline_entry_height(entry_type: String, content: String) -> flo
 
 	return 96.0
 
+
 func _get_entry_cached_height(entry: Dictionary) -> float:
 	var actual_height: float = float(entry.get("height_actual", 0.0))
 	if actual_height > 0.0:
@@ -5041,10 +5280,12 @@ func _get_entry_cached_height(entry: Dictionary) -> float:
 
 	return max(TIMELINE_MIN_ITEM_HEIGHT, float(entry.get("height_estimate", TIMELINE_ESTIMATED_ASSISTANT_HEIGHT)))
 
+
 func _mark_timeline_height_dirty(index: int = -1) -> void:
 	if index >= 0 and index < timeline_entries.size() and index < timeline_heights.size():
 		timeline_heights[index] = _get_entry_cached_height(timeline_entries[index])
 	timeline_heights_dirty = true
+
 
 func _rebuild_timeline_height_cache() -> void:
 	timeline_heights.clear()
@@ -5060,9 +5301,11 @@ func _rebuild_timeline_height_cache() -> void:
 
 	timeline_heights_dirty = false
 
+
 func _ensure_timeline_height_cache() -> void:
 	if timeline_heights_dirty or timeline_heights.size() != timeline_entries.size() or timeline_prefix_heights.size() != timeline_entries.size() + 1:
 		_rebuild_timeline_height_cache()
+
 
 func _get_timeline_entry_height(index: int) -> float:
 	if index < 0 or index >= timeline_entries.size():
@@ -5071,9 +5314,11 @@ func _get_timeline_entry_height(index: int) -> float:
 	_ensure_timeline_height_cache()
 	return timeline_heights[index]
 
+
 func _get_timeline_total_height() -> float:
 	_ensure_timeline_height_cache()
 	return timeline_prefix_heights[timeline_prefix_heights.size() - 1]
+
 
 func _schedule_timeline_render(scroll_to_bottom: bool) -> void:
 	timeline_scroll_to_bottom_queued = timeline_scroll_to_bottom_queued or scroll_to_bottom
@@ -5083,12 +5328,14 @@ func _schedule_timeline_render(scroll_to_bottom: bool) -> void:
 	timeline_render_queued = true
 	_deferred_render_visible_timeline()
 
+
 func _deferred_render_visible_timeline() -> void:
 	await get_tree().process_frame
 	var should_scroll_to_bottom: bool = timeline_scroll_to_bottom_queued
 	timeline_render_queued = false
 	timeline_scroll_to_bottom_queued = false
 	_render_visible_timeline(should_scroll_to_bottom)
+
 
 func _render_visible_timeline(scroll_to_bottom: bool) -> void:
 	_setup_timeline_containers()
@@ -5123,6 +5370,7 @@ func _render_visible_timeline(scroll_to_bottom: bool) -> void:
 	if scroll_to_bottom:
 		_scroll_timeline_to_bottom_deferred()
 
+
 func _find_timeline_index_at_offset(offset: float) -> int:
 	_ensure_timeline_height_cache()
 	if timeline_entries.is_empty():
@@ -5138,6 +5386,7 @@ func _find_timeline_index_at_offset(offset: float) -> int:
 			high = mid
 
 	return clampi(low, 0, timeline_entries.size() - 1)
+
 
 func _sync_rendered_timeline_range(start_index: int, end_index: int) -> void:
 	var wanted_ids: Dictionary[String, bool] = {}
@@ -5183,6 +5432,7 @@ func _sync_rendered_timeline_range(start_index: int, end_index: int) -> void:
 			timeline_visible_container.move_child(node, child_order)
 			child_order += 1
 
+
 func _instantiate_timeline_entry_node(entry: Dictionary, index: int) -> Node:
 	var entry_type: String = str(entry.get("type", ""))
 	var node: Node
@@ -5212,6 +5462,7 @@ func _instantiate_timeline_entry_node(entry: Dictionary, index: int) -> Node:
 
 	rendered_entry_indices[entry_id] = index
 	return node
+
 
 func _configure_timeline_entry_node(node: Node, entry: Dictionary, _index: int) -> void:
 	var entry_type: String = str(entry.get("type", ""))
@@ -5260,6 +5511,7 @@ func _configure_timeline_entry_node(node: Node, entry: Dictionary, _index: int) 
 	if node.has_signal("content_height_changed") and not node.is_connected("content_height_changed", _on_timeline_node_content_height_changed):
 		node.connect("content_height_changed", _on_timeline_node_content_height_changed.bind(entry_id))
 
+
 func _setup_tool_node_from_entry(node: Node, entry: Dictionary) -> void:
 	var events: Array = entry.get("events", []) as Array
 	if events.is_empty():
@@ -5277,6 +5529,7 @@ func _setup_tool_node_from_entry(node: Node, entry: Dictionary) -> void:
 		else:
 			node.call("append_tool_event", event_data)
 
+
 func _on_timeline_node_content_height_changed(entry_id: String) -> void:
 	var index: int = _find_timeline_entry_index(entry_id)
 	if index >= 0:
@@ -5286,6 +5539,7 @@ func _on_timeline_node_content_height_changed(entry_id: String) -> void:
 		_mark_timeline_height_dirty(index)
 	_schedule_timeline_measure()
 
+
 func _update_timeline_spacers(start_index: int, end_index: int) -> void:
 	_ensure_timeline_height_cache()
 	var top_height: float = timeline_prefix_heights[start_index]
@@ -5293,6 +5547,7 @@ func _update_timeline_spacers(start_index: int, end_index: int) -> void:
 
 	timeline_top_spacer.custom_minimum_size = Vector2(0.0, top_height)
 	timeline_bottom_spacer.custom_minimum_size = Vector2(0.0, bottom_height)
+
 
 func _schedule_timeline_measure() -> void:
 	var now_msec: int = Time.get_ticks_msec()
@@ -5303,6 +5558,7 @@ func _schedule_timeline_measure() -> void:
 
 	timeline_measure_queued = true
 	_deferred_measure_timeline_items()
+
 
 func _deferred_measure_timeline_items() -> void:
 	await get_tree().process_frame
@@ -5344,6 +5600,7 @@ func _deferred_measure_timeline_items() -> void:
 		elif should_follow_bottom:
 			_scroll_timeline_to_bottom_deferred()
 
+
 func _scroll_timeline_to_bottom_deferred() -> void:
 	if timeline_deferred_scroll_queued:
 		return
@@ -5362,6 +5619,7 @@ func _scroll_timeline_to_bottom_deferred() -> void:
 
 	scroll_container.scroll_vertical = int(round(_get_timeline_bottom_scroll()))
 
+
 func _is_timeline_near_bottom() -> bool:
 	var bar: VScrollBar = scroll_container.get_v_scroll_bar()
 	if bar == null:
@@ -5371,6 +5629,7 @@ func _is_timeline_near_bottom() -> bool:
 
 	return float(scroll_container.scroll_vertical) >= _get_timeline_bottom_scroll() - TIMELINE_BOTTOM_FOLLOW_THRESHOLD
 
+
 func _get_timeline_bottom_scroll() -> float:
 	var bar: VScrollBar = scroll_container.get_v_scroll_bar()
 	if bar == null:
@@ -5378,8 +5637,10 @@ func _get_timeline_bottom_scroll() -> float:
 
 	return max(0.0, bar.max_value - bar.page)
 
+
 func _should_follow_timeline_updates() -> bool:
 	return timeline_follow_bottom or _is_timeline_near_bottom()
+
 
 func _scroll_to_bottom_if_following(should_follow_bottom: bool) -> void:
 	if not should_follow_bottom:
@@ -5399,6 +5660,7 @@ func _add_user_message_item(message_text: String) -> void:
 	_append_timeline_entry("user", active_stream_request_id, message_text, "", { "sent_at_utc": sent_at_utc })
 	_schedule_timeline_render(should_follow_bottom)
 
+
 func _add_assistant_message_item(message_text: String) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
@@ -5408,6 +5670,7 @@ func _add_assistant_message_item(message_text: String) -> void:
 	var entry_id: String = _append_timeline_entry("assistant", active_stream_request_id, message_text, "", metadata)
 	active_assistant_entry_id = entry_id
 	_schedule_timeline_render(should_follow_bottom)
+
 
 func _ensure_active_assistant_item() -> void:
 	if not active_assistant_entry_id.is_empty():
@@ -5422,6 +5685,7 @@ func _ensure_active_assistant_item() -> void:
 	_schedule_timeline_render(should_follow_bottom)
 	active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
 
+
 func _schedule_assistant_delta_flush() -> void:
 	var now_msec: int = Time.get_ticks_msec()
 	if pending_assistant_delta_flush_at_msec <= now_msec:
@@ -5432,6 +5696,7 @@ func _schedule_assistant_delta_flush() -> void:
 	pending_assistant_delta_queued = true
 	_deferred_flush_pending_assistant_delta()
 
+
 func _deferred_flush_pending_assistant_delta() -> void:
 	var delay_msec: int = pending_assistant_delta_flush_at_msec - Time.get_ticks_msec()
 	if delay_msec > 0:
@@ -5439,6 +5704,7 @@ func _deferred_flush_pending_assistant_delta() -> void:
 	pending_assistant_delta_queued = false
 	pending_assistant_delta_flush_at_msec = 0
 	_flush_pending_assistant_delta()
+
 
 func _flush_pending_assistant_delta() -> void:
 	if pending_assistant_delta_text.is_empty() or active_assistant_entry_id.is_empty():
@@ -5458,6 +5724,7 @@ func _flush_pending_assistant_delta() -> void:
 		return
 
 	_schedule_timeline_render(should_follow_bottom)
+
 
 func _show_response_error(message: Dictionary) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
@@ -5503,6 +5770,7 @@ func _show_response_error(message: Dictionary) -> void:
 	_schedule_timeline_render(should_follow_bottom)
 	_scroll_to_bottom_if_following(should_follow_bottom)
 
+
 func _add_system_tool_item(title_text: String, detail_text: String) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	var entry_id: String = _append_timeline_entry("tool", active_stream_request_id, "")
@@ -5520,6 +5788,7 @@ func _add_system_tool_item(title_text: String, detail_text: String) -> void:
 	_schedule_timeline_render(should_follow_bottom)
 	_scroll_to_bottom_if_following(should_follow_bottom)
 
+
 func _add_tool_event(event_data: Dictionary) -> void:
 	_show_background_context_viewer()
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
@@ -5531,6 +5800,7 @@ func _add_tool_event(event_data: Dictionary) -> void:
 
 	_schedule_timeline_render(should_follow_bottom)
 	_scroll_to_bottom_if_following(should_follow_bottom)
+
 
 func _append_tool_event(event_data: Dictionary) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
@@ -5552,6 +5822,7 @@ func _append_tool_event(event_data: Dictionary) -> void:
 		_scroll_to_bottom_if_following(should_follow_bottom)
 
 	_schedule_timeline_render(should_follow_bottom)
+
 
 func _append_active_assistant_tool_event(event_data: Dictionary, create_if_missing: bool) -> Node:
 	_ensure_active_assistant_item()
@@ -5577,6 +5848,7 @@ func _append_active_assistant_tool_event(event_data: Dictionary, create_if_missi
 
 	return item
 
+
 func _append_assistant_tool_event_to_timeline(entry_id: String, event_data: Dictionary, request_id: String) -> void:
 	var index: int = _find_timeline_entry_index(entry_id)
 	if index < 0:
@@ -5590,6 +5862,7 @@ func _append_assistant_tool_event_to_timeline(entry_id: String, event_data: Dict
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
 
+
 func _append_assistant_status_to_timeline(entry_id: String, status_data: Dictionary) -> void:
 	var index: int = _find_timeline_entry_index(entry_id)
 	if index < 0:
@@ -5602,6 +5875,7 @@ func _append_assistant_status_to_timeline(entry_id: String, status_data: Diction
 	entry["height_actual"] = 0.0
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
+
 
 func _append_assistant_status_event(status_data: Dictionary) -> void:
 	_show_background_context_viewer()
@@ -5621,6 +5895,7 @@ func _append_assistant_status_event(status_data: Dictionary) -> void:
 
 	_schedule_timeline_render(should_follow_bottom)
 
+
 func _ensure_active_assistant_thinking_item() -> Node:
 	_ensure_active_assistant_item()
 	if active_assistant_entry_id.is_empty():
@@ -5639,6 +5914,7 @@ func _ensure_active_assistant_thinking_item() -> Node:
 		item = active_assistant_item.call("add_thinking") as Node
 	return item
 
+
 func _append_assistant_thinking_to_timeline(entry_id: String, delta_text: String, is_done: bool) -> void:
 	var index: int = _find_timeline_entry_index(entry_id)
 	if index < 0:
@@ -5651,6 +5927,7 @@ func _append_assistant_thinking_to_timeline(entry_id: String, delta_text: String
 	entry["height_actual"] = 0.0
 	timeline_entries[index] = entry
 	_mark_timeline_height_dirty(index)
+
 
 func _append_thinking_event(delta_text: String) -> void:
 	if delta_text.is_empty():
@@ -5666,6 +5943,7 @@ func _append_thinking_event(delta_text: String) -> void:
 	pending_thinking_delta_text += delta_text
 	_schedule_thinking_delta_flush()
 
+
 func _schedule_thinking_delta_flush() -> void:
 	var now_msec: int = Time.get_ticks_msec()
 	if pending_thinking_delta_flush_at_msec <= now_msec:
@@ -5676,6 +5954,7 @@ func _schedule_thinking_delta_flush() -> void:
 	pending_thinking_delta_queued = true
 	_deferred_flush_pending_thinking_delta()
 
+
 func _deferred_flush_pending_thinking_delta() -> void:
 	var delay_msec: int = pending_thinking_delta_flush_at_msec - Time.get_ticks_msec()
 	if delay_msec > 0:
@@ -5683,6 +5962,7 @@ func _deferred_flush_pending_thinking_delta() -> void:
 	pending_thinking_delta_queued = false
 	pending_thinking_delta_flush_at_msec = 0
 	_flush_pending_thinking_delta()
+
 
 func _flush_pending_thinking_delta() -> void:
 	if pending_thinking_delta_text.is_empty() or active_thinking_entry_id.is_empty():
@@ -5706,6 +5986,7 @@ func _flush_pending_thinking_delta() -> void:
 		timeline_follow_bottom = true
 		_scroll_timeline_to_bottom_deferred()
 
+
 func _get_tool_call_key(event_data: Dictionary) -> String:
 	var tool_call_id: String = str(event_data.get("toolCallId", ""))
 	if not tool_call_id.is_empty():
@@ -5717,12 +5998,14 @@ func _get_tool_call_key(event_data: Dictionary) -> String:
 
 	return "%s-%s" % [str(event_data.get("toolName", "tool")), str(event_data.get("step", 0))]
 
+
 func _get_scoped_tool_call_key(event_data: Dictionary, request_id: String) -> String:
 	var base_key: String = _get_tool_call_key(event_data)
 	if request_id.is_empty():
 		return base_key
 
 	return "%s:%s" % [request_id, base_key]
+
 
 func _show_approval_dialog(event_data: Dictionary) -> void:
 	_show_background_context_viewer()
@@ -5749,6 +6032,7 @@ func _show_approval_dialog(event_data: Dictionary) -> void:
 	approval_dialog.visible = true
 	_update_send_state()
 
+
 func _show_first_pending_approval(result_dictionary: Dictionary) -> void:
 	var pending_value: Variant = result_dictionary.get("pending", [])
 	if typeof(pending_value) != TYPE_ARRAY:
@@ -5770,6 +6054,7 @@ func _show_first_pending_approval(result_dictionary: Dictionary) -> void:
 		pending_data["toolName"] = str(pending_data.get("llmToolName", ""))
 	_show_approval_dialog(pending_data)
 
+
 func _clear_stale_approval_dialog(detail_text: String) -> void:
 	if pending_approval_id.is_empty() and not approval_dialog.visible:
 		return
@@ -5779,6 +6064,7 @@ func _clear_stale_approval_dialog(detail_text: String) -> void:
 	_clear_paused_stream_context()
 	_update_send_state()
 	_upsert_connection_status_entry("warning", "Approval has expired", detail_text)
+
 
 func _handle_stale_approval_response(message: Dictionary) -> bool:
 	var response_id: String = str(message.get("id", ""))
@@ -5818,6 +6104,7 @@ func _update_context_length(info: Dictionary) -> void:
 	if int(info.get("pendingApprovals", 0)) <= 0:
 		_clear_stale_approval_dialog("There are currently no pending approval records in the backend; if the backend was just restarted, the writing tool needs to be triggered again.")
 
+
 func _set_context_length_icon(ratio: float, is_empty: bool, history_tokens_stored: int = 0, context_window_tokens: int = 0) -> void:
 	var icon_path: String = "%s/empty_context_length.svg" % CONTEXT_ICON_DIR
 
@@ -5851,6 +6138,7 @@ func _set_context_length_icon(ratio: float, is_empty: bool, history_tokens_store
 			MAIN_HELPERS.format_compact_token_count(context_window_tokens)
 		]
 
+
 func _on_context_length_button_pressed() -> void:
 	context_popup_open_after_info = false
 	if not latest_context_info.is_empty():
@@ -5861,6 +6149,7 @@ func _on_context_length_button_pressed() -> void:
 		var context_info_request_id: String = _send_request(RPC_METHODS.SESSION_INFO, {}, "context-popup-info")
 		if context_info_request_id.is_empty():
 			context_popup_open_after_info = false
+
 
 func _show_context_popup_menu() -> void:
 	var popup_menu: PopupPanel = _get_context_popup_menu()
@@ -5883,6 +6172,7 @@ func _show_context_popup_menu() -> void:
 	popup_y = clampi(popup_y, 4, popup_y_max)
 	popup_menu.popup(Rect2i(Vector2i(popup_x, popup_y), popup_size))
 
+
 func _get_context_popup_menu() -> PopupPanel:
 	if context_popup_menu != null and is_instance_valid(context_popup_menu):
 		return context_popup_menu
@@ -5899,17 +6189,21 @@ func _get_context_popup_menu() -> PopupPanel:
 	add_child(context_popup_menu)
 	return context_popup_menu
 
+
 func _set_streaming_state(_is_streaming: bool) -> void:
 	_update_send_state()
 
+
 func _has_message_draft() -> bool:
 	return not text_edit.text.strip_edges().is_empty()
+
 
 func _should_show_send_button(is_streaming: bool, has_message_draft: bool) -> bool:
 	if not is_streaming:
 		return true
 
 	return has_message_draft
+
 
 func _update_send_state() -> void:
 	var is_streaming: bool = not active_stream_id.is_empty()
@@ -5933,6 +6227,7 @@ func _update_send_state() -> void:
 	stop_button.disabled = not socket_ready or not is_streaming
 	create_new_session_button.visible = socket_ready
 
+
 func _clear_todo_items() -> void:
 	last_todo_signature = ""
 	active_workflow_id = ""
@@ -5941,6 +6236,7 @@ func _clear_todo_items() -> void:
 	todo_list.hide()
 	for child: Node in todo_container.get_children():
 		child.queue_free()
+
 
 func _apply_workflow_todo_snapshot(snapshot: Dictionary) -> void:
 	var workflow_id: String = str(snapshot.get("runId", snapshot.get("workflowId", "")))
@@ -5991,6 +6287,7 @@ func _apply_workflow_todo_snapshot(snapshot: Dictionary) -> void:
 		workflow_todo_nodes_by_id.erase(todo_id)
 
 	todo_list.show()
+
 
 func _update_todo_list_from_text(text: String) -> void:
 	if not active_workflow_id.is_empty():
@@ -6054,6 +6351,7 @@ func _on_settings_button_pressed() -> void:
 	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
 	_load_mcp_config()
 
+
 func _open_backend_manager() -> void:
 	var packed_scene: PackedScene = load(BACKEND_MANAGER_UID)
 	if packed_scene == null:
@@ -6066,8 +6364,10 @@ func _open_backend_manager() -> void:
 	backend_manager.connect("backend_update_finished", Callable(self, "_on_backend_manager_backend_update_finished"))
 	backend_manager.popup_centered()
 
+
 func _on_backend_manager_button_pressed() -> void:
 	_open_backend_manager()
+
 
 func _on_backend_manager_backend_update_started() -> void:
 	backend_update_in_progress = true
@@ -6083,6 +6383,7 @@ func _on_backend_manager_backend_update_started() -> void:
 	if backend_launcher != null:
 		backend_launcher.call("stop_started_backend")
 
+
 func _on_backend_manager_backend_update_finished(exit_code: int) -> void:
 	backend_update_in_progress = false
 	connected_backend_version = ""
@@ -6096,6 +6397,7 @@ func _on_backend_manager_backend_update_finished(exit_code: int) -> void:
 		status_button.icon = CONNECT_FAILED_ICON
 		status_button.tooltip_text = "Backend update failed. Open Backend Manager for details."
 
+
 func _get_frontend_config_snapshot() -> Dictionary:
 	return {
 		"backendUrl": backend_url,
@@ -6108,6 +6410,7 @@ func _get_frontend_config_snapshot() -> Dictionary:
 		"checkForUpdatesEnabled": check_for_updates_enabled
 	}
 
+
 func _get_archived_sessions_snapshot() -> Array[Dictionary]:
 	var archived_sessions: Array[Dictionary] = []
 	for session_id: String in archived_session_ids_in_order:
@@ -6118,6 +6421,7 @@ func _get_archived_sessions_snapshot() -> Array[Dictionary]:
 		archived_sessions.append(metadata.duplicate(true))
 
 	return archived_sessions
+
 
 func _get_workspace_snapshot() -> Array[Dictionary]:
 	var workspaces: Array[Dictionary] = []
@@ -6130,12 +6434,14 @@ func _get_workspace_snapshot() -> Array[Dictionary]:
 
 	return workspaces
 
+
 func _get_custom_mcp_servers_snapshot() -> Array[Dictionary]:
 	var servers: Array[Dictionary] = []
 	for metadata: Dictionary in custom_mcp_servers:
 		servers.append(metadata.duplicate(true))
 
 	return servers
+
 
 func _sync_settings_archived_sessions() -> void:
 	if active_settings_menu == null or not is_instance_valid(active_settings_menu):
@@ -6147,6 +6453,7 @@ func _sync_settings_archived_sessions() -> void:
 		_get_workspace_snapshot()
 	)
 
+
 func _sync_settings_mcp_servers() -> void:
 	if active_settings_menu == null or not is_instance_valid(active_settings_menu):
 		return
@@ -6157,9 +6464,11 @@ func _sync_settings_mcp_servers() -> void:
 		_is_socket_open()
 	)
 
+
 func _on_settings_menu_tree_exited(settings_menu: Node) -> void:
 	if active_settings_menu == settings_menu:
 		active_settings_menu = null
+
 
 func _on_settings_archived_session_restore_requested(session_id: String) -> void:
 	if not _is_socket_open() or session_id.is_empty():
@@ -6167,11 +6476,13 @@ func _on_settings_archived_session_restore_requested(session_id: String) -> void
 
 	_send_request(RPC_METHODS.SESSION_ARCHIVED_RESTORE, { "sessionId": session_id }, "session-archived-restore")
 
+
 func _on_settings_archived_session_delete_requested(session_id: String) -> void:
 	if not _is_socket_open() or session_id.is_empty():
 		return
 
 	_send_request(RPC_METHODS.SESSION_ARCHIVED_DELETE, { "sessionId": session_id }, "session-archived-delete")
+
 
 func _on_settings_mcp_server_add_requested(config: Dictionary) -> void:
 	if not _is_socket_open():
@@ -6183,6 +6494,7 @@ func _on_settings_mcp_server_add_requested(config: Dictionary) -> void:
 	if add_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server configuration to backend.")
 
+
 func _on_settings_mcp_server_remove_requested(server_id: String) -> void:
 	if not _is_socket_open() or server_id.is_empty():
 		if active_settings_menu != null and is_instance_valid(active_settings_menu):
@@ -6192,6 +6504,7 @@ func _on_settings_mcp_server_remove_requested(server_id: String) -> void:
 	var remove_request_id: String = _send_request(RPC_METHODS.MCP_CONFIG_REMOVE, { "serverId": server_id }, "mcp-config-remove")
 	if remove_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server removal to backend.")
+
 
 func _on_settings_mcp_server_enabled_requested(server_id: String, enabled: bool) -> void:
 	if not _is_socket_open() or server_id.is_empty():
@@ -6204,6 +6517,7 @@ func _on_settings_mcp_server_enabled_requested(server_id: String, enabled: bool)
 	if enabled_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server state change to backend.")
 
+
 func _on_settings_provider_config_save_requested(provider_id: String, api_key: String) -> void:
 	if not _is_socket_open():
 		pending_provider_config_provider = provider_id
@@ -6212,6 +6526,7 @@ func _on_settings_provider_config_save_requested(provider_id: String, api_key: S
 		return
 
 	_save_provider_config_to_backend(provider_id, api_key)
+
 
 func _save_provider_config_to_backend(provider_id: String, api_key: String) -> void:
 	if _is_known_provider_id(provider_id):
@@ -6228,11 +6543,13 @@ func _save_provider_config_to_backend(provider_id: String, api_key: String) -> v
 
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
+
 func _on_settings_provider_config_clear_requested(provider_id: String) -> void:
 	var params: Dictionary[String, Variant] = {}
 	if _is_known_provider_id(provider_id):
 		params["provider"] = provider_id
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_CLEAR, params, "provider-config-clear")
+
 
 func _on_settings_frontend_config_save_requested(
 	next_backend_url: String,
@@ -6260,6 +6577,7 @@ func _on_settings_frontend_config_save_requested(
 
 	if backend_url_changed or backend_dev_dir_changed:
 		_restart_backend_connection()
+
 
 func _restart_backend_connection(recovery_mode: bool = false) -> void:
 	context_popup_open_after_info = false
@@ -6291,6 +6609,7 @@ func _ready() -> void:
 	_set_context_length_icon(0.0, true)
 	_start_backend_connection_attempts()
 
+
 func _process(_delta: float) -> void:
 	if backend_launcher != null:
 		backend_launcher.call("poll_logs")
@@ -6308,6 +6627,7 @@ func _process(_delta: float) -> void:
 	elif state == WebSocketPeer.STATE_CLOSED and is_connecting:
 		_retry_backend_connection()
 	_poll_live_editor_context()
+
 
 func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed):
@@ -6329,6 +6649,7 @@ func _input(event: InputEvent) -> void:
 		accept_event()
 	elif _handle_slash_command_key(event):
 		accept_event()
+
 
 func _exit_tree() -> void:
 	if latest_backend_version_check_thread != null:
