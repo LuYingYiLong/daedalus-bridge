@@ -99,11 +99,13 @@ const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 500
 const DEFAULT_PROVIDER_ID: String = "deepseek"
 const PROVIDER_IDS: PackedStringArray = [
 	"deepseek",
-	"moonshot"
+	"moonshot",
+	"openai"
 ]
 const PROVIDER_NAMES: PackedStringArray = [
 	"DeepSeek",
-	"Moonshot/Kimi"
+	"Moonshot/Kimi",
+	"OpenAI"
 ]
 
 const APPROVAL_MODE_IDS: PackedStringArray = [
@@ -295,6 +297,10 @@ func _load_slash_commands() -> void:
 
 
 func _get_fallback_models_for_provider(provider_id: String) -> Array[Dictionary]:
+	if provider_id == "openai":
+		return [
+			{ "id": "gpt-5.5", "displayName": "GPT-5.5", "capabilities": { "imageInput": true, "reasoning": true } }
+		]
 	if provider_id == "moonshot":
 		return [
 			{ "id": "kimi-k2.7-code", "displayName": "Kimi K2.7 Code", "capabilities": { "reasoning": true } },

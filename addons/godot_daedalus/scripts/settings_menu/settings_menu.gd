@@ -49,11 +49,13 @@ const CONFIRM_ACTION_DELETE_ARCHIVED_SESSION: StringName = &"delete_archived_ses
 const CONFIRM_ACTION_DELETE_ALL_ARCHIVED_SESSIONS: StringName = &"delete_all_archived_sessions"
 const PROVIDER_IDS: PackedStringArray = [
 	"deepseek",
-	"moonshot"
+	"moonshot",
+	"openai"
 ]
 const PROVIDER_NAMES: PackedStringArray = [
 	"DeepSeek",
-	"Moonshot"
+	"Moonshot",
+	"OpenAI"
 ]
 
 var archived_sessions: Array[Dictionary]
