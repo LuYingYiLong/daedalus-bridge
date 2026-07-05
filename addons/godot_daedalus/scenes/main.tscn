@@ -114,7 +114,6 @@ size_flags_vertical = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
-scroll_vertical = 946
 
 [node name="BackgroundContextContainer" type="VBoxContainer" parent="MainViewer/BackgroundContextViewer/ScrollContainer" unique_id=2046895021]
 unique_name_in_owner = true
@@ -401,9 +400,9 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/HeaderContainer/CreateNewSessionButton" to="." method="_on_create_new_session_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/StatusButton" to="." method="_on_status_button_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@51445" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25974" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25974" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25974" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25974" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25974" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@25974" method="_on_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/ApproveButton" to="." method="_on_approve_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/RejectButton" to="." method="_on_reject_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/SkipButton" to="." method="_on_skip_approval_button_pressed"]
