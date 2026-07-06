@@ -699,7 +699,7 @@ func _show_frontend_update_ready_dialog(version_text: String) -> void:
 
 	frontend_update_ready_dialog = ConfirmationDialog.new()
 	frontend_update_ready_dialog.title = "Daedalus plugin update is ready"
-	frontend_update_ready_dialog.dialog_text = "Daedalus plugin update %s has been downloaded.\n\nTo install it safely, start the installer, then close the Godot editor. The installer will wait until Godot exits and then replace the plugin files.\n\nAfter the installer finishes, reopen your Godot project." % _format_missing_version(version_text)
+	frontend_update_ready_dialog.dialog_text = "Daedalus plugin update %s has been downloaded.\n\nTo install it safely, start the installer, close every Godot editor window that has this project open, then press any key in the installer window.\n\nAfter the installer finishes, reopen your Godot project." % _format_missing_version(version_text)
 	frontend_update_ready_dialog.ok_button_text = "Start Installer"
 	frontend_update_ready_dialog.cancel_button_text = "Later"
 	frontend_update_ready_dialog.confirmed.connect(Callable(self, "_on_frontend_update_ready_confirmed"))
@@ -731,7 +731,7 @@ func _start_external_frontend_installer() -> void:
 		_show_command_message("Could not start Daedalus plugin installer script:\n%s" % installer_path)
 		return
 
-	_show_command_message("Daedalus plugin installer has started in a new terminal window.\n\nClose the Godot editor to let the installer replace the plugin files. Reopen your project after the installer completes.")
+	_show_command_message("Daedalus plugin installer has started in a new terminal window.\n\nClose every Godot editor window that has this project open, then press any key in the installer window. Reopen your project after the installer completes.")
 
 
 func _build_frontend_installer_script() -> String:
@@ -741,9 +741,7 @@ func _build_frontend_installer_script() -> String:
 		"frontend",
 		"apply-wait",
 		"--project",
-		ProjectSettings.globalize_path("res://"),
-		"--wait-pid",
-		str(OS.get_process_id())
+		ProjectSettings.globalize_path("res://")
 	]))
 	var manager_command: String = _join_windows_command_parts(manager_command_parts)
 	var lines: PackedStringArray = PackedStringArray([
@@ -752,7 +750,13 @@ func _build_frontend_installer_script() -> String:
 		"title Daedalus Plugin Installer",
 		"echo Daedalus plugin installer is ready.",
 		"echo.",
-		"echo Close the Godot editor window now. The installer will continue automatically after Godot exits.",
+		"echo 1. Close every Godot editor window that has this project open.",
+		"echo 2. Return to this installer window.",
+		"echo 3. Press any key to replace the Daedalus plugin files.",
+		"echo.",
+		"echo The installer will keep retrying for a few minutes if Windows still holds file locks.",
+		"echo.",
+		"pause",
 		"echo.",
 		"call %s" % manager_command,
 		"set EXITCODE=%ERRORLEVEL%",

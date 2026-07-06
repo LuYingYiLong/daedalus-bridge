@@ -48,8 +48,22 @@ Useful checks during development:
 & "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --quit --scene "res://addons/godot_daedalus/scenes/main.tscn"
 & "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/main_helpers_test.gd"
 & "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/rpc_methods_test.gd"
+& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/additional_context_item_test.gd"
 ```
+
+For the public Beta smoke path, start from the backend repository and run:
+
+```powershell
+$env:GODOT_EXECUTABLE_PATH = "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe"
+$env:GODOT_PROJECT_PATH = "D:/GodotProjects/example"
+$env:GODOT_DAEDALUS_PLUGIN_DIR = "D:/GodotProjects/example/addons/godot_daedalus"
+npm run smoke:beta
+```
+
+Before a public Beta release, also manually verify plugin enablement, backend manager install/start/stop/rollback, provider configuration, model refresh, Ask mode, Agent read tools, write approval approve/reject, diagnostics, session restore, frontend update apply-wait, and rollback.
 
 ## Download Package
 
 The Godot example project uses `.gitattributes` with `export-ignore` so generated source archives keep the plugin runtime files and leave out example-only project files, local development notes, tests, and helper scripts.
+
+Public Beta release assets must include `godot-daedalus-plugin-vX.Y.Z.zip` and `godot-daedalus-plugin-vX.Y.Z.manifest.json`. The zip must contain `addons/godot_daedalus/plugin.cfg`; the manifest must include `version`, `tag`, `sha256`, `assetName`, and `minGodotVersion`.

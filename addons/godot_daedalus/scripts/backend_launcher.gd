@@ -10,6 +10,7 @@ const MAX_LOG_LINES: int = 80
 const MAX_LOG_READ_BYTES: int = 65536
 const TCP_PROBE_ATTEMPTS: int = 50
 const TCP_PROBE_DELAY_MSEC: int = 20
+const STARTUP_LOCK_STALE_SECONDS: int = 15
 
 var backend_url: String
 var backend_dev_dir: String
@@ -20,6 +21,7 @@ var log_file_path: String
 var recent_log_lines: PackedStringArray
 var last_error: String
 var manager_cli: RefCounted
+var startup_lock_dir: String
 
 
 func setup(next_backend_url: String, next_backend_dev_dir: String) -> void:
@@ -31,6 +33,7 @@ func setup(next_backend_url: String, next_backend_dev_dir: String) -> void:
 	log_file_path = ""
 	recent_log_lines.clear()
 	last_error = ""
+	startup_lock_dir = ""
 	manager_cli = MANAGER_CLI_SCRIPT.new()
 
 
@@ -112,18 +115,28 @@ func start_backend() -> Dictionary:
 	recent_log_lines.clear()
 	log_file_path = _prepare_launch_log_file()
 	launched_pid = -1
+	if not _try_acquire_startup_lock():
+		return {
+			"ok": true,
+			"mode": launch_mode,
+			"alreadyRunning": true,
+			"message": last_error,
+			"details": build_diagnostic_details()
+		}
 
 	var port_probe: Dictionary = probe_local_backend_port()
 	if bool(port_probe.get("checked", false)) and bool(port_probe.get("occupied", false)):
-		launch_mode = "development" if not backend_dev_dir.is_empty() else "published"
-		command_summary = "port probe before backend start"
-		last_error = "Backend port %d is already in use on %s." % [
+		launch_mode = "waiting-existing"
+		command_summary = "waiting for backend on occupied port"
+		last_error = "Backend port %d is already in use on %s. Daedalus will wait briefly in case another project is starting the backend." % [
 			int(port_probe.get("port", 0)),
 			str(port_probe.get("host", "localhost"))
 		]
+		_release_startup_lock()
 		return {
-			"ok": false,
+			"ok": true,
 			"mode": launch_mode,
+			"alreadyRunning": true,
 			"message": last_error,
 			"details": build_diagnostic_details()
 		}
@@ -133,6 +146,7 @@ func start_backend() -> Dictionary:
 
 	var command_text: String = _build_launch_command_text()
 	if command_text.is_empty():
+		_release_startup_lock()
 		return {
 			"ok": false,
 			"mode": launch_mode,
@@ -145,6 +159,7 @@ func start_backend() -> Dictionary:
 	launched_pid = OS.create_process(shell_path, shell_args, false)
 	if launched_pid <= 0:
 		last_error = "Could not create backend child process."
+		_release_startup_lock()
 		return {
 			"ok": false,
 			"mode": launch_mode,
@@ -205,7 +220,17 @@ func _start_published_backend_with_manager() -> Dictionary:
 	command_summary = "godot-daedalus-manager backend start --port %d" % launch_port
 	var manager_result: Dictionary = manager_cli.call("run_json", PackedStringArray(["backend", "start", "--port", str(launch_port)])) as Dictionary
 	if not bool(manager_result.get("ok", false)):
-		return _start_legacy_published_backend(str(manager_result.get("message", "Daedalus manager could not start the backend.")), str(manager_result.get("details", "")))
+		last_error = str(manager_result.get("message", "Daedalus manager could not start the backend."))
+		var manager_details: String = str(manager_result.get("details", ""))
+		if not manager_details.is_empty():
+			last_error += "\n%s" % manager_details
+		_release_startup_lock()
+		return {
+			"ok": false,
+			"mode": launch_mode,
+			"message": last_error,
+			"details": build_diagnostic_details()
+		}
 
 	var backend_value: Variant = manager_result.get("backend", {})
 	if typeof(backend_value) == TYPE_DICTIONARY:
@@ -245,6 +270,7 @@ func _start_legacy_published_backend(manager_message: String, manager_details: S
 		last_error = "Daedalus manager is unavailable, and the legacy backend command could not be started.\n%s" % manager_message
 		if not manager_details.is_empty():
 			last_error += "\n%s" % manager_details
+		_release_startup_lock()
 		return {
 			"ok": false,
 			"mode": launch_mode,
@@ -443,6 +469,67 @@ func _get_daedalus_log_dir() -> String:
 		return OS.get_user_data_dir()
 
 	return appdata_path.path_join(".godot_daedalus").path_join("logs")
+
+
+func _get_backend_runtime_dir() -> String:
+	var appdata_path: String = OS.get_environment("APPDATA").strip_edges()
+	if appdata_path.is_empty():
+		return OS.get_user_data_dir().path_join("backend").path_join("runtime")
+
+	return appdata_path.path_join(".godot_daedalus").path_join("backend").path_join("runtime")
+
+
+func _try_acquire_startup_lock() -> bool:
+	var runtime_dir: String = _get_backend_runtime_dir()
+	var make_dir_error: Error = DirAccess.make_dir_recursive_absolute(runtime_dir)
+	if make_dir_error != OK:
+		launch_mode = "waiting-existing"
+		command_summary = "startup lock unavailable"
+		last_error = "Could not prepare backend runtime directory: %s" % runtime_dir
+		return false
+
+	startup_lock_dir = runtime_dir.path_join("frontend-start.lock")
+	var owner_path: String = startup_lock_dir.path_join("owner.txt")
+	if DirAccess.dir_exists_absolute(startup_lock_dir):
+		var modified_time: int = int(FileAccess.get_modified_time(owner_path))
+		if modified_time <= 0 or Time.get_unix_time_from_system() - modified_time > STARTUP_LOCK_STALE_SECONDS:
+			_remove_startup_lock(startup_lock_dir)
+		else:
+			launch_mode = "waiting-existing"
+			command_summary = "another Daedalus plugin is starting backend"
+			last_error = "Another Godot project is already starting Daedalus backend. Waiting for it to become reachable."
+			return false
+
+	var lock_error: Error = DirAccess.make_dir_absolute(startup_lock_dir)
+	if lock_error != OK:
+		launch_mode = "waiting-existing"
+		command_summary = "another Daedalus plugin is starting backend"
+		last_error = "Another Godot project is already starting Daedalus backend. Waiting for it to become reachable."
+		return false
+
+	var owner_file: FileAccess = FileAccess.open(owner_path, FileAccess.WRITE)
+	if owner_file != null:
+		owner_file.store_line("%d" % OS.get_process_id())
+		owner_file.store_line(Time.get_datetime_string_from_system())
+		owner_file.close()
+
+	return true
+
+
+func _release_startup_lock() -> void:
+	if startup_lock_dir.is_empty():
+		return
+
+	_remove_startup_lock(startup_lock_dir)
+	startup_lock_dir = ""
+
+
+func _remove_startup_lock(lock_dir: String) -> void:
+	var owner_path: String = lock_dir.path_join("owner.txt")
+	if FileAccess.file_exists(owner_path):
+		DirAccess.remove_absolute(owner_path)
+	if DirAccess.dir_exists_absolute(lock_dir):
+		DirAccess.remove_absolute(lock_dir)
 
 
 func _append_log_redirection(command_text: String) -> String:

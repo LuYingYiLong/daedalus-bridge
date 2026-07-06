@@ -1627,15 +1627,7 @@ func _try_start_backend_process() -> bool:
 
 	var port_probe: Dictionary = backend_launcher.call("probe_local_backend_port") as Dictionary
 	if bool(port_probe.get("checked", false)) and bool(port_probe.get("occupied", false)):
-		_show_backend_startup_error(
-			"Backend port is already in use",
-			"Daedalus could not connect to the configured backend, but TCP port %d is already occupied on %s.\n\nThis usually means an old Daedalus backend, a stuck node process, or another service is using the port. Steam's steamwebhelper is a known example. Stop that process, or change the backend URL in Settings, then click Reconnect.\n\nBackend URL: %s" % [
-				int(port_probe.get("port", 0)),
-				str(port_probe.get("host", "127.0.0.1")),
-				backend_url
-			]
-		)
-		return false
+		boot_splash.call("show_status", "Waiting for backend")
 
 	boot_splash.call("show_status", "Starting backend")
 	var start_result: Dictionary = backend_launcher.call("start_backend") as Dictionary
