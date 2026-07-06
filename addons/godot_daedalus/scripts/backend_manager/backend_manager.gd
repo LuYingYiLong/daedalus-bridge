@@ -48,15 +48,27 @@ var manager_command_thread: Thread
 var manager_command_running: bool
 var manager_cli: RefCounted
 var check_for_updates_enabled: bool = true
+var backend_dev_dir: String
+var frontend_update_ready_dialog: ConfirmationDialog
 
 
 func _ready() -> void:
 	manager_cli = MANAGER_CLI_SCRIPT.new()
+	_setup_manager_cli(manager_cli)
 	refresh_status()
 
 
 func setup_frontend_config(frontend_config: Dictionary) -> void:
 	check_for_updates_enabled = bool(frontend_config.get("checkForUpdatesEnabled", true))
+	backend_dev_dir = str(frontend_config.get("backendDevDir", "")).strip_edges()
+	_setup_manager_cli(manager_cli)
+
+
+func _setup_manager_cli(next_manager_cli: RefCounted) -> void:
+	if next_manager_cli == null:
+		return
+
+	next_manager_cli.call("setup", backend_dev_dir)
 
 
 func refresh_status() -> void:
@@ -82,7 +94,9 @@ func _run_refresh_status_thread(current_generation: int) -> void:
 	var manager_result: Dictionary = { "ok": false }
 	if check_for_updates_enabled:
 		var manager_args: PackedStringArray = PackedStringArray(["status", "--project", ProjectSettings.globalize_path("res://")])
-		manager_result = MANAGER_CLI_SCRIPT.new().call("run_json", manager_args) as Dictionary
+		var status_manager_cli: RefCounted = MANAGER_CLI_SCRIPT.new()
+		_setup_manager_cli(status_manager_cli)
+		manager_result = status_manager_cli.call("run_json", manager_args) as Dictionary
 	var backend_status: Dictionary = {}
 	var frontend_status: Dictionary = {}
 	if bool(manager_result.get("ok", false)):
@@ -96,11 +110,11 @@ func _run_refresh_status_thread(current_generation: int) -> void:
 			if typeof(frontend_value) == TYPE_DICTIONARY:
 				frontend_status = frontend_value as Dictionary
 
-	var next_latest_backend_version: String = str(backend_status.get("latestVersion", ""))
-	var next_installed_backend_version: String = str(backend_status.get("installedVersion", ""))
-	var next_installed_frontend_version: String = str(frontend_status.get("installedVersion", ""))
-	var next_latest_frontend_version: String = str(frontend_status.get("latestVersion", ""))
-	var next_pending_frontend_version: String = str(frontend_status.get("pendingVersion", ""))
+	var next_latest_backend_version: String = _read_optional_status_string(backend_status, "latestVersion")
+	var next_installed_backend_version: String = _read_optional_status_string(backend_status, "installedVersion")
+	var next_installed_frontend_version: String = _read_optional_status_string(frontend_status, "installedVersion")
+	var next_latest_frontend_version: String = _read_optional_status_string(frontend_status, "latestVersion")
+	var next_pending_frontend_version: String = _read_optional_status_string(frontend_status, "pendingVersion")
 	if not bool(manager_result.get("ok", false)):
 		next_installed_backend_version = _read_installed_backend_version()
 		if check_for_updates_enabled:
@@ -181,23 +195,30 @@ func _finish_refresh_status(
 		latest_frontend_version_label.text = "Latest version: unavailable"
 	else:
 		latest_frontend_version_label.text = "Latest version: %s" % latest_frontend_version
-	if pending_frontend_version.is_empty():
+	if _is_empty_status_text(pending_frontend_version):
 		pending_frontend_version_label.text = "Pending version: none"
 	else:
 		pending_frontend_version_label.text = "Pending version: %s" % pending_frontend_version
 
-	stage_frontend_update_button.disabled = latest_frontend_version.is_empty() or not check_for_updates_enabled
-	if not check_for_updates_enabled:
+	var has_actionable_pending_frontend_update: bool = _is_pending_frontend_update_actionable()
+	if not has_actionable_pending_frontend_update and not _is_empty_status_text(pending_frontend_version):
+		pending_frontend_version_label.text = "Pending version: already installed"
+
+	if has_actionable_pending_frontend_update:
+		stage_frontend_update_button.text = "Install pending update"
+		stage_frontend_update_button.disabled = false
+	elif not check_for_updates_enabled:
 		stage_frontend_update_button.text = "Disabled"
 		stage_frontend_update_button.disabled = true
-	elif not pending_frontend_version.is_empty() and pending_frontend_version == latest_frontend_version:
-		stage_frontend_update_button.text = "Staged"
+	elif latest_frontend_version.is_empty():
+		stage_frontend_update_button.text = "Stage update"
 		stage_frontend_update_button.disabled = true
 	elif not latest_frontend_version.is_empty() and installed_frontend_version == latest_frontend_version:
 		stage_frontend_update_button.text = "Up to date"
 		stage_frontend_update_button.disabled = true
 	else:
 		stage_frontend_update_button.text = "Stage update"
+		stage_frontend_update_button.disabled = false
 
 
 func _set_loading_state() -> void:
@@ -279,6 +300,65 @@ func _format_missing_version(version_text: String) -> String:
 		return "Not found"
 
 	return version_text
+
+
+func _read_optional_status_string(status: Dictionary, key_name: String) -> String:
+	var value: Variant = status.get(key_name, "")
+	if value == null:
+		return ""
+
+	var text: String = str(value).strip_edges()
+	var normalized_text: String = text.to_lower()
+	if normalized_text == "null" or normalized_text == "<null>" or normalized_text == "nil" or normalized_text == "none":
+		return ""
+
+	return text
+
+
+func _is_pending_frontend_update_actionable() -> bool:
+	if pending_frontend_version.is_empty():
+		return false
+	if _is_empty_status_text(pending_frontend_version):
+		return false
+	if installed_frontend_version.is_empty():
+		return true
+
+	return _is_version_newer(pending_frontend_version, installed_frontend_version)
+
+
+func _is_empty_status_text(text: String) -> bool:
+	var normalized_text: String = text.strip_edges().to_lower()
+	return normalized_text.is_empty() or normalized_text == "null" or normalized_text == "<null>" or normalized_text == "nil" or normalized_text == "none"
+
+
+func _is_version_newer(candidate_version: String, current_version: String) -> bool:
+	var candidate_parts: PackedInt32Array = _parse_semver(candidate_version)
+	var current_parts: PackedInt32Array = _parse_semver(current_version)
+	if candidate_parts.size() != 3 or current_parts.size() != 3:
+		return candidate_version != current_version
+
+	for index: int in range(3):
+		if candidate_parts[index] > current_parts[index]:
+			return true
+		if candidate_parts[index] < current_parts[index]:
+			return false
+
+	return false
+
+
+func _parse_semver(version_text: String) -> PackedInt32Array:
+	var normalized_version: String = version_text.strip_edges().trim_prefix("v")
+	var raw_parts: PackedStringArray = normalized_version.split(".")
+	if raw_parts.size() != 3:
+		return PackedInt32Array()
+
+	var parsed_parts: PackedInt32Array
+	for raw_part: String in raw_parts:
+		if not raw_part.is_valid_int():
+			return PackedInt32Array()
+		parsed_parts.append(int(raw_part))
+
+	return parsed_parts
 
 
 func _read_installed_backend_version() -> String:
@@ -435,7 +515,9 @@ func _start_manager_command(title_text: String, manager_args: PackedStringArray)
 
 
 func _run_manager_command_thread(title_text: String, manager_args: PackedStringArray) -> void:
-	var result: Dictionary = MANAGER_CLI_SCRIPT.new().call("run_json", manager_args) as Dictionary
+	var command_manager_cli: RefCounted = MANAGER_CLI_SCRIPT.new()
+	_setup_manager_cli(command_manager_cli)
+	var result: Dictionary = command_manager_cli.call("run_json", manager_args) as Dictionary
 	call_deferred("_finish_manager_command", title_text, result)
 
 
@@ -448,7 +530,15 @@ func _finish_manager_command(title_text: String, result: Dictionary) -> void:
 	var ok: bool = bool(result.get("ok", false))
 	backend_update_finished.emit(0 if ok else 1)
 	if ok:
-		_show_command_message("%s completed successfully." % title_text)
+		if title_text == "Stage Daedalus plugin update":
+			var frontend_value: Variant = result.get("frontend", {})
+			var staged_version: String = latest_frontend_version
+			if typeof(frontend_value) == TYPE_DICTIONARY:
+				var frontend_dictionary: Dictionary = frontend_value as Dictionary
+				staged_version = str(frontend_dictionary.get("version", staged_version)).strip_edges()
+			_show_frontend_update_ready_dialog(staged_version)
+		else:
+			_show_command_message("%s completed successfully." % title_text)
 	else:
 		_show_command_message("%s failed.\n\n%s\n\n%s" % [
 			title_text,
@@ -602,6 +692,100 @@ func _show_command_message(message_text: String) -> void:
 	message_dialog.popup_centered()
 
 
+func _show_frontend_update_ready_dialog(version_text: String) -> void:
+	if frontend_update_ready_dialog != null:
+		frontend_update_ready_dialog.queue_free()
+		frontend_update_ready_dialog = null
+
+	frontend_update_ready_dialog = ConfirmationDialog.new()
+	frontend_update_ready_dialog.title = "Daedalus plugin update is ready"
+	frontend_update_ready_dialog.dialog_text = "Daedalus plugin update %s has been downloaded.\n\nTo install it safely, start the installer, then close the Godot editor. The installer will wait until Godot exits and then replace the plugin files.\n\nAfter the installer finishes, reopen your Godot project." % _format_missing_version(version_text)
+	frontend_update_ready_dialog.ok_button_text = "Start Installer"
+	frontend_update_ready_dialog.cancel_button_text = "Later"
+	frontend_update_ready_dialog.confirmed.connect(Callable(self, "_on_frontend_update_ready_confirmed"))
+	add_child(frontend_update_ready_dialog)
+	frontend_update_ready_dialog.popup_centered()
+
+
+func _on_frontend_update_ready_confirmed() -> void:
+	_start_external_frontend_installer()
+
+
+func _start_external_frontend_installer() -> void:
+	if OS.get_name() != "Windows":
+		_show_command_message("External Daedalus plugin installer is currently only available on Windows.")
+		return
+
+	var installer_path: String = ProjectSettings.globalize_path("user://daedalus_frontend_update_installer_%s.cmd" % str(Time.get_ticks_msec()))
+	var installer_file: FileAccess = FileAccess.open(installer_path, FileAccess.WRITE)
+	if installer_file == null:
+		_show_command_message("Could not create Daedalus plugin installer script:\n%s" % installer_path)
+		return
+
+	installer_file.store_string(_build_frontend_installer_script())
+	installer_file.close()
+
+	var start_command: String = "start \"Daedalus Plugin Installer\" %s" % _quote_windows_command_part(installer_path)
+	var process_id: int = OS.create_process(_get_windows_shell_path(), PackedStringArray(["/d", "/s", "/c", start_command]), false)
+	if process_id <= 0:
+		_show_command_message("Could not start Daedalus plugin installer script:\n%s" % installer_path)
+		return
+
+	_show_command_message("Daedalus plugin installer has started in a new terminal window.\n\nClose the Godot editor to let the installer replace the plugin files. Reopen your project after the installer completes.")
+
+
+func _build_frontend_installer_script() -> String:
+	var manager_command_parts: PackedStringArray = _build_external_manager_command_parts()
+	manager_command_parts.append_array(PackedStringArray([
+		"--json",
+		"frontend",
+		"apply-wait",
+		"--project",
+		ProjectSettings.globalize_path("res://"),
+		"--wait-pid",
+		str(OS.get_process_id())
+	]))
+	var manager_command: String = _join_windows_command_parts(manager_command_parts)
+	var lines: PackedStringArray = PackedStringArray([
+		"@echo off",
+		"chcp 65001 >nul",
+		"title Daedalus Plugin Installer",
+		"echo Daedalus plugin installer is ready.",
+		"echo.",
+		"echo Close the Godot editor window now. The installer will continue automatically after Godot exits.",
+		"echo.",
+		"call %s" % manager_command,
+		"set EXITCODE=%ERRORLEVEL%",
+		"echo.",
+		"if \"%EXITCODE%\"==\"0\" (",
+		"  echo Daedalus plugin update completed successfully.",
+		"  echo Reopen your Godot project to load the new plugin version.",
+		") else (",
+		"  echo Daedalus plugin update failed with exit code %EXITCODE%.",
+		"  echo Check the log path printed above, then try again from Backend Manager.",
+		")",
+		"echo.",
+		"pause",
+		"exit /b %EXITCODE%"
+	])
+	return "\r\n".join(lines) + "\r\n"
+
+
+func _build_external_manager_command_parts() -> PackedStringArray:
+	if not backend_dev_dir.is_empty() and FileAccess.file_exists(backend_dev_dir.path_join("package.json")):
+		return PackedStringArray(["npm", "exec", "--prefix", backend_dev_dir, "--", "godot-daedalus-manager"])
+
+	return PackedStringArray(["npm", "exec", "--yes", "--package", "%s@latest" % PACKAGE_NAME, "--", "godot-daedalus-manager"])
+
+
+func _join_windows_command_parts(parts: PackedStringArray) -> String:
+	var quoted_parts: PackedStringArray
+	for part: String in parts:
+		quoted_parts.append(_quote_windows_command_part(part))
+
+	return " ".join(quoted_parts)
+
+
 func _on_download_dialog_command_finished(exit_code: int) -> void:
 	backend_update_finished.emit(exit_code)
 	refresh_status()
@@ -663,6 +847,10 @@ func _on_repair_button_pressed() -> void:
 
 
 func _on_stage_frontend_update_button_pressed() -> void:
+	if _is_pending_frontend_update_actionable():
+		_show_frontend_update_ready_dialog(pending_frontend_version)
+		return
+
 	if latest_frontend_version.is_empty():
 		_show_command_message("Latest frontend version is unavailable. Check your network connection, then refresh this dialog.")
 		return
