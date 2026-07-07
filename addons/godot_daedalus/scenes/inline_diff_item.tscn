@@ -1,0 +1,30 @@
+[gd_scene format=3 uid="uid://cbhse7gk2bsof"]
+
+[ext_resource type="Script" uid="uid://du5kpqkknftxo" path="res://addons/godot_daedalus/scripts/inline_diff_item.gd" id="1_70nro"]
+
+[node name="InlineDiffItem" type="MarginContainer" unique_id=74162402]
+script = ExtResource("1_70nro")
+
+[node name="Button" type="Button" parent="." unique_id=1503156199]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"FlatButton"
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1466073156]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer" unique_id=1882453396]
+layout_mode = 2
+
+[node name="PathLabel" type="Label" parent="MarginContainer/HBoxContainer" unique_id=573417702]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Path"
+text_overrun_behavior = 6
+
+[node name="InlineDiffLabel" type="Label" parent="MarginContainer/HBoxContainer" unique_id=630786067]
+unique_name_in_owner = true
+layout_mode = 2
+text = "+1 -1"

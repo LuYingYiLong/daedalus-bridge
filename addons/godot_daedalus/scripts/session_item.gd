@@ -27,7 +27,7 @@ func set_loading(is_loading: bool) -> void:
 	if is_loading:
 		animation_player.play(&"running")
 	else:
-		animation_player.stop()
+		animation_player.play(&"RESET")
 
 
 func _on_mouse_entered() -> void:

@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://s13mo8fn3boc"]
+
+[ext_resource type="Texture2D" uid="uid://b3iulyy701bq8" path="res://addons/godot_daedalus/assets/icons/undo.svg" id="1_8eq2q"]
+[ext_resource type="Script" uid="uid://qu5lp5npr1cf" path="res://addons/godot_daedalus/scripts/inline_diff_viewer.gd" id="1_mxyiy"]
+
+[node name="InlineDiffViewer" type="PanelContainer" unique_id=876539993]
+theme_type_variation = &"PanelContainerTabbarInner"
+script = ExtResource("1_mxyiy")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1017108708]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="VBoxContainer" unique_id=1670471045]
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="VBoxContainer/HBoxContainer" unique_id=611884537]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="EditedFilesLabel" type="Label" parent="VBoxContainer/HBoxContainer/VBoxContainer" unique_id=1273565001]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+text = "Edited {count} files"
+vertical_alignment = 1
+
+[node name="UndoButton" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=1952025993]
+layout_mode = 2
+text = "Undo"
+icon = ExtResource("1_8eq2q")
+
+[node name="ReviewButton" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=235648624]
+layout_mode = 2
+text = "Review"
+
+[node name="FoldableContainer" type="FoldableContainer" parent="VBoxContainer" unique_id=296418548]
+unique_name_in_owner = true
+layout_mode = 2
+title = "Preview"
+
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/UndoButton" to="." method="_on_undo_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/HBoxContainer/ReviewButton" to="." method="_on_review_button_pressed"]

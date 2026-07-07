@@ -4392,6 +4392,7 @@ func _render_workspace_group(workspace_id: String) -> void:
 		var session_item: Button = SESSION_ITEM_SCENE.instantiate() as Button
 		session_list.add_child(session_item)
 		session_item.call("setup", session_id, title_text, MAIN_HELPERS.format_relative_time(updated_at))
+		session_item.call("set_loading", session_id == active_session_id and not active_stream_id.is_empty())
 		session_item.connect("open_requested", Callable(self, "_on_dynamic_session_item_pressed"))
 		session_item.connect("archive_requested", Callable(self, "_on_session_archive_requested"))
 
@@ -6320,8 +6321,18 @@ func _get_context_popup_menu() -> PopupPanel:
 	return context_popup_menu
 
 
-func _set_streaming_state(_is_streaming: bool) -> void:
+func _set_streaming_state(is_streaming: bool) -> void:
 	_update_send_state()
+	_sync_session_item_loading_state(is_streaming)
+
+
+func _sync_session_item_loading_state(is_streaming: bool) -> void:
+	for child: Node in session_list.get_children():
+		if not child.has_method("set_loading"):
+			continue
+
+		var item_session_id: String = str(child.get("session_id"))
+		child.call("set_loading", is_streaming and item_session_id == active_session_id)
 
 
 func _has_message_draft() -> bool:
