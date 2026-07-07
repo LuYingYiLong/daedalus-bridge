@@ -32,11 +32,16 @@ icon = ExtResource("1_8eq2q")
 [node name="ReviewButton" type="Button" parent="VBoxContainer/HBoxContainer" unique_id=235648624]
 layout_mode = 2
 text = "Review"
+visible = false
 
 [node name="FoldableContainer" type="FoldableContainer" parent="VBoxContainer" unique_id=296418548]
 unique_name_in_owner = true
 layout_mode = 2
 title = "Preview"
+
+[node name="ItemContainer" type="VBoxContainer" parent="VBoxContainer/FoldableContainer"]
+unique_name_in_owner = true
+layout_mode = 2
 
 [connection signal="pressed" from="VBoxContainer/HBoxContainer/UndoButton" to="." method="_on_undo_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/HBoxContainer/ReviewButton" to="." method="_on_review_button_pressed"]

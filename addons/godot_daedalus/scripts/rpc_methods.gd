@@ -4,6 +4,8 @@ extends RefCounted
 const PING: String = "ping"
 const BACKEND_HEALTH: String = "backend.health"
 const COMMAND_LIST: String = "command.list"
+const CLIENT_HELLO: String = "client.hello"
+const CLIENT_INFO: String = "client.info"
 const PROVIDER_CONFIGURE: String = "provider.configure"
 const PROVIDER_CONFIG_GET: String = "provider.config.get"
 const PROVIDER_CONFIG_SET: String = "provider.config.set"
@@ -19,6 +21,9 @@ const SESSION_RESET: String = "session.reset"
 const SESSION_INFO: String = "session.info"
 const SESSION_CREATE: String = "session.create"
 const SESSION_OPEN: String = "session.open"
+const SESSION_SUBSCRIBE: String = "session.subscribe"
+const SESSION_UNSUBSCRIBE: String = "session.unsubscribe"
+const SESSION_EDITOR_BIND: String = "session.editor.bind"
 const SESSION_TIMELINE: String = "session.timeline"
 const SESSION_LIST: String = "session.list"
 const SESSION_ARCHIVE: String = "session.archive"
@@ -44,12 +49,14 @@ const MCP_CONFIG_SET_ENABLED: String = "mcp.config.setEnabled"
 const FILE_CHANGE_CREATE: String = "fileChange.create"
 const FILE_CHANGE_OVERWRITE: String = "fileChange.overwrite"
 const FILE_CHANGE_DELETE: String = "fileChange.delete"
+const FILE_EDIT_BATCH_GET: String = "fileEdit.batch.get"
 const APPROVAL_LIST: String = "approval.list"
 const APPROVAL_MODE_SET: String = "approval.mode.set"
 const APPROVAL_APPROVE: String = "approval.approve"
 const APPROVAL_REJECT: String = "approval.reject"
 const ENVIRONMENT_CONFIGURE: String = "environment.configure"
 const EDITOR_CONTEXT_UPDATE: String = "editor.context.update"
+const EDITOR_INSTANCES_LIST: String = "editor.instances.list"
 const EDITOR_TOOL_RESULT: String = "editor.tool.result"
 const WORKSPACE_LIST: String = "workspace.list"
 const WORKSPACE_SELECT: String = "workspace.select"
@@ -61,6 +68,8 @@ static func all() -> PackedStringArray:
 		PING,
 		BACKEND_HEALTH,
 		COMMAND_LIST,
+		CLIENT_HELLO,
+		CLIENT_INFO,
 		PROVIDER_CONFIGURE,
 		PROVIDER_CONFIG_GET,
 		PROVIDER_CONFIG_SET,
@@ -76,6 +85,9 @@ static func all() -> PackedStringArray:
 		SESSION_INFO,
 		SESSION_CREATE,
 		SESSION_OPEN,
+		SESSION_SUBSCRIBE,
+		SESSION_UNSUBSCRIBE,
+		SESSION_EDITOR_BIND,
 		SESSION_TIMELINE,
 		SESSION_LIST,
 		SESSION_ARCHIVE,
@@ -101,12 +113,14 @@ static func all() -> PackedStringArray:
 		FILE_CHANGE_CREATE,
 		FILE_CHANGE_OVERWRITE,
 		FILE_CHANGE_DELETE,
+		FILE_EDIT_BATCH_GET,
 		APPROVAL_LIST,
 		APPROVAL_MODE_SET,
 		APPROVAL_APPROVE,
 		APPROVAL_REJECT,
 		ENVIRONMENT_CONFIGURE,
 		EDITOR_CONTEXT_UPDATE,
+		EDITOR_INSTANCES_LIST,
 		EDITOR_TOOL_RESULT,
 		WORKSPACE_LIST,
 		WORKSPACE_SELECT,
