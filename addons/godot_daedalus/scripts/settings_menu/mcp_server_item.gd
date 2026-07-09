@@ -6,6 +6,7 @@ signal enabled_changed(server_id: String, enabled: bool)
 signal edit_requested(server_id: String)
 
 @onready var name_label: Label = %NameLabel
+@onready var plan_access_label: Label = %PlanAccessLabel
 @onready var remove_button: Button = %RemoveButton
 @onready var edit_button: Button = %EditButton
 @onready var check_button: CheckButton = %CheckButton
@@ -22,9 +23,12 @@ func setup(metadata: Dictionary) -> void:
 	var tool_count: int = int(metadata.get("toolCount", 0))
 	var enabled: bool = bool(metadata.get("enabled", false))
 	var is_pending: bool = bool(metadata.get("pending", false))
+	var plan_access: String = str(metadata.get("planAccess", "disabled"))
 
 	name_label.text = server_name
 	name_label.tooltip_text = _format_tooltip(metadata)
+	plan_access_label.visible = plan_access == "read"
+	plan_access_label.tooltip_text = "Available in Plan mode as read-only" if plan_access == "read" else ""
 	remove_button.tooltip_text = "Remove this custom MCP server"
 	edit_button.tooltip_text = "Edit this custom MCP server"
 	check_button.tooltip_text = "Enable or disable this custom MCP server"
@@ -76,6 +80,7 @@ func _format_tooltip(metadata: Dictionary) -> String:
 	lines.append(str(metadata.get("description", "")).strip_edges())
 	lines.append("Status: %s" % _format_status(str(metadata.get("status", "disconnected"))))
 	lines.append("Transport: %s" % str(metadata.get("transport", "")).to_upper())
+	lines.append("Plan access: %s" % _format_plan_access(str(metadata.get("planAccess", "disabled"))))
 
 	var command: String = str(metadata.get("command", "")).strip_edges()
 	if not command.is_empty():
@@ -105,6 +110,13 @@ func _format_tooltip(metadata: Dictionary) -> String:
 		filtered_lines.append(line_text)
 
 	return "\n".join(filtered_lines)
+
+
+func _format_plan_access(plan_access: String) -> String:
+	if plan_access == "read":
+		return "Read-only"
+
+	return "Disabled"
 
 
 func _string_array_from_array(values: Array) -> PackedStringArray:

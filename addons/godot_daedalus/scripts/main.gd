@@ -13,6 +13,7 @@ const SESSION_ITEM_SCENE: PackedScene = preload("uid://bic1etsxo1epd")
 const TODO_ITEM_SCENE: PackedScene = preload("uid://d3i7c6i2shbyl")
 const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
 const PLAN_VIEWER_SCENE: PackedScene = preload("uid://yobf80iaqi7l")
+const PLAN_CLARIFICATION_ICON_UID: String = "uid://d1nq6i1hauij0"
 const CONTEXT_POPUP_MENU_UID: String = "uid://brjsrkaconcvu"
 const CONTEXT_ICON_DIR: String = "res://addons/godot_daedalus/assets/icons"
 const FRONTEND_CONFIG_PATH: String = "user://godot_daedalus_frontend.cfg"
@@ -216,7 +217,7 @@ var timeline_scroll_to_bottom_queued: bool
 var timeline_deferred_scroll_queued: bool
 var timeline_deferred_scroll_version: int
 var timeline_heights_dirty: bool
-var timeline_message_offset: int
+var timeline_block_offset: int
 var timeline_has_more_before: bool
 var timeline_loading_before: bool
 var active_assistant_entry_id: String
@@ -297,6 +298,7 @@ var pending_file_edit_batch_requests: Dictionary[String, String]
 var pending_file_edit_batch_groups: Dictionary[String, Dictionary]
 var inline_diff_action_titles_by_key: Dictionary[String, String]
 var pending_plan_detail_requests: Dictionary[String, Dictionary]
+var plan_assistant_entry_ids_by_plan_id: Dictionary[String, String]
 
 
 func _load_slash_commands() -> void:
@@ -1468,7 +1470,7 @@ func _show_add_context_resource_dialog(file_mode: int, context_kind: String) -> 
 	else:
 		resource_dialog.file_selected.connect(_on_add_context_resource_selected.bind(context_kind, resource_dialog))
 	resource_dialog.canceled.connect(resource_dialog.queue_free)
-	resource_dialog.popup_centered_ratio(0.7)
+	resource_dialog.popup_centered_ratio()
 
 
 func _on_add_context_resource_selected(resource_path: String, context_kind: String, resource_dialog: EditorFileDialog) -> void:
@@ -3930,8 +3932,7 @@ func _handle_response(message: Dictionary) -> void:
 			_apply_session_metadata(metadata as Dictionary)
 		_clear_chat_items()
 		_show_background_context_viewer()
-		_render_session_timeline(result_dictionary.get("messages", []), result_dictionary.get("events", []), result_dictionary)
-		_restore_pending_plan_dialogs(result_dictionary.get("events", []))
+		_render_timeline_blocks(result_dictionary.get("timelineBlocks", []), result_dictionary)
 		_sync_pending_guides_from_result(result_dictionary)
 		_apply_latest_workflow_snapshot(result_dictionary)
 		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
@@ -4002,6 +4003,8 @@ func _handle_event(message: Dictionary) -> void:
 		return
 
 	var data_dictionary: Dictionary = data as Dictionary
+	if _is_plan_message_event(event_name, data_dictionary) and active_stream_id.is_empty() and not event_id.is_empty():
+		_begin_plan_followup_stream(event_id, "")
 	if event_name == "agent.message.delta" or event_name == "ai.delta":
 		_ensure_active_assistant_item()
 		var delta_text: String = str(data_dictionary.get("text", ""))
@@ -4165,10 +4168,19 @@ func _handle_plan_response_error(response_id: String) -> bool:
 
 
 func _handle_plan_event(event_name: String, event_id: String, event_data: Dictionary) -> void:
+	if active_stream_id.is_empty() and not event_id.is_empty():
+		_begin_plan_followup_stream(event_id, "", str(event_data.get("planId", "")))
 	if active_stream_request_id.is_empty() and not event_id.is_empty():
 		active_stream_request_id = event_id
 	if active_stream_started_at_utc.is_empty():
 		active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
+
+	var plan_id: String = str(event_data.get("planId", "")).strip_edges()
+	if not plan_id.is_empty() and plan_assistant_entry_ids_by_plan_id.has(plan_id):
+		var mapped_entry_id: String = str(plan_assistant_entry_ids_by_plan_id.get(plan_id, ""))
+		if not mapped_entry_id.is_empty() and _find_timeline_entry_index(mapped_entry_id) >= 0:
+			active_assistant_entry_id = mapped_entry_id
+			active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
 
 	if event_name == "plan.clarification.required":
 		active_stream_status_code = "plan"
@@ -4176,12 +4188,16 @@ func _handle_plan_event(event_name: String, event_id: String, event_data: Dictio
 			"status": "message",
 			"title": "需要澄清计划",
 			"details": str(event_data.get("question", "")),
-			"code": "plan"
+			"code": "plan",
+			"iconUid": PLAN_CLARIFICATION_ICON_UID,
+			"planId": plan_id
 		})
+		_remember_plan_assistant_entry(plan_id)
 		_show_clarification_dialog(event_data)
 	elif event_name == "plan.generated" or event_name == "plan.revised":
 		active_stream_status_code = "plan"
 		_append_plan_preview_to_active_assistant(event_data)
+		_remember_plan_assistant_entry(plan_id)
 		_show_plan_approval_dialog(event_data)
 	elif event_name == "plan.execution.started":
 		_start_plan_execution_stream(event_data)
@@ -4196,6 +4212,14 @@ func _handle_plan_event(event_name: String, event_id: String, event_data: Dictio
 		clarification_dialog.hide()
 		plan_approval_dialog.hide()
 		_sync_plan_overlay_input_visibility()
+
+
+func _remember_plan_assistant_entry(plan_id: String) -> void:
+	var normalized_plan_id: String = plan_id.strip_edges()
+	if normalized_plan_id.is_empty() or active_assistant_entry_id.is_empty():
+		return
+
+	plan_assistant_entry_ids_by_plan_id[normalized_plan_id] = active_assistant_entry_id
 
 
 func _show_clarification_dialog(event_data: Dictionary) -> void:
@@ -4238,6 +4262,7 @@ func _append_plan_preview_to_active_assistant(event_data: Dictionary) -> void:
 		entry["body_parts"] = body_parts
 		entry["height_actual"] = 0.0
 		timeline_entries[index] = entry
+		_remember_plan_entry_from_body_parts(active_assistant_entry_id, body_parts)
 		_mark_timeline_height_dirty(index)
 
 	active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
@@ -4269,10 +4294,12 @@ func _on_plan_clarification_submitted(plan_id: String, reply: String) -> void:
 		return
 
 	_sync_plan_overlay_input_visibility()
-	_send_request(RPC_METHODS.PLAN_CLARIFY, {
+	var clarify_request_id: String = _send_request(RPC_METHODS.PLAN_CLARIFY, {
 		"planId": plan_id,
 		"reply": reply
 	}, "plan-clarify")
+	if not clarify_request_id.is_empty():
+		_begin_plan_followup_stream(clarify_request_id, reply, plan_id)
 
 
 func _on_plan_approved(plan_id: String) -> void:
@@ -4290,10 +4317,59 @@ func _on_plan_revision_requested(plan_id: String, feedback: String) -> void:
 		return
 
 	_sync_plan_overlay_input_visibility()
-	_send_request(RPC_METHODS.PLAN_REVISE, {
+	var revise_request_id: String = _send_request(RPC_METHODS.PLAN_REVISE, {
 		"planId": plan_id,
 		"feedback": feedback
 	}, "plan-revise")
+	if not revise_request_id.is_empty():
+		_begin_plan_followup_stream(revise_request_id, feedback, plan_id)
+
+
+func _is_plan_message_event(event_name: String, event_data: Dictionary) -> bool:
+	if event_name != "agent.message.delta" and event_name != "agent.message.done":
+		return false
+
+	return str(event_data.get("mode", "")) == "plan"
+
+
+func _begin_plan_followup_stream(plan_request_id: String, _user_text: String, plan_id: String = "") -> void:
+	if plan_request_id.is_empty() or not active_stream_id.is_empty():
+		return
+
+	_show_background_context_viewer()
+	var normalized_plan_id: String = plan_id.strip_edges()
+	var existing_entry_id: String = str(plan_assistant_entry_ids_by_plan_id.get(normalized_plan_id, ""))
+	if not existing_entry_id.is_empty() and _find_timeline_entry_index(existing_entry_id) >= 0:
+		active_assistant_entry_id = existing_entry_id
+		active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
+	else:
+		active_assistant_item = null
+		active_assistant_entry_id = ""
+	active_thinking_entry_id = ""
+	active_assistant_text = _get_timeline_entry_content(active_assistant_entry_id)
+	active_file_edit_batches.clear()
+	_clear_paused_stream_context()
+	_clear_todo_items()
+
+	active_stream_id = plan_request_id
+	active_stream_request_id = plan_request_id
+	active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
+	active_stream_status_code = "plan"
+	var should_follow_bottom: bool = _should_follow_timeline_updates()
+	if active_assistant_entry_id.is_empty():
+		active_assistant_entry_id = _append_timeline_entry(
+			"assistant",
+			active_stream_request_id,
+			"",
+			"",
+			{ "started_at_utc": active_stream_started_at_utc }
+		)
+		_remember_plan_assistant_entry(normalized_plan_id)
+	else:
+		_set_timeline_entry_times(active_assistant_entry_id, active_stream_started_at_utc, "")
+		_clear_timeline_entry_completion_time(active_assistant_entry_id)
+	_schedule_timeline_render(should_follow_bottom)
+	_set_streaming_state(true)
 
 
 func _on_plan_details_requested(plan_id: String, fallback_markdown: String) -> void:
@@ -4323,7 +4399,7 @@ func _open_plan_viewer(title_text: String, markdown_text: String) -> void:
 	var plan_viewer: AcceptDialog = PLAN_VIEWER_SCENE.instantiate() as AcceptDialog
 	add_child(plan_viewer)
 	plan_viewer.call("setup", title_text, markdown_text)
-	plan_viewer.popup_centered()
+	plan_viewer.popup_centered_ratio()
 
 
 func _start_plan_execution_stream(event_data: Dictionary) -> void:
@@ -5011,10 +5087,11 @@ func _clear_chat_items() -> void:
 	timeline_heights.clear()
 	timeline_prefix_heights.clear()
 	timeline_entry_ids.clear()
+	plan_assistant_entry_ids_by_plan_id.clear()
 	rendered_entry_nodes.clear()
 	rendered_entry_indices.clear()
 	timeline_heights_dirty = true
-	timeline_message_offset = 0
+	timeline_block_offset = 0
 	timeline_has_more_before = false
 	timeline_loading_before = false
 	_clear_todo_items()
@@ -5027,60 +5104,79 @@ func _clear_chat_items() -> void:
 	_render_message_panel()
 
 
-func _render_session_timeline(messages_value: Variant, events_value: Variant, page_info: Dictionary) -> void:
-	timeline_message_offset = int(page_info.get("messagesOffset", 0))
+func _clear_timeline_entry_completion_time(entry_id: String) -> void:
+	var index: int = _find_timeline_entry_index(entry_id)
+	if index < 0:
+		return
+
+	var entry: Dictionary = timeline_entries[index]
+	entry.erase("completed_at_utc")
+	timeline_entries[index] = entry
+	_mark_timeline_height_dirty(index)
+
+
+func _render_timeline_blocks(blocks_value: Variant, page_info: Dictionary) -> void:
+	timeline_block_offset = int(page_info.get("blockOffset", 0))
 	timeline_has_more_before = bool(page_info.get("hasMoreBefore", false))
 	timeline_loading_before = false
-	_append_session_records_to_timeline(messages_value, events_value)
+	_append_timeline_blocks(blocks_value)
 	active_thinking_item = null
 	active_thinking_entry_id = ""
 	_rebuild_timeline_index_cache()
 	_rebuild_timeline_height_cache()
 	_render_visible_timeline(true)
+	_restore_pending_plan_dialogs_from_blocks(blocks_value)
 
 
-func _restore_pending_plan_dialogs(events_value: Variant) -> void:
-	if typeof(events_value) != TYPE_ARRAY:
+func _restore_pending_plan_dialogs_from_blocks(blocks_value: Variant) -> void:
+	if typeof(blocks_value) != TYPE_ARRAY:
 		return
 
-	var latest_plan_events: Dictionary[String, Dictionary]
-	var events: Array = events_value as Array
-	for item: Variant in events:
-		if typeof(item) != TYPE_DICTIONARY:
+	var latest_plan_parts: Dictionary[String, Dictionary] = {}
+	var blocks: Array = blocks_value as Array
+	for block_value: Variant in blocks:
+		if typeof(block_value) != TYPE_DICTIONARY:
 			continue
 
-		var event_record: Dictionary = item as Dictionary
-		var event_name: String = str(event_record.get("event", ""))
-		if not event_name.begins_with("plan."):
+		var block: Dictionary = block_value as Dictionary
+		var body_parts_value: Variant = block.get("bodyParts", block.get("body_parts", []))
+		if typeof(body_parts_value) != TYPE_ARRAY:
 			continue
 
-		var data_value: Variant = event_record.get("data", {})
-		if typeof(data_value) != TYPE_DICTIONARY:
+		for part_value: Variant in body_parts_value as Array:
+			if typeof(part_value) != TYPE_DICTIONARY:
+				continue
+
+			var part: Dictionary = part_value as Dictionary
+			var plan_id: String = str(part.get("planId", "")).strip_edges()
+			if plan_id.is_empty():
+				continue
+
+			latest_plan_parts[plan_id] = part.duplicate(true)
+
+	for plan_id: String in latest_plan_parts.keys():
+		var latest_part: Dictionary = latest_plan_parts[plan_id]
+		var part_type: String = str(latest_part.get("type", ""))
+		var status_code: String = str(latest_part.get("code", ""))
+		var plan_status: String = str(latest_part.get("status", ""))
+		if status_code == "plan.approved" or plan_status == "approved" or plan_status == "executing":
 			continue
-
-		var event_data: Dictionary = (data_value as Dictionary).duplicate(true)
-		var plan_id: String = str(event_data.get("planId", "")).strip_edges()
-		if plan_id.is_empty():
-			continue
-
-		event_data["_eventName"] = event_name
-		latest_plan_events[plan_id] = event_data
-
-	for plan_id: String in latest_plan_events.keys():
-		var latest_event: Dictionary = latest_plan_events[plan_id]
-		var latest_event_name: String = str(latest_event.get("_eventName", ""))
-		if latest_event_name == "plan.clarification.required":
-			_show_clarification_dialog(latest_event)
+		if part_type == "status" and status_code == "plan":
+			_show_clarification_dialog({
+				"planId": plan_id,
+				"question": str(latest_part.get("details", "")),
+				"recommendedReplies": latest_part.get("recommendedReplies", [])
+			})
 			return
-		if latest_event_name == "plan.generated" or latest_event_name == "plan.revised":
-			_show_plan_approval_dialog(latest_event)
+		if part_type == "plan":
+			_show_plan_approval_dialog(latest_part)
 			return
 
 
 func _request_previous_timeline_page() -> void:
 	if timeline_loading_before or not timeline_has_more_before:
 		return
-	if active_session_id.is_empty() or timeline_message_offset <= 0:
+	if active_session_id.is_empty() or timeline_block_offset <= 0:
 		return
 	if not _is_socket_open():
 		return
@@ -5088,7 +5184,7 @@ func _request_previous_timeline_page() -> void:
 	timeline_loading_before = true
 	var params: Dictionary[String, Variant] = {
 		"sessionId": active_session_id,
-		"beforeOffset": timeline_message_offset,
+		"beforeOffset": timeline_block_offset,
 		"limit": SESSION_OPEN_MESSAGE_LIMIT
 	}
 	_send_request(RPC_METHODS.SESSION_TIMELINE, params, "session-timeline")
@@ -5097,15 +5193,15 @@ func _request_previous_timeline_page() -> void:
 func _prepend_session_timeline(page_info: Dictionary) -> void:
 	timeline_loading_before = false
 
-	var messages_value: Variant = page_info.get("messages", [])
-	if typeof(messages_value) != TYPE_ARRAY:
+	var blocks_value: Variant = page_info.get("timelineBlocks", [])
+	if typeof(blocks_value) != TYPE_ARRAY:
 		return
 
 	var before_size: int = timeline_entries.size()
-	_append_session_records_to_timeline(messages_value, page_info.get("events", []))
+	_append_timeline_blocks(blocks_value)
 	var after_size: int = timeline_entries.size()
 	if after_size <= before_size:
-		timeline_message_offset = int(page_info.get("messagesOffset", timeline_message_offset))
+		timeline_block_offset = int(page_info.get("blockOffset", timeline_block_offset))
 		timeline_has_more_before = bool(page_info.get("hasMoreBefore", false))
 		return
 
@@ -5127,7 +5223,7 @@ func _prepend_session_timeline(page_info: Dictionary) -> void:
 	for entry: Dictionary in existing_entries:
 		timeline_entries.append(entry)
 
-	timeline_message_offset = int(page_info.get("messagesOffset", timeline_message_offset))
+	timeline_block_offset = int(page_info.get("blockOffset", timeline_block_offset))
 	timeline_has_more_before = bool(page_info.get("hasMoreBefore", false))
 	_rebuild_timeline_index_cache()
 	_rebuild_timeline_height_cache()
@@ -5152,6 +5248,49 @@ func _apply_latest_workflow_snapshot(page_info: Dictionary) -> void:
 	_apply_workflow_todo_snapshot(snapshot_value as Dictionary)
 
 
+func _append_timeline_blocks(blocks_value: Variant) -> void:
+	if typeof(blocks_value) != TYPE_ARRAY:
+		return
+
+	var blocks: Array = blocks_value as Array
+	for block_value: Variant in blocks:
+		if typeof(block_value) != TYPE_DICTIONARY:
+			continue
+
+		var block: Dictionary = block_value as Dictionary
+		var block_type: String = str(block.get("type", ""))
+		var request_id: String = str(block.get("requestId", ""))
+		var entry_id: String = str(block.get("id", ""))
+		if block_type == "user":
+			var additional_contexts_value: Variant = block.get("additionalContext", [])
+			var additional_contexts: Array = additional_contexts_value as Array if typeof(additional_contexts_value) == TYPE_ARRAY else []
+			_append_timeline_entry(
+				"user",
+				request_id,
+				str(block.get("content", "")),
+				entry_id,
+				{
+					"sent_at_utc": str(block.get("sentAtUtc", "")),
+					"additional_context": _clone_additional_context_array(additional_contexts)
+				}
+			)
+		elif block_type == "assistant":
+			var body_parts_value: Variant = block.get("bodyParts", [])
+			var body_parts: Array = body_parts_value as Array if typeof(body_parts_value) == TYPE_ARRAY else []
+			var assistant_entry_id: String = _append_timeline_entry(
+				"assistant",
+				request_id,
+				str(block.get("content", "")),
+				entry_id,
+				{
+					"started_at_utc": str(block.get("startedAtUtc", "")),
+					"completed_at_utc": str(block.get("completedAtUtc", "")),
+					"body_parts": body_parts
+				}
+			)
+			_remember_plan_entry_from_body_parts(assistant_entry_id, body_parts)
+
+
 func _append_session_records_to_timeline(messages_value: Variant, events_value: Variant) -> void:
 	var messages: Array
 	if typeof(messages_value) == TYPE_ARRAY:
@@ -5159,9 +5298,10 @@ func _append_session_records_to_timeline(messages_value: Variant, events_value: 
 
 	var message_request_ids: Dictionary[String, bool] = _collect_message_request_ids(messages)
 	var assistant_request_ids: Dictionary[String, bool] = _collect_message_request_ids_for_role(messages, "assistant")
+	var request_aliases: Dictionary[String, String] = _collect_session_event_request_aliases(events_value)
 	var events_by_request_id: Dictionary[String, Array]
 	var orphan_events: Array[Dictionary]
-	_collect_session_events(events_value, message_request_ids, events_by_request_id, orphan_events)
+	_collect_session_events(events_value, message_request_ids, request_aliases, events_by_request_id, orphan_events)
 
 	var consumed_request_ids: PackedStringArray
 	var rendered_orphan_events: bool = false
@@ -5208,7 +5348,7 @@ func _append_session_records_to_timeline(messages_value: Variant, events_value: 
 				_append_orphan_event_records(orphan_events)
 				rendered_orphan_events = true
 			var started_at_utc: String = str(request_started_at_by_id.get(request_id, ""))
-			_append_timeline_entry(
+			var assistant_entry_id: String = _append_timeline_entry(
 				"assistant",
 				request_id,
 				content,
@@ -5219,6 +5359,7 @@ func _append_session_records_to_timeline(messages_value: Variant, events_value: 
 					"body_parts": body_parts
 				}
 			)
+			_remember_plan_entry_from_body_parts(assistant_entry_id, body_parts)
 
 	if not rendered_orphan_events:
 		_append_orphan_event_records(orphan_events)
@@ -5270,9 +5411,43 @@ func _collect_message_request_ids_for_role(messages: Array, target_role: String)
 	return ids
 
 
+func _collect_session_event_request_aliases(events_value: Variant) -> Dictionary[String, String]:
+	var aliases: Dictionary[String, String] = {}
+	if typeof(events_value) != TYPE_ARRAY:
+		return aliases
+
+	var events: Array = events_value as Array
+	for item: Variant in events:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		var event_name: String = str(event_record.get("event", ""))
+		if not event_name.begins_with("plan."):
+			continue
+		if event_name == "plan.execution.started":
+			continue
+
+		var data_value: Variant = event_record.get("data", {})
+		if typeof(data_value) != TYPE_DICTIONARY:
+			continue
+
+		var data: Dictionary = data_value as Dictionary
+		var event_request_id: String = str(event_record.get("requestId", "")).strip_edges()
+		if event_request_id.is_empty() or aliases.has(event_request_id):
+			continue
+
+		var canonical_request_id: String = str(data.get("requestId", "")).strip_edges()
+		if not canonical_request_id.is_empty() and canonical_request_id != event_request_id:
+			aliases[event_request_id] = canonical_request_id
+
+	return aliases
+
+
 func _collect_session_events(
 	events_value: Variant,
 	message_request_ids: Dictionary[String, bool],
+	request_aliases: Dictionary[String, String],
 	events_by_request_id: Dictionary[String, Array],
 	orphan_events: Array[Dictionary]
 ) -> void:
@@ -5285,7 +5460,12 @@ func _collect_session_events(
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
 
-		var event_record: Dictionary = item as Dictionary
+		var event_record: Dictionary = (item as Dictionary).duplicate(true)
+		var original_request_id: String = str(event_record.get("requestId", "")).strip_edges()
+		var canonical_request_id: String = str(request_aliases.get(original_request_id, ""))
+		if not canonical_request_id.is_empty():
+			event_record["requestId"] = canonical_request_id
+
 		event_record["_timelineOrder"] = event_index
 		var request_id: String = str(event_record.get("requestId", ""))
 		if request_id.is_empty() or not message_request_ids.has(request_id):
@@ -5320,6 +5500,23 @@ func _append_events_for_request(request_id: String, events_by_request_id: Dictio
 
 	consumed_request_ids.append(request_id)
 	var records: Array = events_by_request_id.get(request_id, []) as Array
+	var body_parts: Array[Dictionary] = _build_assistant_body_parts(records, "", request_id, {})
+	if not body_parts.is_empty():
+		var completed_at_utc: String = _get_last_event_created_at(records)
+		var entry_id: String = _append_timeline_entry(
+			"assistant",
+			request_id,
+			"",
+			"assistant-events:%s:%s" % [request_id, completed_at_utc],
+			{
+				"started_at_utc": _get_first_event_created_at(records),
+				"completed_at_utc": completed_at_utc,
+				"body_parts": body_parts
+			}
+		)
+		_remember_plan_entry_from_body_parts(entry_id, body_parts)
+		return
+
 	_append_event_records(records)
 
 
@@ -5343,7 +5540,7 @@ func _append_event_records(records: Array) -> void:
 
 
 func _append_orphan_event_records(records: Array) -> void:
-	var failed_records_by_request_id: Dictionary[String, Array] = {}
+	var assistant_records_by_request_id: Dictionary[String, Array] = {}
 	for item: Variant in records:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
@@ -5352,10 +5549,11 @@ func _append_orphan_event_records(records: Array) -> void:
 		var request_id: String = str(event_record.get("requestId", ""))
 		if request_id.is_empty():
 			continue
-		if not _is_run_error_event(str(event_record.get("event", ""))):
+		var event_name: String = str(event_record.get("event", ""))
+		if not _is_run_error_event(event_name) and not event_name.begins_with("plan."):
 			continue
 
-		failed_records_by_request_id[request_id] = []
+		assistant_records_by_request_id[request_id] = []
 
 	for item: Variant in records:
 		if typeof(item) != TYPE_DICTIONARY:
@@ -5363,10 +5561,10 @@ func _append_orphan_event_records(records: Array) -> void:
 
 		var event_record: Dictionary = item as Dictionary
 		var request_id: String = str(event_record.get("requestId", ""))
-		if failed_records_by_request_id.has(request_id):
-			var grouped_records: Array = failed_records_by_request_id[request_id]
+		if assistant_records_by_request_id.has(request_id):
+			var grouped_records: Array = assistant_records_by_request_id[request_id]
 			grouped_records.append(event_record)
-			failed_records_by_request_id[request_id] = grouped_records
+			assistant_records_by_request_id[request_id] = grouped_records
 
 	var consumed_request_ids: Dictionary[String, bool] = {}
 	for item: Variant in records:
@@ -5375,26 +5573,28 @@ func _append_orphan_event_records(records: Array) -> void:
 
 		var event_record: Dictionary = item as Dictionary
 		var request_id: String = str(event_record.get("requestId", ""))
-		if not failed_records_by_request_id.has(request_id):
+		if not assistant_records_by_request_id.has(request_id):
 			_append_event_records([event_record])
 			continue
 		if consumed_request_ids.has(request_id):
 			continue
 
 		consumed_request_ids[request_id] = true
-		var failed_records: Array = failed_records_by_request_id[request_id]
-		var completed_at_utc: String = _get_last_event_created_at(failed_records)
-		_append_timeline_entry(
+		var assistant_records: Array = assistant_records_by_request_id[request_id]
+		var completed_at_utc: String = _get_last_event_created_at(assistant_records)
+		var body_parts: Array[Dictionary] = _build_assistant_body_parts(assistant_records, "", request_id, {})
+		var entry_id: String = _append_timeline_entry(
 			"assistant",
 			request_id,
 			"",
-			"failed:%s:%s" % [request_id, completed_at_utc],
+			"assistant-events:%s:%s" % [request_id, completed_at_utc],
 			{
-				"started_at_utc": _get_first_event_created_at(failed_records),
+				"started_at_utc": _get_first_event_created_at(assistant_records),
 				"completed_at_utc": completed_at_utc,
-				"body_parts": _build_assistant_body_parts(failed_records, "", request_id, {})
+				"body_parts": body_parts
 			}
 		)
+		_remember_plan_entry_from_body_parts(entry_id, body_parts)
 
 
 func _filter_non_assistant_body_event_records(records: Array) -> Array:
@@ -5474,7 +5674,9 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 				"status": "message",
 				"title": "需要澄清计划",
 				"details": str(event_data.get("question", "")),
-				"code": "plan"
+				"code": "plan",
+				"iconUid": PLAN_CLARIFICATION_ICON_UID,
+				"planId": str(event_data.get("planId", ""))
 			})
 
 	if not has_markdown_delta and records_have_markdown_delta and not message_content.is_empty():
@@ -5643,7 +5845,9 @@ func _append_status_event_to_body_parts(body_parts: Array, status_data: Dictiona
 		"details": str(status_data.get("details", status_data.get("detail", ""))),
 		"actionLabel": str(status_data.get("actionLabel", status_data.get("action_label", ""))),
 		"actionId": str(status_data.get("actionId", status_data.get("action_id", ""))),
-		"code": str(status_data.get("code", ""))
+		"code": str(status_data.get("code", "")),
+		"iconUid": str(status_data.get("iconUid", status_data.get("icon_uid", ""))),
+		"planId": str(status_data.get("planId", ""))
 	}
 	body_parts.append(part)
 
@@ -6147,7 +6351,23 @@ func _append_timeline_entry(entry_type: String, request_id: String, content: Str
 	timeline_entry_ids[entry_id] = true
 	timeline_heights.append(_get_entry_cached_height(entry))
 	timeline_heights_dirty = true
+	if entry_type == "assistant":
+		_remember_plan_entry_from_body_parts(entry_id, entry.get("body_parts", []))
 	return entry_id
+
+
+func _remember_plan_entry_from_body_parts(entry_id: String, body_parts_value: Variant) -> void:
+	if entry_id.is_empty() or typeof(body_parts_value) != TYPE_ARRAY:
+		return
+
+	for part_value: Variant in body_parts_value as Array:
+		if typeof(part_value) != TYPE_DICTIONARY:
+			continue
+
+		var part: Dictionary = part_value as Dictionary
+		var plan_id: String = str(part.get("planId", "")).strip_edges()
+		if not plan_id.is_empty():
+			plan_assistant_entry_ids_by_plan_id[plan_id] = entry_id
 
 
 func _upsert_connection_status_entry(
@@ -6217,7 +6437,8 @@ func _append_event_to_timeline(event_name: String, event_data: Dictionary, reque
 				"title": str(event_data.get("title", "")),
 				"detail": str(event_data.get("details", event_data.get("detail", ""))),
 				"action_label": str(event_data.get("actionLabel", event_data.get("action_label", ""))),
-				"action_id": str(event_data.get("actionId", event_data.get("action_id", "")))
+				"action_id": str(event_data.get("actionId", event_data.get("action_id", ""))),
+				"icon_uid": str(event_data.get("iconUid", event_data.get("icon_uid", "")))
 			}
 		)
 	elif event_name == "plan.generated" or event_name == "plan.revised":
@@ -6246,7 +6467,9 @@ func _append_event_to_timeline(event_name: String, event_data: Dictionary, reque
 				"title": "需要澄清计划",
 				"detail": str(event_data.get("question", "")),
 				"action_label": "",
-				"action_id": ""
+				"action_id": "",
+				"icon_uid": PLAN_CLARIFICATION_ICON_UID,
+				"planId": str(event_data.get("planId", ""))
 			}
 		)
 
@@ -6657,7 +6880,8 @@ func _configure_timeline_entry_node(node: Node, entry: Dictionary, _index: int) 
 			str(entry.get("title", "")),
 			str(entry.get("detail", "")),
 			str(entry.get("action_label", "")),
-			str(entry.get("action_id", ""))
+			str(entry.get("action_id", "")),
+			str(entry.get("icon_uid", ""))
 		)
 		if node.has_signal("action_requested") and not node.is_connected("action_requested", Callable(self, "_on_status_item_action_requested")):
 			node.connect("action_requested", Callable(self, "_on_status_item_action_requested"))
@@ -7042,6 +7266,7 @@ func _append_assistant_status_to_timeline(entry_id: String, status_data: Diction
 	entry["body_parts"] = body_parts
 	entry["height_actual"] = 0.0
 	timeline_entries[index] = entry
+	_remember_plan_entry_from_body_parts(entry_id, body_parts)
 	_mark_timeline_height_dirty(index)
 
 

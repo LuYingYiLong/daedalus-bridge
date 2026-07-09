@@ -67,7 +67,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 selected = 0
 item_count = 2
-popup/item_0/text = "帮我写一个井字棋"
+popup/item_0/text = "写一个本地井字棋游戏"
 popup/item_0/id = 0
 popup/item_1/text = "你好，你是什么模型，来自哪个供应商！"
 popup/item_1/id = 1
@@ -117,6 +117,7 @@ size_flags_vertical = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 3
+scroll_vertical = 8
 
 [node name="BackgroundContextContainer" type="VBoxContainer" parent="MainViewer/BackgroundContextViewer/ScrollContainer" unique_id=2046895021]
 unique_name_in_owner = true
@@ -202,7 +203,6 @@ layout_mode = 2
 
 [node name="ClarificationDialog" parent="MainViewer" unique_id=280340528 instance=ExtResource("7_5j0us")]
 unique_name_in_owner = true
-visible = false
 layout_mode = 2
 
 [node name="PlanApprovalDialog" parent="MainViewer" unique_id=1039473956 instance=ExtResource("8_0825u")]
@@ -273,13 +273,12 @@ layout_mode = 2
 [node name="ModeButton" type="MenuButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1673356315]
 unique_name_in_owner = true
 layout_mode = 2
-tooltip_text = "Conversation mode: Agent"
-icon = ExtResource("8_ga6bp")
+tooltip_text = "Conversation mode: Plan"
+icon = ExtResource("10_4ygoa")
 item_count = 3
 popup/item_0/text = "Agent"
 popup/item_0/icon = ExtResource("8_ga6bp")
 popup/item_0/checkable = 1
-popup/item_0/checked = true
 popup/item_0/id = 0
 popup/item_1/text = "Ask"
 popup/item_1/icon = ExtResource("9_47d6y")
@@ -288,8 +287,8 @@ popup/item_1/id = 1
 popup/item_2/text = "Plan"
 popup/item_2/icon = ExtResource("10_4ygoa")
 popup/item_2/checkable = 1
+popup/item_2/checked = true
 popup/item_2/id = 2
-popup/item_2/disabled = true
 
 [node name="VSeparator2" type="VSeparator" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1881099270]
 layout_mode = 2
@@ -403,9 +402,9 @@ size_flags_vertical = 3
 [connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_mouse_entered"]
 [connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_mouse_exited"]
 [connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@136325" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@136325" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@136325" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@136325" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@136325" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@136325" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" method="_on_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/ApproveButton" to="." method="_on_approve_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/RejectButton" to="." method="_on_reject_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/SkipButton" to="." method="_on_skip_approval_button_pressed"]

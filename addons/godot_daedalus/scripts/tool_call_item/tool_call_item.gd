@@ -1,5 +1,5 @@
 @tool
-extends MarginContainer
+extends FoldableContainer
 
 signal content_height_changed
 
@@ -12,7 +12,6 @@ const THINKING_ITEM_SCENE: PackedScene = preload("uid://bc6odrlupcfyr")
 const UNKNOWN_ITEM_SCENE: PackedScene = preload("uid://b5esov6oww3y3")
 const SEARCH_ITEM_SCENE: PackedScene = preload("uid://dxmloi863owr8")
 
-@onready var foldable_container: FoldableContainer = $FoldableContainer
 @onready var item_container: VBoxContainer = %ItemContainer
 
 var target_path: String
@@ -38,7 +37,7 @@ func setup(tool_name_text: String, detail_text: String) -> void:
 	}
 	var display_event: Dictionary = _normalize_tool_event(event_data)
 	tool_name = str(display_event.get("toolName", tool_name_text))
-	foldable_container.title = _format_foldable_title(display_event)
+	title = _format_foldable_title(display_event)
 	_add_unknown_item(str(display_event.get("title", _localize_tool_name(tool_name))), str(display_event.get("summary", detail_text)))
 	_set_folded(true)
 
@@ -47,7 +46,7 @@ func setup_tool_event(event_data: Dictionary) -> void:
 	var display_event: Dictionary = _normalize_tool_event(event_data)
 	tool_call_id = str(display_event.get("toolCallId", ""))
 	tool_name = str(display_event.get("toolName", "tool"))
-	foldable_container.title = _format_foldable_title(display_event)
+	title = _format_foldable_title(display_event)
 	_clear_thinking_state()
 
 	for child: Node in item_container.get_children():
@@ -59,7 +58,7 @@ func setup_tool_event(event_data: Dictionary) -> void:
 
 func setup_thinking() -> void:
 	tool_name = "Thinking"
-	foldable_container.title = "Thinking"
+	title = "Thinking"
 	_clear_thinking_state()
 
 	for child: Node in item_container.get_children():
@@ -107,13 +106,13 @@ func finish_thinking() -> void:
 
 
 func _set_folded(is_folded: bool) -> void:
-	for property: Dictionary in foldable_container.get_property_list():
+	for property: Dictionary in get_property_list():
 		var property_name: String = str(property.get("name", ""))
 		if property_name == "folded" or property_name == "collapsed":
-			foldable_container.set(property_name, is_folded)
+			set(property_name, is_folded)
 			return
 		if property_name == "expanded":
-			foldable_container.set(property_name, not is_folded)
+			set(property_name, not is_folded)
 			return
 
 

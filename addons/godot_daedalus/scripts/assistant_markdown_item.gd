@@ -154,7 +154,8 @@ func add_status(status_data: Dictionary) -> Node:
 		str(status_data.get("title", "")),
 		str(status_data.get("details", status_data.get("detail", ""))),
 		str(status_data.get("actionLabel", status_data.get("action_label", ""))),
-		str(status_data.get("actionId", status_data.get("action_id", "")))
+		str(status_data.get("actionId", status_data.get("action_id", ""))),
+		str(status_data.get("iconUid", status_data.get("icon_uid", "")))
 	)
 	return status_item
 

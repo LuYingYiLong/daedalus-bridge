@@ -2,10 +2,11 @@
 
 [ext_resource type="Script" uid="uid://dmmiw7csuj8ni" path="res://addons/godot_daedalus/scripts/tool_call_item/status_item.gd" id="1_status"]
 [ext_resource type="Texture2D" uid="uid://cq15q550jtb21" path="res://addons/godot_daedalus/assets/icons/disconnected.svg" id="2_g7c3b"]
+[ext_resource type="Theme" uid="uid://dhartxld7pqyb" path="res://addons/godot_daedalus/assets/markdown_theme.tres" id="3_1brkv"]
 
 [node name="StatusItem" type="PanelContainer" unique_id=2127336286]
-offset_right = 427.0
-offset_bottom = 74.0
+offset_right = 403.0
+offset_bottom = 66.0
 theme_type_variation = &"PanelContainerTabbarInner"
 script = ExtResource("1_status")
 
@@ -34,7 +35,6 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"HeaderSmall"
-text = "Title"
 text_overrun_behavior = 3
 
 [node name="ActionButton" type="Button" parent="MainContainer/TextContainer/HeaderContainer" unique_id=383824315]
@@ -46,12 +46,13 @@ mouse_filter = 1
 theme_type_variation = &"FlatButton"
 disabled = true
 
-[node name="DetailsLabel" type="Label" parent="MainContainer/TextContainer" unique_id=1350851250]
+[node name="DetailsLabel" type="MarkdownLabel" parent="MainContainer/TextContainer" unique_id=1670641508]
+content_margin = 8
+fit_content = true
 unique_name_in_owner = true
 visible = false
 custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
-text = "Details"
-autowrap_mode = 3
+theme = ExtResource("3_1brkv")
 
 [connection signal="pressed" from="MainContainer/TextContainer/HeaderContainer/ActionButton" to="." method="_on_action_button_pressed"]

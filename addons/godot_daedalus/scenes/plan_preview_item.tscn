@@ -34,6 +34,7 @@ icon = ExtResource("2_syx6f")
 
 [node name="MarkdownLabel" type="MarkdownLabel" parent="VBoxContainer" unique_id=1293991446]
 content_margin = 8
+streaming_enabled = true
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 128)
 layout_mode = 2

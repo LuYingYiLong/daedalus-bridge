@@ -28,15 +28,18 @@ func _run_tests() -> void:
 		"transport": "stdio",
 		"enabled": true,
 		"status": "connected",
-		"toolCount": 2
+		"toolCount": 2,
+		"planAccess": "read"
 	})
 
 	var name_label: Label = item.get_node("NameLabel") as Label
+	var plan_access_label: Label = item.get_node("PlanAccessLabel") as Label
 	var edit_button: Button = item.get_node("EditButton") as Button
 	var remove_button: Button = item.get_node("RemoveButton") as Button
 	var check_button: CheckButton = item.get_node("CheckButton") as CheckButton
 
 	_expect_equal(name_label.text, "Demo MCP", "name rendered")
+	_expect_equal(plan_access_label.visible, true, "plan access label visible")
 	_expect_equal(edit_button.disabled, false, "edit enabled")
 	_expect_equal(remove_button.disabled, false, "remove enabled")
 	_expect_equal(check_button.disabled, false, "check enabled")
@@ -49,8 +52,10 @@ func _run_tests() -> void:
 		"transport": "stdio",
 		"enabled": true,
 		"status": "connecting",
-		"pending": true
+		"pending": true,
+		"planAccess": "disabled"
 	})
+	_expect_equal(plan_access_label.visible, false, "plan access label hidden")
 	_expect_equal(edit_button.disabled, true, "pending edit disabled")
 	_expect_equal(remove_button.disabled, true, "pending remove disabled")
 	_expect_equal(check_button.disabled, true, "pending check disabled")

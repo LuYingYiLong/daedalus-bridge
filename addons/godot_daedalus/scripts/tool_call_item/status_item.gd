@@ -17,7 +17,7 @@ const STATUS_RECONNECTING: String = "reconnecting"
 
 @onready var status_icon: TextureRect = %StatusIcon
 @onready var title_label: Label = %TitleLabel
-@onready var details_label: Label = %DetailsLabel
+@onready var details_label: MarkdownLabel = %DetailsLabel
 @onready var action_button: Button = %ActionButton
 
 var current_status: String = STATUS_MESSAGE
@@ -25,18 +25,20 @@ var current_title: String
 var current_details: String
 var current_action_label: String
 var current_action_id: String
+var current_icon_uid: String
 
 
 func _ready() -> void:
 	_apply_status()
 
 
-func setup(status_text: String, title_text: String, details_text: String, action_label: String = "", action_id: String = "") -> void:
+func setup(status_text: String, title_text: String, details_text: String, action_label: String = "", action_id: String = "", icon_uid: String = "") -> void:
 	current_status = status_text
 	current_title = title_text
 	current_details = details_text
 	current_action_label = action_label
 	current_action_id = action_id
+	current_icon_uid = icon_uid
 	_apply_status()
 
 
@@ -57,6 +59,11 @@ func _apply_status() -> void:
 
 
 func _get_status_icon() -> Texture2D:
+	if not current_icon_uid.strip_edges().is_empty():
+		var custom_icon: Texture2D = load(current_icon_uid) as Texture2D
+		if custom_icon != null:
+			return custom_icon
+
 	match current_status:
 		STATUS_ERROR:
 			return CONNECT_FAILED_ICON

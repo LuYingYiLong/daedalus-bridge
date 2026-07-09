@@ -4,6 +4,7 @@ extends SceneTree
 const CLARIFICATION_DIALOG_SCENE: PackedScene = preload("uid://dsi4mi4uglngs")
 const PLAN_APPROVAL_DIALOG_SCENE: PackedScene = preload("uid://bh21xppsf6yrh")
 const PLAN_PREVIEW_ITEM_SCENE: PackedScene = preload("uid://cs2l8rbjvetsi")
+const MAIN_SCRIPT: GDScript = preload("uid://c20c3llfub24q")
 
 var failures: PackedStringArray
 var submitted_plan_id: String
@@ -30,6 +31,8 @@ func _run_tests() -> void:
 	_test_clarification_dialog()
 	_test_plan_approval_dialog()
 	_test_plan_preview_item()
+	_test_plan_events_merge_after_clarification()
+	_test_plan_clarify_request_events_merge_into_original_assistant()
 
 
 func _test_clarification_dialog() -> void:
@@ -84,6 +87,117 @@ func _test_plan_preview_item() -> void:
 	_expect_equal(details_plan_id, "plan-preview", "details plan id")
 	_expect_equal(details_markdown, "## Summary\n\n- Step", "details fallback markdown")
 	item.queue_free()
+
+
+func _test_plan_events_merge_after_clarification() -> void:
+	var main_node: VBoxContainer = MAIN_SCRIPT.new() as VBoxContainer
+	var timeline_blocks: Array = [
+		{
+			"id": "user-request-plan",
+			"type": "user",
+			"requestId": "request-plan",
+			"content": "写一个本地井字棋",
+			"sentAtUtc": "2026-07-09T00:00:00.000Z"
+		},
+		{
+			"id": "assistant-request-plan",
+			"type": "assistant",
+			"requestId": "request-plan",
+			"content": "需要澄清：请选择目标形态。",
+			"startedAtUtc": "2026-07-09T00:00:01.000Z",
+			"completedAtUtc": "2026-07-09T00:02:00.000Z",
+			"bodyParts": [
+				{
+					"type": "markdown",
+					"text": "需要澄清：请选择目标形态。"
+				},
+				{
+					"type": "status",
+					"code": "plan",
+					"title": "需要澄清计划",
+					"details": "请选择 CLI 还是 Godot 场景。",
+					"iconUid": "uid://d1nq6i1hauij0",
+					"severity": "info",
+					"planId": "plan-merge",
+					"recommendedReplies": []
+				},
+				{
+					"type": "plan",
+					"planId": "plan-merge",
+					"status": "ready",
+					"title": "井字棋 CLI 计划",
+					"previewMarkdown": "## Summary\n\n实现 CLI 井字棋。"
+				}
+			]
+		}
+	]
+	main_node.call("_append_timeline_blocks", timeline_blocks)
+	var timeline_entries: Array = main_node.get("timeline_entries") as Array
+	_expect_equal(timeline_entries.size(), 2, "merged plan timeline entry count")
+	var assistant_entry: Dictionary = timeline_entries[1] as Dictionary
+	_expect_equal(str(assistant_entry.get("type", "")), "assistant", "merged plan assistant entry type")
+	var body_parts: Array = assistant_entry.get("body_parts", []) as Array
+	_expect_equal(body_parts.size(), 3, "merged plan body part count")
+	_expect_equal(str((body_parts[1] as Dictionary).get("type", "")), "status", "merged clarification status")
+	_expect_equal(str((body_parts[1] as Dictionary).get("iconUid", "")), "uid://d1nq6i1hauij0", "clarification icon uid")
+	_expect_equal(str((body_parts[2] as Dictionary).get("type", "")), "plan", "merged plan preview")
+	_expect_equal(str((body_parts[2] as Dictionary).get("planId", "")), "plan-merge", "merged plan preview id")
+	main_node.free()
+
+
+func _test_plan_clarify_request_events_merge_into_original_assistant() -> void:
+	var main_node: VBoxContainer = MAIN_SCRIPT.new() as VBoxContainer
+	var timeline_blocks: Array = [
+		{
+			"id": "user-request-plan",
+			"type": "user",
+			"requestId": "request-plan",
+			"content": "写一个本地井字棋",
+			"sentAtUtc": "2026-07-09T00:00:00.000Z"
+		},
+		{
+			"id": "assistant-request-plan",
+			"type": "assistant",
+			"requestId": "request-plan",
+			"content": "需要澄清：请选择目标形态。",
+			"startedAtUtc": "2026-07-09T00:00:01.000Z",
+			"completedAtUtc": "2026-07-09T00:00:05.000Z",
+			"bodyParts": [
+				{
+					"type": "markdown",
+					"text": "需要澄清：请选择目标形态。"
+				},
+				{
+					"type": "thinking",
+					"text": "根据澄清补充读取项目结构。"
+				},
+				{
+					"type": "tool",
+					"toolCallId": "tool-read",
+					"toolName": "mcp_godot_list_project_files",
+					"status": "completed",
+					"summary": "列出项目文件"
+				},
+				{
+					"type": "plan",
+					"planId": "plan-alias",
+					"status": "ready",
+					"title": "井字棋 CLI 计划",
+					"previewMarkdown": "## Summary\n\n实现 CLI 井字棋。"
+				}
+			]
+		}
+	]
+	main_node.call("_append_timeline_blocks", timeline_blocks)
+	var timeline_entries: Array = main_node.get("timeline_entries") as Array
+	_expect_equal(timeline_entries.size(), 2, "aliased plan timeline entry count")
+	var assistant_entry: Dictionary = timeline_entries[1] as Dictionary
+	var body_parts: Array = assistant_entry.get("body_parts", []) as Array
+	_expect_equal(body_parts.size(), 4, "aliased plan body part count")
+	_expect_equal(str((body_parts[1] as Dictionary).get("type", "")), "thinking", "aliased thinking part")
+	_expect_equal(str((body_parts[2] as Dictionary).get("type", "")), "tool", "aliased tool part")
+	_expect_equal(str((body_parts[3] as Dictionary).get("type", "")), "plan", "aliased plan part")
+	main_node.free()
 
 
 func _on_clarification_submitted(plan_id: String, reply: String) -> void:

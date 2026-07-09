@@ -59,6 +59,17 @@ popup/item_0/id = 0
 popup/item_1/text = "HTTP"
 popup/item_1/id = 1
 
+[node name="PlanAccessLabel" type="Label" parent="VBoxContainer/GridContainer"]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "Plan access"
+
+[node name="PlanAccessCheckButton" type="CheckButton" parent="VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Allow this custom MCP server in Plan mode as read-only"
+text = "Read-only in Plan"
+
 [node name="StdioContainer" type="GridContainer" parent="VBoxContainer" unique_id=549906614]
 unique_name_in_owner = true
 layout_mode = 2

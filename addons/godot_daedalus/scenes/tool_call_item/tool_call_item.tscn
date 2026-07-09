@@ -2,19 +2,15 @@
 
 [ext_resource type="Script" uid="uid://d02kn1dqtxr5r" path="res://addons/godot_daedalus/scripts/tool_call_item/tool_call_item.gd" id="1_ujkjy"]
 
-[node name="ToolCallItem" type="MarginContainer" unique_id=329819501]
-offset_right = 682.0
+[node name="FoldableContainer" type="FoldableContainer" unique_id=1442751881]
+offset_right = 666.0
 offset_bottom = 61.0
-theme_override_constants/margin_right = 16
-script = ExtResource("1_ujkjy")
-
-[node name="FoldableContainer" type="FoldableContainer" parent="." unique_id=1442751881]
-layout_mode = 2
 folded = true
 title = "Steps"
 title_text_overrun_behavior = 4
+script = ExtResource("1_ujkjy")
 
-[node name="ItemContainer" type="VBoxContainer" parent="FoldableContainer" unique_id=814797616]
+[node name="ItemContainer" type="VBoxContainer" parent="." unique_id=814797616]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2

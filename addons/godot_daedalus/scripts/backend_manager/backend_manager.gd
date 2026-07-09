@@ -689,7 +689,7 @@ func _show_command_message(message_text: String) -> void:
 	var message_dialog: AcceptDialog = AcceptDialog.new()
 	message_dialog.dialog_text = message_text
 	add_child(message_dialog)
-	message_dialog.popup_centered()
+	message_dialog.popup_centered_ratio()
 
 
 func _show_frontend_update_ready_dialog(version_text: String) -> void:
@@ -704,7 +704,7 @@ func _show_frontend_update_ready_dialog(version_text: String) -> void:
 	frontend_update_ready_dialog.cancel_button_text = "Later"
 	frontend_update_ready_dialog.confirmed.connect(Callable(self, "_on_frontend_update_ready_confirmed"))
 	add_child(frontend_update_ready_dialog)
-	frontend_update_ready_dialog.popup_centered()
+	frontend_update_ready_dialog.popup_centered_ratio()
 
 
 func _on_frontend_update_ready_confirmed() -> void:

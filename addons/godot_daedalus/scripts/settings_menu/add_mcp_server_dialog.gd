@@ -6,6 +6,7 @@ signal server_config_submitted(config: Dictionary)
 @onready var name_line_edit: LineEdit = %NameLineEdit
 @onready var description_text_edit: TextEdit = %DescriptionTextEdit
 @onready var type_option_button: OptionButton = %TypeOptionButton
+@onready var plan_access_check_button: CheckButton = %PlanAccessCheckButton
 @onready var stdio_container: GridContainer = %StdioContainer
 @onready var common_line_edit: LineEdit = %CommonLineEdit
 @onready var args_text_edit: TextEdit = %ArgsTextEdit
@@ -116,7 +117,8 @@ func _create_config() -> Dictionary:
 	var config: Dictionary[String, Variant] = {
 		"name": name_line_edit.text.strip_edges(),
 		"description": description_text_edit.text.strip_edges(),
-		"enabled": true
+		"enabled": true,
+		"planAccess": "read" if plan_access_check_button.button_pressed else "disabled"
 	}
 
 	if type_option_button.selected == TYPE_INDEX_HTTP:
