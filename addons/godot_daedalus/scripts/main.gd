@@ -12,6 +12,7 @@ const STATUS_ITEM_SCENE: PackedScene = preload("uid://cljnln76ye4o5")
 const SESSION_ITEM_SCENE: PackedScene = preload("uid://bic1etsxo1epd")
 const TODO_ITEM_SCENE: PackedScene = preload("uid://d3i7c6i2shbyl")
 const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
+const PLAN_VIEWER_SCENE: PackedScene = preload("uid://yobf80iaqi7l")
 const CONTEXT_POPUP_MENU_UID: String = "uid://brjsrkaconcvu"
 const CONTEXT_ICON_DIR: String = "res://addons/godot_daedalus/assets/icons"
 const FRONTEND_CONFIG_PATH: String = "user://godot_daedalus_frontend.cfg"
@@ -143,6 +144,8 @@ const CHAT_MODE_LABELS: PackedStringArray = [
 @onready var scroll_container: ScrollContainer = %ScrollContainer
 @onready var background_context_container: VBoxContainer = %BackgroundContextContainer
 @onready var approval_dialog: PanelContainer = %ApprovalDialog
+@onready var clarification_dialog: PanelContainer = %ClarificationDialog
+@onready var plan_approval_dialog: PanelContainer = %PlanApprovalDialog
 @onready var send_button: Button = %SendButton
 @onready var stop_button: Button = %StopButton
 @onready var status_button: Button = %StatusButton
@@ -293,6 +296,7 @@ var dismissed_live_context_signatures: Dictionary[String, String]
 var pending_file_edit_batch_requests: Dictionary[String, String]
 var pending_file_edit_batch_groups: Dictionary[String, Dictionary]
 var inline_diff_action_titles_by_key: Dictionary[String, String]
+var pending_plan_detail_requests: Dictionary[String, Dictionary]
 
 
 func _load_slash_commands() -> void:
@@ -361,13 +365,27 @@ func _setup_mode_button() -> void:
 	for index: int in range(popup_menu.get_item_count()):
 		var menu_id: int = popup_menu.get_item_id(index)
 		popup_menu.set_item_as_checkable(index, true)
-		popup_menu.set_item_disabled(index, menu_id == CHAT_MODE_ID_PLAN)
+		popup_menu.set_item_disabled(index, false)
 	_update_mode_button()
 
 
+func _setup_plan_dialogs() -> void:
+	if clarification_dialog.has_signal("clarification_submitted") and not clarification_dialog.is_connected("clarification_submitted", Callable(self, "_on_plan_clarification_submitted")):
+		clarification_dialog.connect("clarification_submitted", Callable(self, "_on_plan_clarification_submitted"))
+	if plan_approval_dialog.has_signal("plan_approved") and not plan_approval_dialog.is_connected("plan_approved", Callable(self, "_on_plan_approved")):
+		plan_approval_dialog.connect("plan_approved", Callable(self, "_on_plan_approved"))
+	if plan_approval_dialog.has_signal("plan_revision_requested") and not plan_approval_dialog.is_connected("plan_revision_requested", Callable(self, "_on_plan_revision_requested")):
+		plan_approval_dialog.connect("plan_revision_requested", Callable(self, "_on_plan_revision_requested"))
+	if not clarification_dialog.visibility_changed.is_connected(_sync_plan_overlay_input_visibility):
+		clarification_dialog.visibility_changed.connect(_sync_plan_overlay_input_visibility)
+	if not plan_approval_dialog.visibility_changed.is_connected(_sync_plan_overlay_input_visibility):
+		plan_approval_dialog.visibility_changed.connect(_sync_plan_overlay_input_visibility)
+	clarification_dialog.hide()
+	plan_approval_dialog.hide()
+	_sync_plan_overlay_input_visibility()
+
+
 func _select_chat_mode(chat_mode: String) -> bool:
-	if chat_mode == CHAT_MODE_PLAN:
-		return false
 	if not _is_known_chat_mode(chat_mode):
 		return false
 
@@ -377,7 +395,7 @@ func _select_chat_mode(chat_mode: String) -> bool:
 
 
 func _get_selected_chat_mode() -> String:
-	if _is_known_chat_mode(active_chat_mode) and active_chat_mode != CHAT_MODE_PLAN:
+	if _is_known_chat_mode(active_chat_mode):
 		return active_chat_mode
 
 	return CHAT_MODE_AGENT
@@ -1880,6 +1898,7 @@ func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String
 	elif active_session_id.is_empty():
 		_show_session_list_viewer()
 	text_edit.show()
+	_sync_plan_overlay_input_visibility()
 	_send_client_hello()
 	_send_environment_config()
 	if pending_provider_config_save_after_connect:
@@ -3045,9 +3064,6 @@ func _on_approval_mode_button_item_selected(index: int) -> void:
 
 func _on_mode_button_id_pressed(menu_id: int) -> void:
 	var selected_chat_mode: String = _get_chat_mode_from_menu_id(menu_id)
-	if selected_chat_mode == CHAT_MODE_PLAN:
-		_update_mode_button()
-		return
 	if not _select_chat_mode(selected_chat_mode):
 		_select_chat_mode(CHAT_MODE_AGENT)
 
@@ -3283,6 +3299,12 @@ func _create_chat_options_for_mode(chat_mode: String) -> Dictionary[String, Vari
 	if chat_mode == CHAT_MODE_ASK:
 		return {
 			"stream": true,
+			"toolBudget": "normal",
+			"workflow": "single"
+		}
+	if chat_mode == CHAT_MODE_PLAN:
+		return {
+			"stream": false,
 			"toolBudget": "normal",
 			"workflow": "single"
 		}
@@ -3797,6 +3819,8 @@ func _handle_response(message: Dictionary) -> void:
 	if not ok:
 		if _handle_file_edit_batch_response(str(message.get("id", "")), false, {}):
 			return
+		if _handle_plan_response_error(str(message.get("id", ""))):
+			return
 		if str(message.get("id", "")).begins_with("mcp-config"):
 			_handle_mcp_config_error(message)
 			return
@@ -3862,6 +3886,8 @@ func _handle_response(message: Dictionary) -> void:
 		return
 	if _handle_file_edit_batch_response(str(message.get("id", "")), true, result_dictionary):
 		return
+	if _handle_plan_response(response_id, result_dictionary):
+		return
 	if result_dictionary.has("commands"):
 		_apply_slash_command_list_response(result_dictionary)
 	elif bool(result_dictionary.get("nextStepHints", false)):
@@ -3905,6 +3931,7 @@ func _handle_response(message: Dictionary) -> void:
 		_clear_chat_items()
 		_show_background_context_viewer()
 		_render_session_timeline(result_dictionary.get("messages", []), result_dictionary.get("events", []), result_dictionary)
+		_restore_pending_plan_dialogs(result_dictionary.get("events", []))
 		_sync_pending_guides_from_result(result_dictionary)
 		_apply_latest_workflow_snapshot(result_dictionary)
 		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
@@ -3989,6 +4016,7 @@ func _handle_event(message: Dictionary) -> void:
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
 		var completed_request_id: String = active_stream_request_id
+		var completed_status_code: String = active_stream_status_code
 		_flush_pending_assistant_delta()
 		if not active_assistant_entry_id.is_empty():
 			_set_timeline_entry_times(active_assistant_entry_id, active_stream_started_at_utc, completed_at_utc)
@@ -4008,7 +4036,7 @@ func _handle_event(message: Dictionary) -> void:
 		_send_request(RPC_METHODS.SESSION_SAVE, {}, "session-save")
 		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 		_finish_active_queue_message(true)
-		if not _has_pending_queued_messages():
+		if completed_status_code != "plan" and not _has_pending_queued_messages():
 			_request_next_step_hints(completed_request_id, "done")
 		_process_message_queue()
 	elif event_name == "agent.run.paused" or event_name == "ai.paused":
@@ -4077,6 +4105,8 @@ func _handle_event(message: Dictionary) -> void:
 		active_workflow_id = str(data_dictionary.get("runId", data_dictionary.get("workflowId", "")))
 	elif event_name == "agent.run.snapshot" or event_name == "workflow.todo.updated":
 		_apply_workflow_todo_snapshot(data_dictionary)
+	elif event_name.begins_with("plan."):
+		_handle_plan_event(event_name, event_id, data_dictionary)
 	elif event_name == "guide.applied":
 		_apply_guide_applied_event(data_dictionary)
 	elif event_name == "guide.deleted":
@@ -4094,7 +4124,7 @@ func _handle_event(message: Dictionary) -> void:
 # --- next_step_controller.gd ---
 
 func _is_global_event(event_name: String) -> bool:
-	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("agent.")
+	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("agent.") or event_name.begins_with("plan.")
 
 
 func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary) -> Dictionary:
@@ -4104,6 +4134,241 @@ func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary
 	var normalized_data: Dictionary = event_data.duplicate(true)
 	normalized_data["type"] = event_name.replace("agent.tool.", "tool.")
 	return normalized_data
+
+
+func _handle_plan_response(response_id: String, result_dictionary: Dictionary) -> bool:
+	if pending_plan_detail_requests.has(response_id):
+		var fallback_data: Dictionary = pending_plan_detail_requests.get(response_id, {}) as Dictionary
+		pending_plan_detail_requests.erase(response_id)
+		var title_text: String = str(result_dictionary.get("title", fallback_data.get("title", "Plan"))).strip_edges()
+		var markdown_text: String = str(result_dictionary.get("markdown", fallback_data.get("markdown", ""))).strip_edges()
+		_open_plan_viewer(title_text, markdown_text)
+		return true
+	if bool(result_dictionary.get("planApproved", false)):
+		return true
+	if result_dictionary.has("planId") and (response_id.begins_with("plan-clarify") or response_id.begins_with("plan-revise")):
+		return true
+	return false
+
+
+func _handle_plan_response_error(response_id: String) -> bool:
+	if not pending_plan_detail_requests.has(response_id):
+		return false
+
+	var fallback_data: Dictionary = pending_plan_detail_requests.get(response_id, {}) as Dictionary
+	pending_plan_detail_requests.erase(response_id)
+	_open_plan_viewer(
+		str(fallback_data.get("title", "Plan")),
+		str(fallback_data.get("markdown", ""))
+	)
+	return true
+
+
+func _handle_plan_event(event_name: String, event_id: String, event_data: Dictionary) -> void:
+	if active_stream_request_id.is_empty() and not event_id.is_empty():
+		active_stream_request_id = event_id
+	if active_stream_started_at_utc.is_empty():
+		active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
+
+	if event_name == "plan.clarification.required":
+		active_stream_status_code = "plan"
+		_append_assistant_status_event({
+			"status": "message",
+			"title": "需要澄清计划",
+			"details": str(event_data.get("question", "")),
+			"code": "plan"
+		})
+		_show_clarification_dialog(event_data)
+	elif event_name == "plan.generated" or event_name == "plan.revised":
+		active_stream_status_code = "plan"
+		_append_plan_preview_to_active_assistant(event_data)
+		_show_plan_approval_dialog(event_data)
+	elif event_name == "plan.execution.started":
+		_start_plan_execution_stream(event_data)
+	elif event_name == "plan.error":
+		_append_assistant_status_event({
+			"status": "error",
+			"title": "计划模式错误",
+			"details": str(event_data.get("message", "Unknown plan error")),
+			"code": str(event_data.get("code", "plan_error"))
+		})
+	elif event_name == "plan.approved":
+		clarification_dialog.hide()
+		plan_approval_dialog.hide()
+		_sync_plan_overlay_input_visibility()
+
+
+func _show_clarification_dialog(event_data: Dictionary) -> void:
+	var plan_id: String = str(event_data.get("planId", "")).strip_edges()
+	var question_text: String = str(event_data.get("question", "")).strip_edges()
+	var replies_value: Variant = event_data.get("recommendedReplies", [])
+	var replies: Array = replies_value as Array if typeof(replies_value) == TYPE_ARRAY else []
+	if plan_id.is_empty() or question_text.is_empty():
+		return
+
+	plan_approval_dialog.hide()
+	clarification_dialog.call("setup", question_text, replies, plan_id)
+	_sync_plan_overlay_input_visibility()
+
+
+func _show_plan_approval_dialog(event_data: Dictionary) -> void:
+	var plan_id: String = str(event_data.get("planId", "")).strip_edges()
+	if plan_id.is_empty():
+		return
+
+	clarification_dialog.hide()
+	plan_approval_dialog.call("setup", plan_id, str(event_data.get("title", "Plan")))
+	_sync_plan_overlay_input_visibility()
+
+
+func _append_plan_preview_to_active_assistant(event_data: Dictionary) -> void:
+	_show_background_context_viewer()
+	var should_follow_bottom: bool = _should_follow_timeline_updates()
+	_flush_pending_assistant_delta()
+	_ensure_active_assistant_item()
+	var plan_part: Dictionary = _create_plan_body_part(event_data)
+	if plan_part.is_empty() or active_assistant_entry_id.is_empty():
+		return
+
+	var index: int = _find_timeline_entry_index(active_assistant_entry_id)
+	if index >= 0:
+		var entry: Dictionary = timeline_entries[index]
+		var body_parts: Array = entry.get("body_parts", []) as Array
+		body_parts.append(plan_part)
+		entry["body_parts"] = body_parts
+		entry["height_actual"] = 0.0
+		timeline_entries[index] = entry
+		_mark_timeline_height_dirty(index)
+
+	active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
+	if active_assistant_item != null:
+		active_assistant_item.call("add_plan_preview", plan_part)
+		_schedule_timeline_measure()
+		_scroll_to_bottom_if_following(should_follow_bottom)
+		return
+
+	_schedule_timeline_render(should_follow_bottom)
+
+
+func _create_plan_body_part(event_data: Dictionary) -> Dictionary:
+	var plan_id: String = str(event_data.get("planId", "")).strip_edges()
+	if plan_id.is_empty():
+		return {}
+
+	return {
+		"type": "plan",
+		"planId": plan_id,
+		"title": str(event_data.get("title", "Plan")),
+		"status": str(event_data.get("status", "")),
+		"previewMarkdown": str(event_data.get("previewMarkdown", event_data.get("markdown", "")))
+	}
+
+
+func _on_plan_clarification_submitted(plan_id: String, reply: String) -> void:
+	if plan_id.is_empty() or reply.strip_edges().is_empty():
+		return
+
+	_sync_plan_overlay_input_visibility()
+	_send_request(RPC_METHODS.PLAN_CLARIFY, {
+		"planId": plan_id,
+		"reply": reply
+	}, "plan-clarify")
+
+
+func _on_plan_approved(plan_id: String) -> void:
+	if plan_id.is_empty():
+		return
+
+	_sync_plan_overlay_input_visibility()
+	_send_request(RPC_METHODS.PLAN_APPROVE, {
+		"planId": plan_id
+	}, "plan-approve")
+
+
+func _on_plan_revision_requested(plan_id: String, feedback: String) -> void:
+	if plan_id.is_empty() or feedback.strip_edges().is_empty():
+		return
+
+	_sync_plan_overlay_input_visibility()
+	_send_request(RPC_METHODS.PLAN_REVISE, {
+		"planId": plan_id,
+		"feedback": feedback
+	}, "plan-revise")
+
+
+func _on_plan_details_requested(plan_id: String, fallback_markdown: String) -> void:
+	if plan_id.strip_edges().is_empty():
+		_open_plan_viewer("Plan", fallback_markdown)
+		return
+	if active_session_id.is_empty() or not _is_socket_open():
+		_open_plan_viewer("Plan", fallback_markdown)
+		return
+
+	var params: Dictionary[String, Variant] = {
+		"sessionId": active_session_id,
+		"planId": plan_id
+	}
+	var detail_request_id: String = _send_request(RPC_METHODS.PLAN_GET, params, "plan-get")
+	if detail_request_id.is_empty():
+		_open_plan_viewer("Plan", fallback_markdown)
+		return
+
+	pending_plan_detail_requests[detail_request_id] = {
+		"title": "Plan",
+		"markdown": fallback_markdown
+	}
+
+
+func _open_plan_viewer(title_text: String, markdown_text: String) -> void:
+	var plan_viewer: AcceptDialog = PLAN_VIEWER_SCENE.instantiate() as AcceptDialog
+	add_child(plan_viewer)
+	plan_viewer.call("setup", title_text, markdown_text)
+	plan_viewer.popup_centered()
+
+
+func _start_plan_execution_stream(event_data: Dictionary) -> void:
+	var execution_request_id: String = str(event_data.get("executionRequestId", "")).strip_edges()
+	if execution_request_id.is_empty():
+		return
+
+	active_assistant_item = null
+	active_assistant_entry_id = ""
+	active_thinking_entry_id = ""
+	active_assistant_text = ""
+	active_file_edit_batches.clear()
+	_clear_paused_stream_context()
+	_clear_todo_items()
+
+	active_stream_id = execution_request_id
+	active_stream_request_id = execution_request_id
+	active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
+	active_stream_status_code = ""
+	var title_text: String = str(event_data.get("title", "Plan")).strip_edges()
+	var user_text: String = "执行已批准计划" if title_text.is_empty() else "执行已批准计划：%s" % title_text
+	var should_follow_bottom: bool = _should_follow_timeline_updates()
+	_append_timeline_entry("user", active_stream_request_id, user_text, "", { "sent_at_utc": active_stream_started_at_utc })
+	active_assistant_entry_id = _append_timeline_entry(
+		"assistant",
+		active_stream_request_id,
+		"",
+		"",
+		{ "started_at_utc": active_stream_started_at_utc }
+	)
+	_schedule_timeline_render(should_follow_bottom)
+	_set_streaming_state(true)
+
+
+func _sync_plan_overlay_input_visibility() -> void:
+	if text_edit == null:
+		return
+
+	var overlay_visible: bool = (
+		clarification_dialog != null and clarification_dialog.visible
+	) or (
+		plan_approval_dialog != null and plan_approval_dialog.visible
+	)
+	text_edit.visible = not overlay_visible
+	_update_send_state()
 
 
 func _request_next_step_hints(anchor_request_id: String, trigger: String) -> void:
@@ -4774,6 +5039,44 @@ func _render_session_timeline(messages_value: Variant, events_value: Variant, pa
 	_render_visible_timeline(true)
 
 
+func _restore_pending_plan_dialogs(events_value: Variant) -> void:
+	if typeof(events_value) != TYPE_ARRAY:
+		return
+
+	var latest_plan_events: Dictionary[String, Dictionary]
+	var events: Array = events_value as Array
+	for item: Variant in events:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		var event_name: String = str(event_record.get("event", ""))
+		if not event_name.begins_with("plan."):
+			continue
+
+		var data_value: Variant = event_record.get("data", {})
+		if typeof(data_value) != TYPE_DICTIONARY:
+			continue
+
+		var event_data: Dictionary = (data_value as Dictionary).duplicate(true)
+		var plan_id: String = str(event_data.get("planId", "")).strip_edges()
+		if plan_id.is_empty():
+			continue
+
+		event_data["_eventName"] = event_name
+		latest_plan_events[plan_id] = event_data
+
+	for plan_id: String in latest_plan_events.keys():
+		var latest_event: Dictionary = latest_plan_events[plan_id]
+		var latest_event_name: String = str(latest_event.get("_eventName", ""))
+		if latest_event_name == "plan.clarification.required":
+			_show_clarification_dialog(latest_event)
+			return
+		if latest_event_name == "plan.generated" or latest_event_name == "plan.revised":
+			_show_plan_approval_dialog(latest_event)
+			return
+
+
 func _request_previous_timeline_page() -> void:
 	if timeline_loading_before or not timeline_has_more_before:
 		return
@@ -5112,6 +5415,8 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 			continue
 		if _is_run_error_event(event_name):
 			continue
+		if event_name.begins_with("plan."):
+			continue
 
 		filtered_records.append(event_record)
 
@@ -5160,6 +5465,17 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 		elif _is_run_error_event(event_name):
 			_append_run_error_to_body_parts(body_parts, event_data)
 			has_error_status = true
+		elif event_name == "plan.generated" or event_name == "plan.revised":
+			var plan_part: Dictionary = _create_plan_body_part(event_data)
+			if not plan_part.is_empty():
+				body_parts.append(plan_part)
+		elif event_name == "plan.clarification.required":
+			_append_status_event_to_body_parts(body_parts, {
+				"status": "message",
+				"title": "需要澄清计划",
+				"details": str(event_data.get("question", "")),
+				"code": "plan"
+			})
 
 	if not has_markdown_delta and records_have_markdown_delta and not message_content.is_empty():
 		_append_markdown_delta_to_body_parts(body_parts, message_content)
@@ -5904,6 +6220,35 @@ func _append_event_to_timeline(event_name: String, event_data: Dictionary, reque
 				"action_id": str(event_data.get("actionId", event_data.get("action_id", "")))
 			}
 		)
+	elif event_name == "plan.generated" or event_name == "plan.revised":
+		var plan_part: Dictionary = _create_plan_body_part(event_data)
+		if plan_part.is_empty():
+			return
+
+		_append_timeline_entry(
+			"assistant",
+			request_id,
+			"",
+			"plan:%s:%s" % [request_id, str(event_data.get("planId", ""))],
+			{
+				"completed_at_utc": MAIN_HELPERS.get_utc_timestamp(),
+				"body_parts": [plan_part]
+			}
+		)
+	elif event_name == "plan.clarification.required":
+		_append_timeline_entry(
+			"status",
+			request_id,
+			str(event_data.get("question", "")),
+			"plan-clarification:%s:%s" % [request_id, str(event_data.get("planId", ""))],
+			{
+				"status": "message",
+				"title": "需要澄清计划",
+				"detail": str(event_data.get("question", "")),
+				"action_label": "",
+				"action_id": ""
+			}
+		)
 
 
 func _append_tool_event_to_timeline(event_data: Dictionary, request_id: String) -> String:
@@ -6291,6 +6636,8 @@ func _configure_timeline_entry_node(node: Node, entry: Dictionary, _index: int) 
 			node.connect("action_requested", Callable(self, "_on_status_item_action_requested"))
 		if node.has_signal("inline_diff_undo_requested") and not node.is_connected("inline_diff_undo_requested", Callable(self, "_on_inline_diff_undo_requested")):
 			node.connect("inline_diff_undo_requested", Callable(self, "_on_inline_diff_undo_requested"))
+		if node.has_signal("plan_details_requested") and not node.is_connected("plan_details_requested", Callable(self, "_on_plan_details_requested")):
+			node.connect("plan_details_requested", Callable(self, "_on_plan_details_requested"))
 	elif entry_type == "thinking":
 		node.call("setup_thinking")
 		var content: String = str(entry.get("content", ""))
@@ -7446,6 +7793,7 @@ func _ready() -> void:
 	_setup_message_tree()
 	_setup_add_context_menu()
 	_setup_slash_command_popup()
+	_setup_plan_dialogs()
 	_render_message_panel()
 	_clear_template_items()
 	_render_additional_context_items()

@@ -27,6 +27,10 @@ func _run_tests() -> void:
 	_expect_equal(RPC_METHODS.APPROVAL_APPROVE, "approval.approve", "approval approve method")
 	_expect_equal(RPC_METHODS.MCP_CONFIG_ADD, "mcp.config.add", "mcp config add method")
 	_expect_equal(RPC_METHODS.MCP_CONFIG_UPDATE, "mcp.config.update", "mcp config update method")
+	_expect_equal(RPC_METHODS.PLAN_GET, "plan.get", "plan get method")
+	_expect_equal(RPC_METHODS.PLAN_CLARIFY, "plan.clarify", "plan clarify method")
+	_expect_equal(RPC_METHODS.PLAN_REVISE, "plan.revise", "plan revise method")
+	_expect_equal(RPC_METHODS.PLAN_APPROVE, "plan.approve", "plan approve method")
 
 	var methods: PackedStringArray = RPC_METHODS.all()
 	var seen: Dictionary[String, bool]
@@ -35,12 +39,13 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 60, "rpc method count")
+	_expect_equal(methods.size(), 64, "rpc method count")
 	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.CLIENT_INFO), true, "client info listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_INSTANCES_LIST), true, "editor instances list listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_TOOL_RESULT), true, "editor tool result listed")
 	_expect_equal(seen.has(RPC_METHODS.WORKSPACE_INFO), true, "workspace info listed")
+	_expect_equal(seen.has(RPC_METHODS.PLAN_APPROVE), true, "plan approve listed")
 
 
 func _expect_equal(actual_value: Variant, expected_value: Variant, label_text: String) -> void:

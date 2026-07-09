@@ -51,6 +51,10 @@ const FILE_CHANGE_CREATE: String = "fileChange.create"
 const FILE_CHANGE_OVERWRITE: String = "fileChange.overwrite"
 const FILE_CHANGE_DELETE: String = "fileChange.delete"
 const FILE_EDIT_BATCH_GET: String = "fileEdit.batch.get"
+const PLAN_GET: String = "plan.get"
+const PLAN_CLARIFY: String = "plan.clarify"
+const PLAN_REVISE: String = "plan.revise"
+const PLAN_APPROVE: String = "plan.approve"
 const APPROVAL_LIST: String = "approval.list"
 const APPROVAL_MODE_SET: String = "approval.mode.set"
 const APPROVAL_APPROVE: String = "approval.approve"
@@ -116,6 +120,10 @@ static func all() -> PackedStringArray:
 		FILE_CHANGE_OVERWRITE,
 		FILE_CHANGE_DELETE,
 		FILE_EDIT_BATCH_GET,
+		PLAN_GET,
+		PLAN_CLARIFY,
+		PLAN_REVISE,
+		PLAN_APPROVE,
 		APPROVAL_LIST,
 		APPROVAL_MODE_SET,
 		APPROVAL_APPROVE,

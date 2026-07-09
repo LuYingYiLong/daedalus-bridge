@@ -3,10 +3,12 @@ extends MarginContainer
 
 signal action_requested(action_id: String)
 signal inline_diff_undo_requested(summary: Dictionary)
+signal plan_details_requested(plan_id: String, fallback_markdown: String)
 
 const TOOL_CALL_ITEM_SCENE: PackedScene = preload("uid://c2a5o7qi58fus")
 const STATUS_ITEM_SCENE: PackedScene = preload("uid://cljnln76ye4o5")
 const INLINE_DIFF_VIEWER_SCENE: PackedScene = preload("uid://s13mo8fn3boc")
+const PLAN_PREVIEW_ITEM_SCENE: PackedScene = preload("uid://cs2l8rbjvetsi")
 const MARKDOWN_THEME: Theme = preload("uid://dhartxld7pqyb")
 const ELAPSED_UPDATE_INTERVAL_SECONDS: float = 1.0
 const STREAM_MARKDOWN_LAYOUT_FLUSH_MSEC: int = 96
@@ -167,6 +169,16 @@ func add_inline_diff_viewer(summary: Dictionary) -> Node:
 	return inline_diff_viewer
 
 
+func add_plan_preview(plan_data: Dictionary) -> Node:
+	_finish_current_markdown_label()
+	var plan_preview: Node = PLAN_PREVIEW_ITEM_SCENE.instantiate()
+	body_container.add_child(plan_preview)
+	if plan_preview.has_signal("details_requested"):
+		plan_preview.connect("details_requested", Callable(self, "_on_plan_details_requested"))
+	plan_preview.call("setup", plan_data)
+	return plan_preview
+
+
 func _on_mouse_entered() -> void:
 	footer_container.modulate.a = 1.0
 
@@ -235,6 +247,8 @@ func _setup_body_parts(body_parts: Array) -> void:
 			add_status(part)
 		elif part_type == "inline_diff":
 			add_inline_diff_viewer(part)
+		elif part_type == "plan":
+			add_plan_preview(part)
 
 
 func _ensure_current_markdown_label() -> MarkdownLabel:
@@ -277,6 +291,10 @@ func _on_status_item_action_requested(action_id: String) -> void:
 
 func _on_inline_diff_undo_requested(summary: Dictionary) -> void:
 	inline_diff_undo_requested.emit(summary)
+
+
+func _on_plan_details_requested(plan_id: String, fallback_markdown: String) -> void:
+	plan_details_requested.emit(plan_id, fallback_markdown)
 
 
 func _set_completion_times(started_at_utc: String, completed_at_utc: String) -> void:
