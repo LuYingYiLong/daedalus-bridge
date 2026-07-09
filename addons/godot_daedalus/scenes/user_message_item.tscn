@@ -72,6 +72,7 @@ layout_mode = 2
 theme_override_styles/normal = SubResource("StyleBoxFlat_5ojoj")
 theme_override_styles/focus = SubResource("StyleBoxFlat_4n5ck")
 theme_override_styles/read_only = SubResource("StyleBoxFlat_36hrw")
+scroll_fit_content_height = true
 
 [node name="FooterContainer" type="HBoxContainer" parent="VBoxContainer" unique_id=893017088]
 unique_name_in_owner = true

@@ -7,6 +7,7 @@ signal frontend_config_save_requested(backend_url: String, backend_dev_dir: Stri
 signal archived_session_restore_requested(session_id: String)
 signal archived_session_delete_requested(session_id: String)
 signal mcp_server_add_requested(config: Dictionary)
+signal mcp_server_update_requested(server_id: String, config: Dictionary)
 signal mcp_server_remove_requested(server_id: String)
 signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 
@@ -34,6 +35,7 @@ signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 const ARCHIVED_CHAT_ITEM_SCENE_UID: String = "uid://kyksk24wd7d3"
 const MCP_SERVER_ITEM_SCENE_UID: String = "uid://cuwihfpwn6b68"
 const ADD_MCP_SERVER_DIALOG_UID: String = "uid://cb7acb4w7s4xl"
+const EDIT_MCP_SERVER_DIALOG_UID: String = "uid://c7vbtknay2b0y"
 const CUSTOM_INSTRUCTIONS_WARNING_CHARS: int = 4000
 const CUSTOM_INSTRUCTIONS_HEAVY_CHARS: int = 12000
 const EDITOR_TYPE: StringName = &"Editor"
@@ -64,6 +66,7 @@ var custom_mcp_servers: Array[Dictionary]
 var provider_status_by_id: Dictionary[String, Dictionary]
 var mcp_backend_available: bool = true
 var mcp_add_pending: bool
+var pending_mcp_update_server_id: String
 var pending_mcp_server_metadata: Dictionary
 var archived_workspace_filter: String
 var archived_search_text: String
@@ -153,12 +156,14 @@ func setup_mcp_servers(servers: Array, backend_available: bool = true) -> void:
 
 	mcp_backend_available = backend_available
 	mcp_add_pending = false
+	pending_mcp_update_server_id = ""
 	pending_mcp_server_metadata.clear()
 	_render_mcp_servers()
 
 
 func show_mcp_error(message_text: String) -> void:
 	mcp_add_pending = false
+	pending_mcp_update_server_id = ""
 	pending_mcp_server_metadata.clear()
 	mcp_status_label.visible = true
 	mcp_status_label.text = message_text
@@ -279,14 +284,18 @@ func _render_mcp_servers() -> void:
 	for child_node: Node in mcp_server_list.get_children():
 		child_node.queue_free()
 
-	add_mcp_server_button.disabled = not mcp_backend_available or mcp_add_pending
-	add_mcp_server_button.tooltip_text = "Adding custom MCP server..." if mcp_add_pending else ("Add custom MCP server" if mcp_backend_available else "Backend is disconnected")
+	var has_update_pending: bool = not pending_mcp_update_server_id.is_empty()
+	add_mcp_server_button.disabled = not mcp_backend_available or mcp_add_pending or has_update_pending
+	add_mcp_server_button.tooltip_text = "Adding custom MCP server..." if mcp_add_pending else ("Updating custom MCP server..." if has_update_pending else ("Add custom MCP server" if mcp_backend_available else "Backend is disconnected"))
 	if not mcp_backend_available:
 		mcp_status_label.visible = true
 		mcp_status_label.text = "Backend is disconnected. MCP server settings are unavailable."
 	elif mcp_add_pending:
 		mcp_status_label.visible = true
 		mcp_status_label.text = "Adding custom MCP server..."
+	elif has_update_pending:
+		mcp_status_label.visible = true
+		mcp_status_label.text = "Updating custom MCP server..."
 	elif custom_mcp_servers.is_empty():
 		mcp_status_label.visible = true
 		mcp_status_label.text = "No custom MCP servers"
@@ -296,7 +305,11 @@ func _render_mcp_servers() -> void:
 
 	var rendered_servers: Array[Dictionary] = []
 	for metadata: Dictionary in custom_mcp_servers:
-		rendered_servers.append(metadata)
+		var rendered_metadata: Dictionary = metadata.duplicate(true)
+		if str(rendered_metadata.get("id", "")) == pending_mcp_update_server_id:
+			rendered_metadata["pending"] = true
+			rendered_metadata["status"] = "connecting"
+		rendered_servers.append(rendered_metadata)
 	if mcp_add_pending and not pending_mcp_server_metadata.is_empty():
 		rendered_servers.append(pending_mcp_server_metadata.duplicate(true) as Dictionary)
 
@@ -312,6 +325,7 @@ func _render_mcp_servers() -> void:
 		mcp_server_list.add_child(mcp_server_item)
 		mcp_server_item.call("setup", metadata)
 		mcp_server_item.connect("remove_requested", Callable(self, "_on_mcp_server_item_remove_requested"))
+		mcp_server_item.connect("edit_requested", Callable(self, "_on_mcp_server_item_edit_requested"))
 		mcp_server_item.connect("enabled_changed", Callable(self, "_on_mcp_server_item_enabled_changed"))
 
 
@@ -710,6 +724,45 @@ func _create_pending_mcp_server_metadata(config: Dictionary) -> Dictionary:
 	return metadata
 
 
+func _on_mcp_server_item_edit_requested(server_id: String) -> void:
+	if server_id.is_empty():
+		return
+	if not mcp_backend_available:
+		show_mcp_error("Backend is disconnected. Reconnect before editing MCP servers.")
+		return
+
+	var metadata: Dictionary = _find_mcp_server_metadata(server_id)
+	if metadata.is_empty():
+		show_mcp_error("MCP server could not be found.")
+		return
+
+	var packed_scene: PackedScene = load(EDIT_MCP_SERVER_DIALOG_UID) as PackedScene
+	if packed_scene == null:
+		show_mcp_error("Edit MCP server dialog could not be loaded.")
+		return
+
+	var dialog: ConfirmationDialog = packed_scene.instantiate() as ConfirmationDialog
+	add_child(dialog)
+	dialog.call("setup_server", metadata)
+	var submit_callable: Callable = Callable(self, "_on_edit_mcp_server_dialog_submitted").bind(dialog)
+	dialog.connect("server_config_submitted", submit_callable)
+	dialog.close_requested.connect(dialog.queue_free)
+	dialog.canceled.connect(dialog.queue_free)
+	dialog.popup_centered()
+
+
+func _on_edit_mcp_server_dialog_submitted(server_id: String, config: Dictionary, dialog: ConfirmationDialog) -> void:
+	if server_id.is_empty():
+		show_mcp_error("MCP server id is missing.")
+		return
+
+	pending_mcp_update_server_id = server_id
+	mcp_server_update_requested.emit(server_id, config)
+	_render_mcp_servers()
+	if dialog != null and is_instance_valid(dialog):
+		dialog.queue_free()
+
+
 func _on_mcp_server_item_enabled_changed(server_id: String, enabled: bool) -> void:
 	if server_id.is_empty():
 		return
@@ -771,6 +824,14 @@ func _get_mcp_server_name(server_id: String) -> String:
 				return server_name
 
 	return "Custom MCP"
+
+
+func _find_mcp_server_metadata(server_id: String) -> Dictionary:
+	for metadata: Dictionary in custom_mcp_servers:
+		if str(metadata.get("id", "")) == server_id:
+			return metadata.duplicate(true)
+
+	return {}
 
 
 func _on_backend_dev_dir_button_pressed() -> void:

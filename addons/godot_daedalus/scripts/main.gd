@@ -110,8 +110,7 @@ const PROVIDER_NAMES: PackedStringArray = [
 
 const APPROVAL_MODE_IDS: PackedStringArray = [
 	"manual",
-	"auto-safe",
-	"read-only"
+	"auto-safe"
 ]
 
 const CHAT_MODE_AGENT: String = "agent"
@@ -1278,6 +1277,7 @@ func _setup_slash_command_popup() -> void:
 func _load_frontend_config() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	var load_error: Error = config.load(FRONTEND_CONFIG_PATH)
+	var should_save_config: bool = load_error != OK
 
 	backend_dev_dir = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_DEV_DIR_KEY, "")).strip_edges()
 	backend_url = _resolve_backend_url_for_mode(
@@ -1301,10 +1301,16 @@ func _load_frontend_config() -> void:
 	)).strip_edges()
 	if not saved_model_id.is_empty():
 		_select_or_add_model_id(saved_model_id)
-	if not _select_approval_mode(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, APPROVAL_MODE_IDS[0]))):
+	var saved_approval_mode: String = str(config.get_value(
+		FRONTEND_CONFIG_SECTION,
+		CONFIG_APPROVAL_MODE_KEY,
+		APPROVAL_MODE_IDS[0]
+	)).strip_edges()
+	if not _select_approval_mode(saved_approval_mode):
 		_select_approval_mode(APPROVAL_MODE_IDS[0])
+		should_save_config = true
 
-	if load_error != OK:
+	if should_save_config:
 		_save_frontend_config()
 
 
@@ -3141,6 +3147,7 @@ func _stop_active_stream_locally(prepare_continue: bool) -> void:
 		active_assistant_item.call("finish_message")
 	if active_thinking_item != null:
 		active_thinking_item.call("finish_thinking")
+	_append_inline_diff_for_completed_stream(active_assistant_entry_id)
 
 	active_stream_id = ""
 	active_stream_request_id = ""
@@ -3825,6 +3832,7 @@ func _handle_response(message: Dictionary) -> void:
 			return
 		if str(message.get("id", "")) == active_stream_id:
 			_show_response_error(message)
+			_append_inline_diff_for_completed_stream(active_assistant_entry_id)
 			if active_queue_message_id > 0:
 				_finish_active_queue_message(false, MESSAGE_QUEUE_STATUS_FAILED)
 			active_stream_id = ""
@@ -4010,6 +4018,8 @@ func _handle_event(message: Dictionary) -> void:
 		if has_approval_request:
 			_save_paused_stream_context()
 		_flush_pending_assistant_delta()
+		if not has_approval_request:
+			_append_inline_diff_for_completed_stream(active_assistant_entry_id)
 		active_assistant_item = null
 		active_assistant_entry_id = ""
 		active_stream_id = ""
@@ -4886,13 +4896,13 @@ func _append_session_records_to_timeline(messages_value: Variant, events_value: 
 			if not request_id.is_empty():
 				var request_records: Array = events_by_request_id.get(request_id, []) as Array
 				_append_event_records(_filter_non_assistant_body_event_records(request_records))
-				body_parts = _build_assistant_body_parts(request_records, content, request_id)
+				body_parts = _build_assistant_body_parts(request_records, content, request_id, message)
 				if not consumed_request_ids.has(request_id):
 					consumed_request_ids.append(request_id)
 			else:
-				body_parts = _build_assistant_body_parts([], content, request_id)
+				body_parts = _build_assistant_body_parts([], content, request_id, message)
 			if not rendered_orphan_events and not orphan_events.is_empty():
-				_append_event_records(orphan_events)
+				_append_orphan_event_records(orphan_events)
 				rendered_orphan_events = true
 			var started_at_utc: String = str(request_started_at_by_id.get(request_id, ""))
 			_append_timeline_entry(
@@ -4908,7 +4918,7 @@ func _append_session_records_to_timeline(messages_value: Variant, events_value: 
 			)
 
 	if not rendered_orphan_events:
-		_append_event_records(orphan_events)
+		_append_orphan_event_records(orphan_events)
 
 	for request_id: String in events_by_request_id.keys():
 		if consumed_request_ids.has(request_id):
@@ -5029,6 +5039,61 @@ func _append_event_records(records: Array) -> void:
 		_append_event_to_timeline(event_name, data, str(event_record.get("requestId", "")))
 
 
+func _append_orphan_event_records(records: Array) -> void:
+	var failed_records_by_request_id: Dictionary[String, Array] = {}
+	for item: Variant in records:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		var request_id: String = str(event_record.get("requestId", ""))
+		if request_id.is_empty():
+			continue
+		if not _is_run_error_event(str(event_record.get("event", ""))):
+			continue
+
+		failed_records_by_request_id[request_id] = []
+
+	for item: Variant in records:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		var request_id: String = str(event_record.get("requestId", ""))
+		if failed_records_by_request_id.has(request_id):
+			var grouped_records: Array = failed_records_by_request_id[request_id]
+			grouped_records.append(event_record)
+			failed_records_by_request_id[request_id] = grouped_records
+
+	var consumed_request_ids: Dictionary[String, bool] = {}
+	for item: Variant in records:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		var request_id: String = str(event_record.get("requestId", ""))
+		if not failed_records_by_request_id.has(request_id):
+			_append_event_records([event_record])
+			continue
+		if consumed_request_ids.has(request_id):
+			continue
+
+		consumed_request_ids[request_id] = true
+		var failed_records: Array = failed_records_by_request_id[request_id]
+		var completed_at_utc: String = _get_last_event_created_at(failed_records)
+		_append_timeline_entry(
+			"assistant",
+			request_id,
+			"",
+			"failed:%s:%s" % [request_id, completed_at_utc],
+			{
+				"started_at_utc": _get_first_event_created_at(failed_records),
+				"completed_at_utc": completed_at_utc,
+				"body_parts": _build_assistant_body_parts(failed_records, "", request_id, {})
+			}
+		)
+
+
 func _filter_non_assistant_body_event_records(records: Array) -> Array:
 	var filtered_records: Array = []
 	for item: Variant in records:
@@ -5045,16 +5110,19 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 			continue
 		if event_name == "ai.status":
 			continue
+		if _is_run_error_event(event_name):
+			continue
 
 		filtered_records.append(event_record)
 
 	return filtered_records
 
 
-func _build_assistant_body_parts(records: Array, message_content: String, request_id: String) -> Array[Dictionary]:
+func _build_assistant_body_parts(records: Array, message_content: String, request_id: String, assistant_message: Dictionary = {}) -> Array[Dictionary]:
 	var body_parts: Array[Dictionary] = []
 	var file_edit_batches: Array[Dictionary] = []
 	var has_markdown_delta: bool = false
+	var has_error_status: bool = false
 	var records_have_markdown_delta: bool = _records_have_event(records, "ai.delta") or _records_have_event(records, "agent.message.delta")
 	if not records_have_markdown_delta and not message_content.is_empty():
 		_append_markdown_delta_to_body_parts(body_parts, message_content)
@@ -5089,15 +5157,79 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 			_append_thinking_event_to_body_parts(body_parts, "", true)
 		elif event_name == "ai.status":
 			_append_status_event_to_body_parts(body_parts, event_data)
+		elif _is_run_error_event(event_name):
+			_append_run_error_to_body_parts(body_parts, event_data)
+			has_error_status = true
 
 	if not has_markdown_delta and records_have_markdown_delta and not message_content.is_empty():
 		_append_markdown_delta_to_body_parts(body_parts, message_content)
+	if not has_error_status and str(assistant_message.get("status", "")) == "failed":
+		_append_failed_message_status_to_body_parts(body_parts, assistant_message)
 
 	var inline_diff_summary: Dictionary = _create_inline_diff_summary(file_edit_batches)
 	if not inline_diff_summary.is_empty():
 		body_parts.append(inline_diff_summary)
 
 	return body_parts
+
+
+func _is_run_error_event(event_name: String) -> bool:
+	return event_name == "agent.run.error" or event_name == "workflow.error"
+
+
+func _append_run_error_to_body_parts(body_parts: Array[Dictionary], event_data: Dictionary) -> void:
+	var message_text: String = str(event_data.get("message", "Unknown backend error"))
+	var code_text: String = str(event_data.get("code", "agent_run_error"))
+	_append_status_event_to_body_parts(body_parts, {
+		"status": "error",
+		"title": "后端返回错误",
+		"details": message_text,
+		"code": code_text
+	})
+
+
+func _append_failed_message_status_to_body_parts(body_parts: Array[Dictionary], assistant_message: Dictionary) -> void:
+	var error_value: Variant = assistant_message.get("error", {})
+	var code_text: String = "agent_run_error"
+	var message_text: String = "Unknown backend error"
+	if typeof(error_value) == TYPE_DICTIONARY:
+		var error_dictionary: Dictionary = error_value as Dictionary
+		code_text = str(error_dictionary.get("code", code_text))
+		message_text = str(error_dictionary.get("message", message_text))
+
+	_append_status_event_to_body_parts(body_parts, {
+		"status": "error",
+		"title": "后端返回错误",
+		"details": message_text,
+		"code": code_text
+	})
+
+
+func _get_first_event_created_at(records: Array) -> String:
+	for item: Variant in records:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		var created_at: String = str(event_record.get("createdAt", ""))
+		if not created_at.is_empty():
+			return created_at
+
+	return ""
+
+
+func _get_last_event_created_at(records: Array) -> String:
+	for index: int in range(records.size() - 1, -1, -1):
+		var item: Variant = records[index]
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+
+		var event_record: Dictionary = item as Dictionary
+		var created_at: String = str(event_record.get("createdAt", ""))
+		if not created_at.is_empty():
+			return created_at
+
+	return ""
 
 
 func _records_have_event(records: Array, target_event_name: String) -> bool:
@@ -7044,6 +7176,7 @@ func _on_settings_button_pressed() -> void:
 	settings_menu.connect("archived_session_restore_requested", Callable(self, "_on_settings_archived_session_restore_requested"))
 	settings_menu.connect("archived_session_delete_requested", Callable(self, "_on_settings_archived_session_delete_requested"))
 	settings_menu.connect("mcp_server_add_requested", Callable(self, "_on_settings_mcp_server_add_requested"))
+	settings_menu.connect("mcp_server_update_requested", Callable(self, "_on_settings_mcp_server_update_requested"))
 	settings_menu.connect("mcp_server_remove_requested", Callable(self, "_on_settings_mcp_server_remove_requested"))
 	settings_menu.connect("mcp_server_enabled_requested", Callable(self, "_on_settings_mcp_server_enabled_requested"))
 	settings_menu.tree_exited.connect(_on_settings_menu_tree_exited.bind(settings_menu))
@@ -7192,6 +7325,19 @@ func _on_settings_mcp_server_add_requested(config: Dictionary) -> void:
 	var add_request_id: String = _send_request(RPC_METHODS.MCP_CONFIG_ADD, config, "mcp-config-add")
 	if add_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server configuration to backend.")
+
+
+func _on_settings_mcp_server_update_requested(server_id: String, config: Dictionary) -> void:
+	if not _is_socket_open() or server_id.is_empty():
+		if active_settings_menu != null and is_instance_valid(active_settings_menu):
+			active_settings_menu.call("show_mcp_error", "Backend is disconnected. Reconnect before editing an MCP server.")
+		return
+
+	var request_params: Dictionary = config.duplicate(true)
+	request_params["serverId"] = server_id
+	var update_request_id: String = _send_request(RPC_METHODS.MCP_CONFIG_UPDATE, request_params, "mcp-config-update")
+	if update_request_id.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
+		active_settings_menu.call("show_mcp_error", "Failed to send MCP server update to backend.")
 
 
 func _on_settings_mcp_server_remove_requested(server_id: String) -> void:

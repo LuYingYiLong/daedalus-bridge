@@ -44,6 +44,7 @@ const MCP_LIST_RESOURCES: String = "mcp.listResources"
 const MCP_READ_RESOURCE: String = "mcp.readResource"
 const MCP_CONFIG_LIST: String = "mcp.config.list"
 const MCP_CONFIG_ADD: String = "mcp.config.add"
+const MCP_CONFIG_UPDATE: String = "mcp.config.update"
 const MCP_CONFIG_REMOVE: String = "mcp.config.remove"
 const MCP_CONFIG_SET_ENABLED: String = "mcp.config.setEnabled"
 const FILE_CHANGE_CREATE: String = "fileChange.create"
@@ -108,6 +109,7 @@ static func all() -> PackedStringArray:
 		MCP_READ_RESOURCE,
 		MCP_CONFIG_LIST,
 		MCP_CONFIG_ADD,
+		MCP_CONFIG_UPDATE,
 		MCP_CONFIG_REMOVE,
 		MCP_CONFIG_SET_ENABLED,
 		FILE_CHANGE_CREATE,

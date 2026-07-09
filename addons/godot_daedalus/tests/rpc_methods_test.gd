@@ -26,6 +26,7 @@ func _run_tests() -> void:
 	_expect_equal(RPC_METHODS.SESSION_EDITOR_BIND, "session.editor.bind", "session editor bind method")
 	_expect_equal(RPC_METHODS.APPROVAL_APPROVE, "approval.approve", "approval approve method")
 	_expect_equal(RPC_METHODS.MCP_CONFIG_ADD, "mcp.config.add", "mcp config add method")
+	_expect_equal(RPC_METHODS.MCP_CONFIG_UPDATE, "mcp.config.update", "mcp config update method")
 
 	var methods: PackedStringArray = RPC_METHODS.all()
 	var seen: Dictionary[String, bool]
@@ -34,7 +35,7 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 59, "rpc method count")
+	_expect_equal(methods.size(), 60, "rpc method count")
 	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.CLIENT_INFO), true, "client info listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_INSTANCES_LIST), true, "editor instances list listed")

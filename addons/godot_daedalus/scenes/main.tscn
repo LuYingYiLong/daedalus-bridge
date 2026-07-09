@@ -16,8 +16,6 @@
 [ext_resource type="Texture2D" uid="uid://b2gn4c0mefhra" path="res://addons/godot_daedalus/assets/icons/plan.svg" id="10_4ygoa"]
 [ext_resource type="Texture2D" uid="uid://ccw4n4twpde11" path="res://addons/godot_daedalus/assets/icons/shield.svg" id="14_42cu0"]
 [ext_resource type="Texture2D" uid="uid://cjjnoxgoriwwi" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="15_5j0us"]
-[ext_resource type="Texture2D" uid="uid://7tyqcprrpdxk" path="res://addons/godot_daedalus/assets/icons/read.svg" id="16_0825u"]
-
 [node name="Main" type="VBoxContainer" unique_id=81601605]
 offset_right = 1152.0
 offset_bottom = 648.0
@@ -372,16 +370,13 @@ popup/item_2/id = 2
 unique_name_in_owner = true
 layout_mode = 2
 selected = 0
-item_count = 3
+item_count = 2
 popup/item_0/text = "Manual"
 popup/item_0/icon = ExtResource("14_42cu0")
 popup/item_0/id = 0
 popup/item_1/text = "Auto Safe"
 popup/item_1/icon = ExtResource("15_5j0us")
 popup/item_1/id = 1
-popup/item_2/text = "Read Only"
-popup/item_2/icon = ExtResource("16_0825u")
-popup/item_2/id = 2
 
 [node name="Control" type="Control" parent="MainViewer/FooterContainer" unique_id=1027525108]
 layout_mode = 2

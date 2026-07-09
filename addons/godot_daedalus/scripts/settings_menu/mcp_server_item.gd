@@ -3,6 +3,7 @@ extends HBoxContainer
 
 signal remove_requested(server_id: String)
 signal enabled_changed(server_id: String, enabled: bool)
+signal edit_requested(server_id: String)
 
 @onready var name_label: Label = %NameLabel
 @onready var remove_button: Button = %RemoveButton
@@ -11,11 +12,6 @@ signal enabled_changed(server_id: String, enabled: bool)
 
 var server_id: String
 var suppress_enabled_signal: bool
-
-
-func _ready() -> void:
-	edit_button.disabled = true
-	edit_button.tooltip_text = "Editing custom MCP servers is not available in this version."
 
 
 func setup(metadata: Dictionary) -> void:
@@ -30,8 +26,10 @@ func setup(metadata: Dictionary) -> void:
 	name_label.text = server_name
 	name_label.tooltip_text = _format_tooltip(metadata)
 	remove_button.tooltip_text = "Remove this custom MCP server"
+	edit_button.tooltip_text = "Edit this custom MCP server"
 	check_button.tooltip_text = "Enable or disable this custom MCP server"
 	remove_button.disabled = is_pending
+	edit_button.disabled = is_pending
 	check_button.disabled = is_pending
 	suppress_enabled_signal = true
 	check_button.button_pressed = enabled
@@ -43,6 +41,13 @@ func _on_remove_button_pressed() -> void:
 		return
 
 	remove_requested.emit(server_id)
+
+
+func _on_edit_button_pressed() -> void:
+	if server_id.is_empty():
+		return
+
+	edit_requested.emit(server_id)
 
 
 func _on_check_button_toggled(button_pressed: bool) -> void:

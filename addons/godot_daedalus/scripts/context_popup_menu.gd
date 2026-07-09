@@ -94,8 +94,6 @@ func _format_approval(info: Dictionary) -> String:
 func _format_approval_mode(mode: String) -> String:
 	if mode == "auto-safe":
 		return "Auto Safe"
-	if mode == "read-only":
-		return "Read Only"
 	if mode == "manual":
 		return "Manual"
 
