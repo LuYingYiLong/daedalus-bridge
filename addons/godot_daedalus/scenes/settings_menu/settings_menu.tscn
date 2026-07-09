@@ -116,6 +116,57 @@ icon = ExtResource("2_y8kc5")
 layout_mode = 2
 text = "Daedalus will mask the API key"
 
+[node name="ProviderBaseURLLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1908720007]
+layout_mode = 2
+text = "Request URL"
+
+[node name="ProviderBaseURLLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1509624576]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "https://api.deepseek.com"
+clear_button_enabled = true
+caret_blink = true
+
+[node name="ImageRecognitionModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=2082936855]
+layout_mode = 2
+text = "Image recognition model"
+
+[node name="ImageRecognitionModelOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1786138034]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Model used to read images when the current chat model does not support image input."
+selected = 0
+item_count = 1
+popup/item_0/text = "Use current model"
+popup/item_0/id = 0
+
+[node name="WorkflowPlannerModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1736267794]
+layout_mode = 2
+text = "Workflow/Plan planner model"
+
+[node name="WorkflowPlannerModelOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1053240666]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Model used for Plan mode and LLM workflow planning."
+selected = 0
+item_count = 1
+popup/item_0/text = "Use current model"
+popup/item_0/id = 0
+
+[node name="SessionTitleModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=305954957]
+layout_mode = 2
+text = "Session title model"
+
+[node name="SessionTitleModelOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1746106011]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Model used to rename new sessions automatically."
+selected = 0
+item_count = 1
+popup/item_0/text = "Use current model"
+popup/item_0/id = 0
+
 [node name="CheckForUpdatesLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1765588519]
 layout_mode = 2
 text = "Check for updates"

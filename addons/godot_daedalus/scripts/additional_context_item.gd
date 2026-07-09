@@ -20,6 +20,10 @@ var context_id: String
 var context_data: Dictionary
 var pinned: bool
 var interactive: bool = true
+var thumbnail_texture: Texture2D
+var thumbnail_source_key: String
+var thumbnail_thread: Thread
+var thumbnail_request_id: int
 
 
 func setup(context: Dictionary) -> void:
@@ -30,6 +34,16 @@ func setup(context: Dictionary) -> void:
 	title_label.text = str(context_data.get("title", "Context"))
 	_apply_icon_state()
 	tooltip_text = _create_tooltip_text()
+
+
+func _process(_delta: float) -> void:
+	_poll_thumbnail_thread()
+
+
+func _exit_tree() -> void:
+	if thumbnail_thread != null:
+		thumbnail_thread.wait_to_finish()
+		thumbnail_thread = null
 
 
 func set_interactive(enabled: bool) -> void:
@@ -70,16 +84,20 @@ func _get_context_icon() -> Texture2D:
 	if context_kind == "file":
 		return SCRIPT_ICON if _is_script_resource_path(str(context_data.get("resourcePath", ""))) else FILE_ICON
 	if context_kind == "filesystem_selection":
-		var filesystem_image_texture: Texture2D = _get_filesystem_selection_image_thumbnail_texture()
+		var filesystem_image_texture: Texture2D = _get_or_queue_image_thumbnail(
+			_get_first_filesystem_selection_image_path(),
+			""
+		)
 		if filesystem_image_texture != null:
 			return filesystem_image_texture
 		return SCRIPT_ICON if _is_filesystem_selection_only_scripts() else FILE_ICON
 	if context_kind == "folder":
 		return FILE_ICON
 	if context_kind == "image":
-		var image_texture: Texture2D = _get_image_thumbnail_texture(
+		var image_data: Dictionary = _get_context_data()
+		var image_texture: Texture2D = _get_or_queue_image_thumbnail(
 			str(context_data.get("resourcePath", "")).strip_edges(),
-			str(_get_context_data().get("dataUrl", "")).strip_edges()
+			str(image_data.get("thumbnailDataUrl", image_data.get("dataUrl", ""))).strip_edges()
 		)
 		if image_texture != null:
 			return image_texture
@@ -89,7 +107,11 @@ func _get_context_icon() -> Texture2D:
 
 
 func _apply_icon_state() -> void:
-	context_icon.texture = _get_context_icon()
+	_set_context_texture(_get_context_icon())
+
+
+func _set_context_texture(next_texture: Texture2D) -> void:
+	context_icon.texture = next_texture
 	if interactive:
 		context_icon.show()
 		icon = PIN_ICON if pinned else UNPIN_ICON
@@ -98,12 +120,82 @@ func _apply_icon_state() -> void:
 		icon = context_icon.texture
 
 
-func _get_filesystem_selection_image_thumbnail_texture() -> Texture2D:
-	var image_path: String = _get_first_filesystem_selection_image_path()
-	if image_path.is_empty():
+func _get_or_queue_image_thumbnail(resource_path: String, data_url: String) -> Texture2D:
+	var normalized_resource_path: String = resource_path.strip_edges()
+	var normalized_data_url: String = data_url.strip_edges()
+	if normalized_resource_path.is_empty() and normalized_data_url.is_empty():
 		return null
+	var next_source_key: String = "%s\n%d:%d" % [
+		normalized_resource_path,
+		normalized_data_url.length(),
+		hash(normalized_data_url)
+	]
+	if thumbnail_texture != null and thumbnail_source_key == next_source_key:
+		return thumbnail_texture
+	_queue_thumbnail_load(next_source_key, normalized_resource_path, normalized_data_url)
+	return null
 
-	return _get_image_thumbnail_texture(image_path, "")
+
+func _queue_thumbnail_load(source_key: String, resource_path: String, data_url: String) -> void:
+	if thumbnail_thread != null:
+		if thumbnail_source_key == source_key:
+			return
+		thumbnail_thread.wait_to_finish()
+		thumbnail_thread = null
+
+	thumbnail_source_key = source_key
+	thumbnail_request_id += 1
+	var request_id: int = thumbnail_request_id
+	thumbnail_thread = Thread.new()
+	var error: Error = thumbnail_thread.start(Callable(self, "_load_image_thumbnail_thread").bind(request_id, resource_path, data_url))
+	if error != OK:
+		thumbnail_thread = null
+		return
+	set_process(true)
+
+
+func _poll_thumbnail_thread() -> void:
+	if thumbnail_thread == null:
+		set_process(false)
+		return
+	if thumbnail_thread.is_alive():
+		return
+
+	var result_value: Variant = thumbnail_thread.wait_to_finish()
+	thumbnail_thread = null
+	set_process(false)
+	if typeof(result_value) != TYPE_DICTIONARY:
+		return
+
+	var result: Dictionary = result_value as Dictionary
+	if int(result.get("requestId", 0)) != thumbnail_request_id:
+		return
+	var image_value: Variant = result.get("image", null)
+	if not (image_value is Image):
+		return
+	var image_resource: Image = image_value as Image
+	if image_resource.is_empty():
+		return
+
+	thumbnail_texture = ImageTexture.create_from_image(image_resource)
+	_set_context_texture(thumbnail_texture)
+
+
+func _load_image_thumbnail_thread(request_id: int, resource_path: String, data_url: String) -> Dictionary:
+	var image_resource: Image = Image.new()
+	var error: Error = ERR_UNAVAILABLE
+	if not resource_path.is_empty():
+		error = image_resource.load(resource_path)
+	elif not data_url.is_empty():
+		error = _load_image_from_data_url(image_resource, data_url)
+
+	if error != OK:
+		return { "requestId": request_id }
+
+	return {
+		"requestId": request_id,
+		"image": image_resource
+	}
 
 
 func _get_first_filesystem_selection_image_path() -> String:
@@ -128,41 +220,27 @@ func _get_first_filesystem_selection_image_path() -> String:
 	return ""
 
 
-func _get_image_thumbnail_texture(resource_path: String, data_url: String) -> Texture2D:
-	if not resource_path.is_empty():
-		var loaded_texture: Texture2D = load(resource_path) as Texture2D
-		if loaded_texture != null:
-			return loaded_texture
-
-	return _get_image_thumbnail_texture_from_data_url(data_url)
-
-
-func _get_image_thumbnail_texture_from_data_url(data_url: String) -> Texture2D:
+func _load_image_from_data_url(image_resource: Image, data_url: String) -> Error:
 	var comma_index: int = data_url.find(",")
 	if comma_index < 0:
-		return null
+		return ERR_INVALID_DATA
 
 	var raw_bytes: PackedByteArray = Marshalls.base64_to_raw(data_url.substr(comma_index + 1))
 	if raw_bytes.is_empty():
-		return null
+		return ERR_INVALID_DATA
 
-	var image_resource: Image = Image.new()
 	var mime_type: String = data_url.substr(5, comma_index - 5).split(";")[0] if data_url.begins_with("data:") else ""
-	var error: Error = ERR_UNAVAILABLE
 	match mime_type:
 		"image/png":
-			error = image_resource.load_png_from_buffer(raw_bytes)
+			return image_resource.load_png_from_buffer(raw_bytes)
 		"image/jpeg":
-			error = image_resource.load_jpg_from_buffer(raw_bytes)
+			return image_resource.load_jpg_from_buffer(raw_bytes)
 		"image/webp":
-			error = image_resource.load_webp_from_buffer(raw_bytes)
+			return image_resource.load_webp_from_buffer(raw_bytes)
 		_:
-			error = ERR_UNAVAILABLE
+			return ERR_UNAVAILABLE
 
-	if error != OK:
-		return null
-
-	return ImageTexture.create_from_image(image_resource)
+	return ERR_UNAVAILABLE
 
 
 func _is_filesystem_selection_only_scripts() -> bool:

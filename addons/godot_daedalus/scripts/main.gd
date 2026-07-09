@@ -96,6 +96,7 @@ const SCRIPT_SELECTION_PREVIEW_LIMIT: int = 2000
 const SCRIPT_LINE_PREVIEW_LIMIT: int = 500
 const SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT: int = 12000
 const FILESYSTEM_CONTEXT_MAX_PATHS: int = 40
+const ADDITIONAL_CONTEXT_MAX_ITEMS: int = 10
 const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 500
 
 const DEFAULT_PROVIDER_ID: String = "deepseek"
@@ -185,6 +186,8 @@ var active_stream_id: String
 var active_session_id: String
 var pending_chat_text: String
 var pending_chat_additional_context: Array[Dictionary]
+var pending_clipboard_image_payload: Dictionary
+var pending_clipboard_image_save_request_id: String
 var pending_approval_id: String
 var sessions_by_id: Dictionary[String, Dictionary]
 var session_ids_in_order: PackedStringArray
@@ -272,7 +275,9 @@ var model_ids: PackedStringArray
 var model_names: PackedStringArray
 var model_capabilities: Array[Dictionary]
 var pending_provider_config_api_key: String
+var pending_provider_config_base_url: String
 var pending_provider_config_provider: String = DEFAULT_PROVIDER_ID
+var pending_provider_config_model_routing: Dictionary
 var pending_provider_config_save_after_connect: bool
 var queued_messages: Array[Dictionary]
 var message_queue_next_id: int
@@ -609,6 +614,103 @@ func _add_image_context(resource_path: String) -> void:
 		_show_image_model_warning()
 
 
+func _handle_clipboard_image_paste() -> bool:
+	var clipboard_image: Image = DisplayServer.clipboard_get_image()
+	if clipboard_image == null or clipboard_image.is_empty():
+		return false
+
+	var payload: Dictionary = _create_clipboard_image_payload(clipboard_image)
+	if payload.is_empty():
+		return true
+
+	if not _is_socket_open():
+		_upsert_connection_status_entry("warning", "后端未连接", "无法保存剪贴板图片，请连接后端后重试。")
+		return true
+
+	if active_session_id.is_empty():
+		pending_clipboard_image_payload = payload
+		_create_session("New session " + Time.get_datetime_string_from_system(false, true))
+		return true
+
+	_save_clipboard_image_attachment(payload)
+	return true
+
+
+func _create_clipboard_image_payload(clipboard_image: Image) -> Dictionary:
+	var png_bytes: PackedByteArray = clipboard_image.save_png_to_buffer()
+	if png_bytes.is_empty():
+		_upsert_connection_status_entry("warning", "剪贴板图片读取失败", "无法把剪贴板图片编码为 PNG。")
+		return {}
+
+	var byte_size: int = png_bytes.size()
+	var unique_path: String = "clipboard://%d" % Time.get_ticks_usec()
+	var limit_message: String = MAIN_HELPERS.validate_image_context_limits(additional_context_items, unique_path, byte_size)
+	if not limit_message.is_empty():
+		_upsert_connection_status_entry("warning", "图片无法添加", limit_message)
+		return {}
+
+	var title: String = "Clipboard image %s" % Time.get_datetime_string_from_system(false, true).replace("T", " ")
+	return {
+		"mimeType": "image/png",
+		"dataUrl": "data:image/png;base64,%s" % Marshalls.raw_to_base64(png_bytes),
+		"byteSize": byte_size,
+		"width": clipboard_image.get_width(),
+		"height": clipboard_image.get_height(),
+		"title": title
+	}
+
+
+func _save_clipboard_image_attachment(payload: Dictionary) -> void:
+	if not _is_socket_open():
+		_upsert_connection_status_entry("warning", "后端未连接", "无法保存剪贴板图片，请连接后端后重试。")
+		return
+	if active_session_id.is_empty():
+		pending_clipboard_image_payload = payload.duplicate(true)
+		_create_session("New session " + Time.get_datetime_string_from_system(false, true))
+		return
+
+	var params: Dictionary[String, Variant] = {
+		"sessionId": active_session_id,
+		"mimeType": str(payload.get("mimeType", "image/png")),
+		"dataUrl": str(payload.get("dataUrl", "")),
+		"byteSize": int(payload.get("byteSize", 0)),
+		"title": str(payload.get("title", "Clipboard image"))
+	}
+	var width: int = int(payload.get("width", 0))
+	var height: int = int(payload.get("height", 0))
+	if width > 0:
+		params["width"] = width
+	if height > 0:
+		params["height"] = height
+
+	pending_clipboard_image_save_request_id = _send_request(RPC_METHODS.ATTACHMENT_IMAGE_SAVE, params, "attachment-image-save")
+	if pending_clipboard_image_save_request_id.is_empty():
+		_upsert_connection_status_entry("warning", "剪贴板图片保存失败", "无法向后端发送图片保存请求。")
+
+
+func _handle_attachment_image_save_response(response_id: String, ok: bool, result: Dictionary) -> bool:
+	if response_id != pending_clipboard_image_save_request_id and not response_id.begins_with("attachment-image-save"):
+		return false
+
+	if response_id == pending_clipboard_image_save_request_id:
+		pending_clipboard_image_save_request_id = ""
+
+	if not ok:
+		_upsert_connection_status_entry("warning", "剪贴板图片保存失败", "后端未能保存剪贴板图片。")
+		return true
+
+	var attachment_value: Variant = result.get("attachment", {})
+	if typeof(attachment_value) != TYPE_DICTIONARY:
+		_upsert_connection_status_entry("warning", "剪贴板图片保存失败", "后端返回的图片上下文无效。")
+		return true
+
+	var context: Dictionary = attachment_value as Dictionary
+	_add_or_replace_additional_context(context)
+	if not _can_send_image_contexts():
+		_show_image_model_warning()
+	return true
+
+
 func _create_image_context(resource_path: String, existing_contexts: Array, context_source: String, is_pinned: bool) -> Dictionary:
 	if not MAIN_HELPERS.is_supported_image_resource_path(resource_path):
 		_upsert_connection_status_entry("warning", "图片格式不支持", "第一版仅支持 PNG、JPEG、WebP 和 GIF 图片。")
@@ -775,9 +877,25 @@ func _add_or_replace_additional_context(context: Dictionary) -> void:
 			_update_send_state()
 			return
 
+	if not _can_append_additional_context(true):
+		return
+
 	additional_context_items.append(context.duplicate(true))
 	_render_additional_context_items()
 	_update_send_state()
+
+
+func _can_append_additional_context(show_warning: bool) -> bool:
+	if additional_context_items.size() < ADDITIONAL_CONTEXT_MAX_ITEMS:
+		return true
+
+	if show_warning:
+		_upsert_connection_status_entry(
+			"warning",
+			"额外上下文已满",
+			"最多只能装填 %d 个额外编辑器上下文。请先移除或发送当前上下文。" % ADDITIONAL_CONTEXT_MAX_ITEMS
+		)
+	return false
 
 
 func _render_additional_context_items() -> void:
@@ -805,6 +923,21 @@ func _on_additional_context_pin_toggled(context_id: String, pinned: bool) -> voi
 	for index: int in range(additional_context_items.size()):
 		var context: Dictionary = additional_context_items[index]
 		if str(context.get("id", "")) == context_id:
+			if pinned and _is_live_additional_context_id(context_id):
+				_ensure_dismissed_live_context_signatures()
+				dismissed_live_context_signatures[context_id] = _make_live_additional_context_signature(context_id, context)
+				var detached_context: Dictionary = context.duplicate(true)
+				detached_context["id"] = _make_additional_context_id(
+					str(detached_context.get("kind", "context")),
+					str(detached_context.get("resourcePath", "")),
+					_make_additional_context_key(detached_context)
+				)
+				detached_context["pinned"] = true
+				additional_context_items[index] = detached_context
+				_render_additional_context_items()
+				_update_send_state()
+				return
+
 			context["pinned"] = pinned
 			additional_context_items[index] = context
 			break
@@ -918,7 +1051,16 @@ func _clone_additional_context_array(source_contexts: Array) -> Array[Dictionary
 		if typeof(context_value) != TYPE_DICTIONARY:
 			continue
 		var context_dictionary: Dictionary = context_value as Dictionary
-		cloned_contexts.append(context_dictionary.duplicate(true))
+		var cloned_context: Dictionary = context_dictionary.duplicate(true)
+		if str(cloned_context.get("kind", "")) == "image":
+			var data_value: Variant = cloned_context.get("data", {})
+			if typeof(data_value) == TYPE_DICTIONARY:
+				var image_data: Dictionary = data_value as Dictionary
+				if not str(image_data.get("attachmentId", "")).is_empty():
+					image_data.erase("dataUrl")
+					image_data.erase("thumbnailDataUrl")
+					cloned_context["data"] = image_data
+		cloned_contexts.append(cloned_context)
 	return cloned_contexts
 
 
@@ -942,6 +1084,11 @@ func _make_additional_context_id(context_kind: String, resource_path: String, no
 
 func _make_additional_context_key(context: Dictionary) -> String:
 	var context_kind: String = str(context.get("kind", ""))
+	if context_kind == "image":
+		var image_data: Dictionary = _get_additional_context_data(context)
+		var attachment_id: String = str(image_data.get("attachmentId", "")).strip_edges()
+		if not attachment_id.is_empty():
+			return "%s\n%s" % [context_kind, attachment_id]
 	if context_kind == "script_selection":
 		return "%s\n%s\n%s" % [
 			context_kind,
@@ -982,11 +1129,37 @@ func _selected_model_supports_image_input() -> bool:
 	return MAIN_HELPERS.model_capabilities_support_image(capabilities)
 
 
+func _has_configured_image_recognition_model() -> bool:
+	var routing_value: Variant = provider_config_status.get("modelRouting", {})
+	if typeof(routing_value) != TYPE_DICTIONARY:
+		return false
+
+	var routing: Dictionary = routing_value as Dictionary
+	var image_model_value: Variant = routing.get("imageRecognition", null)
+	if typeof(image_model_value) != TYPE_DICTIONARY:
+		return false
+
+	var image_model: Dictionary = image_model_value as Dictionary
+	return not str(image_model.get("provider", "")).strip_edges().is_empty() and not str(image_model.get("model", "")).strip_edges().is_empty()
+
+
+func _can_send_image_contexts() -> bool:
+	return _selected_model_supports_image_input() or _has_configured_image_recognition_model()
+
+
 func _show_image_model_warning() -> void:
+	if _has_configured_image_recognition_model():
+		_upsert_connection_status_entry(
+			"message",
+			"图片将先识别",
+			"当前模型不支持图片，后端会先使用 Image recognition model 识别图片，再交给当前模型回答。"
+		)
+		return
+
 	_upsert_connection_status_entry(
 		"warning",
 		"当前模型不支持图片输入",
-		"请切换到带有 image capability 的模型后再发送图片。"
+		"请切换到带有 image capability 的模型，或在设置里配置 Image recognition model。"
 	)
 
 
@@ -1905,11 +2078,15 @@ func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String
 	_send_environment_config()
 	if pending_provider_config_save_after_connect:
 		var deferred_api_key: String = pending_provider_config_api_key
+		var deferred_base_url: String = pending_provider_config_base_url
 		var deferred_provider_id: String = pending_provider_config_provider
+		var deferred_model_routing: Dictionary = pending_provider_config_model_routing.duplicate(true)
 		pending_provider_config_api_key = ""
+		pending_provider_config_base_url = ""
 		pending_provider_config_provider = DEFAULT_PROVIDER_ID
+		pending_provider_config_model_routing.clear()
 		pending_provider_config_save_after_connect = false
-		_save_provider_config_to_backend(deferred_provider_id, deferred_api_key)
+		_save_provider_config_to_backend(deferred_provider_id, deferred_api_key, deferred_base_url, deferred_model_routing)
 	else:
 		_load_provider_config()
 	_load_mcp_config()
@@ -2239,6 +2416,8 @@ func _upsert_live_additional_context(context_id: String, context: Dictionary) ->
 			return
 		additional_context_items[existing_index] = live_context
 	else:
+		if not _can_append_additional_context(false):
+			return
 		additional_context_items.append(live_context)
 	_render_additional_context_items()
 
@@ -2969,7 +3148,8 @@ func _apply_model_config_to_backend() -> void:
 	var params: Dictionary[String, Variant] = {
 		"provider": active_provider_id,
 		"model": _get_selected_model_id(),
-		"activate": true
+		"activate": true,
+		"modelRouting": provider_config_status.get("modelRouting", {})
 	}
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
@@ -3079,7 +3259,7 @@ func _on_send_button_pressed() -> void:
 		return
 
 	var additional_context_snapshot: Array[Dictionary] = _get_additional_context_snapshot()
-	if _context_array_has_images(additional_context_snapshot) and not _selected_model_supports_image_input():
+	if _context_array_has_images(additional_context_snapshot) and not _can_send_image_contexts():
 		_show_image_model_warning()
 		_update_send_state()
 		return
@@ -3321,7 +3501,7 @@ func _create_chat_options_for_mode(chat_mode: String) -> Dictionary[String, Vari
 func _send_chat_text(message_text: String, retry_from_request_id: String = "", additional_contexts: Array = []) -> bool:
 	if not _is_socket_open():
 		return false
-	if _context_array_has_images(additional_contexts) and not _selected_model_supports_image_input():
+	if _context_array_has_images(additional_contexts) and not _can_send_image_contexts():
 		_show_image_model_warning()
 		_update_send_state()
 		return false
@@ -3819,6 +3999,8 @@ func _handle_response(message: Dictionary) -> void:
 
 	var ok: bool = bool(message.get("ok", false))
 	if not ok:
+		if _handle_attachment_image_save_response(str(message.get("id", "")), false, {}):
+			return
 		if _handle_file_edit_batch_response(str(message.get("id", "")), false, {}):
 			return
 		if _handle_plan_response_error(str(message.get("id", ""))):
@@ -3886,6 +4068,8 @@ func _handle_response(message: Dictionary) -> void:
 	if response_id.begins_with("client-hello"):
 		_update_connection_identity_tooltip()
 		return
+	if _handle_attachment_image_save_response(response_id, true, result_dictionary):
+		return
 	if _handle_file_edit_batch_response(str(message.get("id", "")), true, result_dictionary):
 		return
 	if _handle_plan_response(response_id, result_dictionary):
@@ -3915,6 +4099,10 @@ func _handle_response(message: Dictionary) -> void:
 		_clear_chat_items()
 		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
 		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
+		if not pending_clipboard_image_payload.is_empty():
+			var next_clipboard_image_payload: Dictionary = pending_clipboard_image_payload.duplicate(true)
+			pending_clipboard_image_payload.clear()
+			_save_clipboard_image_attachment(next_clipboard_image_payload)
 
 		if not pending_chat_text.is_empty():
 			var next_message: String = pending_chat_text
@@ -7612,7 +7800,7 @@ func _update_send_state() -> void:
 	var is_streaming: bool = not active_stream_id.is_empty()
 	var has_message_draft: bool = _has_message_draft()
 	var has_pending_queue: bool = _has_pending_queued_messages()
-	var has_unsupported_image: bool = _context_array_has_images(additional_context_items) and not _selected_model_supports_image_input()
+	var has_unsupported_image: bool = _context_array_has_images(additional_context_items) and not _can_send_image_contexts()
 	var should_show_send_button: bool = _should_show_send_button(is_streaming, has_message_draft)
 	send_button.visible = should_show_send_button
 	stop_button.visible = is_streaming
@@ -7620,7 +7808,7 @@ func _update_send_state() -> void:
 	if not socket_ready:
 		send_button.tooltip_text = "Queue message until reconnected"
 	elif has_unsupported_image:
-		send_button.tooltip_text = "Current model does not support image input"
+		send_button.tooltip_text = "Current model does not support image input. Configure an image recognition model or remove image context."
 	elif is_streaming or not pending_approval_id.is_empty():
 		send_button.tooltip_text = "Queue message"
 	elif _has_pending_queued_messages():
@@ -7935,28 +8123,32 @@ func _on_settings_mcp_server_enabled_requested(server_id: String, enabled: bool)
 		active_settings_menu.call("show_mcp_error", "Failed to send MCP server state change to backend.")
 
 
-func _on_settings_provider_config_save_requested(provider_id: String, api_key: String) -> void:
+func _on_settings_provider_config_save_requested(provider_id: String, api_key: String, base_url: String, model_routing: Dictionary) -> void:
 	if not _is_socket_open():
 		pending_provider_config_provider = provider_id
 		pending_provider_config_api_key = api_key
+		pending_provider_config_base_url = base_url
+		pending_provider_config_model_routing = model_routing.duplicate(true)
 		pending_provider_config_save_after_connect = true
 		return
 
-	_save_provider_config_to_backend(provider_id, api_key)
+	_save_provider_config_to_backend(provider_id, api_key, base_url, model_routing)
 
 
-func _save_provider_config_to_backend(provider_id: String, api_key: String) -> void:
+func _save_provider_config_to_backend(provider_id: String, api_key: String, base_url: String = "", model_routing: Dictionary = {}) -> void:
 	if _is_known_provider_id(provider_id):
 		_switch_active_provider(provider_id, false)
 
 	var params: Dictionary[String, Variant] = {
 		"provider": active_provider_id,
 		"model": _get_selected_model_id(),
-		"activate": true
+		"activate": true,
+		"modelRouting": model_routing if not model_routing.is_empty() else provider_config_status.get("modelRouting", {})
 	}
 
 	if not api_key.strip_edges().is_empty():
 		params["apiKey"] = api_key.strip_edges()
+	params["baseUrl"] = base_url.strip_edges() if not base_url.strip_edges().is_empty() else null
 
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
 
@@ -8051,6 +8243,11 @@ func _input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed):
 		return
 	if not text_edit.has_focus():
+		return
+
+	if event.keycode == KEY_V and event.ctrl_pressed:
+		if _handle_clipboard_image_paste():
+			accept_event()
 		return
 
 	if event.keycode == KEY_ENTER:

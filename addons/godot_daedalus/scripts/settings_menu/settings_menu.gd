@@ -1,7 +1,7 @@
 @tool
 extends AcceptDialog
 
-signal provider_config_save_requested(provider_id: String, api_key: String)
+signal provider_config_save_requested(provider_id: String, api_key: String, base_url: String, model_routing: Dictionary)
 signal provider_config_clear_requested(provider_id: String)
 signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, custom_instructions: String, next_step_hints_enabled: bool, check_for_updates_enabled: bool)
 signal archived_session_restore_requested(session_id: String)
@@ -13,6 +13,10 @@ signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 
 @onready var tab_container: TabContainer = %TabContainer
 @onready var provider_option_button: OptionButton = %ProviderOptionButton
+@onready var image_recognition_model_option_button: OptionButton = %ImageRecognitionModelOptionButton
+@onready var workflow_planner_model_option_button: OptionButton = %WorkflowPlannerModelOptionButton
+@onready var session_title_model_option_button: OptionButton = %SessionTitleModelOptionButton
+@onready var provider_base_url_line_edit: LineEdit = %ProviderBaseURLLineEdit
 @onready var api_key_label: Label = %APIKeyLabel
 @onready var backend_url_line_edit: LineEdit = %BackendURLLineEdit
 @onready var backend_dev_dir_line_edit: LineEdit = %BackendDevDirLineEdit
@@ -59,6 +63,12 @@ const PROVIDER_NAMES: PackedStringArray = [
 	"Moonshot",
 	"OpenAI"
 ]
+const TASK_MODEL_KEYS: PackedStringArray = [
+	"imageRecognition",
+	"workflowPlanner",
+	"sessionTitle"
+]
+const USE_CURRENT_MODEL_TEXT: String = "Use current model"
 
 var archived_sessions: Array[Dictionary]
 var archived_workspaces_by_id: Dictionary[String, Dictionary]
@@ -117,6 +127,7 @@ func setup_provider_config(status: Dictionary, frontend_config: Dictionary = {})
 	check_for_updates_check_box.button_pressed = bool(frontend_config.get("checkForUpdatesEnabled", true))
 	_update_custom_instructions_status()
 	_populate_provider_options(active_provider_id)
+	_populate_task_model_options(status)
 	_update_provider_key_labels()
 	show()
 
@@ -179,7 +190,12 @@ func _on_confirmed() -> void:
 		next_step_hints_check_box.button_pressed,
 		check_for_updates_check_box.button_pressed
 	)
-	provider_config_save_requested.emit(_get_selected_provider_id(), api_key)
+	provider_config_save_requested.emit(
+		_get_selected_provider_id(),
+		api_key,
+		provider_base_url_line_edit.text.strip_edges(),
+		_get_model_routing_payload()
+	)
 	queue_free()
 
 
@@ -206,6 +222,133 @@ func _populate_provider_options(active_provider_id: String) -> void:
 	provider_option_button.select(0)
 
 
+func _populate_task_model_options(status: Dictionary) -> void:
+	var routing: Dictionary = {}
+	var routing_value: Variant = status.get("modelRouting", {})
+	if typeof(routing_value) == TYPE_DICTIONARY:
+		routing = routing_value as Dictionary
+
+	_populate_task_model_option_button(image_recognition_model_option_button, "imageRecognition", routing)
+	_populate_task_model_option_button(workflow_planner_model_option_button, "workflowPlanner", routing)
+	_populate_task_model_option_button(session_title_model_option_button, "sessionTitle", routing)
+
+
+func _populate_task_model_option_button(option_button: OptionButton, routing_key: String, routing: Dictionary) -> void:
+	option_button.clear()
+	option_button.add_item(USE_CURRENT_MODEL_TEXT, 0)
+	option_button.set_item_metadata(0, null)
+
+	var selected_provider: String = ""
+	var selected_model: String = ""
+	var selected_value: Variant = routing.get(routing_key, null)
+	if typeof(selected_value) == TYPE_DICTIONARY:
+		var selected_ref: Dictionary = selected_value as Dictionary
+		selected_provider = str(selected_ref.get("provider", "")).strip_edges()
+		selected_model = str(selected_ref.get("model", "")).strip_edges()
+
+	for provider_id: String in PROVIDER_IDS:
+		var provider_status: Dictionary = provider_status_by_id.get(provider_id, {}) as Dictionary
+		if not bool(provider_status.get("configured", false)):
+			continue
+
+		var models: Array[Dictionary] = _collect_provider_task_models(provider_status)
+		for model_data: Dictionary in models:
+			var model_id: String = str(model_data.get("id", "")).strip_edges()
+			if model_id.is_empty():
+				continue
+
+			var display_name: String = str(model_data.get("displayName", model_id)).strip_edges()
+			if display_name.is_empty():
+				display_name = model_id
+			var item_index: int = option_button.get_item_count()
+			option_button.add_item("%s / %s" % [_get_provider_display_name(provider_id), display_name], item_index)
+			option_button.set_item_metadata(item_index, {
+				"provider": provider_id,
+				"model": model_id
+			})
+
+	if not selected_provider.is_empty() and not selected_model.is_empty():
+		for index: int in range(option_button.get_item_count()):
+			var metadata_value: Variant = option_button.get_item_metadata(index)
+			if typeof(metadata_value) != TYPE_DICTIONARY:
+				continue
+
+			var metadata: Dictionary = metadata_value as Dictionary
+			if str(metadata.get("provider", "")) == selected_provider and str(metadata.get("model", "")) == selected_model:
+				option_button.select(index)
+				return
+
+		var missing_index: int = option_button.get_item_count()
+		option_button.add_item("%s / %s" % [_get_provider_display_name(selected_provider), selected_model], missing_index)
+		option_button.set_item_metadata(missing_index, {
+			"provider": selected_provider,
+			"model": selected_model
+		})
+		option_button.select(missing_index)
+		return
+
+	option_button.select(0)
+
+
+func _collect_provider_task_models(provider_status: Dictionary) -> Array[Dictionary]:
+	var models_by_id: Dictionary[String, Dictionary] = {}
+	for key: String in ["modelsCache", "fallbackModels"]:
+		var models_value: Variant = provider_status.get(key, [])
+		if typeof(models_value) != TYPE_ARRAY:
+			continue
+
+		for item: Variant in models_value as Array:
+			if typeof(item) != TYPE_DICTIONARY:
+				continue
+
+			var model_data: Dictionary = (item as Dictionary).duplicate(true)
+			var model_id: String = str(model_data.get("id", "")).strip_edges()
+			if model_id.is_empty() or models_by_id.has(model_id):
+				continue
+			models_by_id[model_id] = model_data
+
+	var configured_model: String = str(provider_status.get("model", "")).strip_edges()
+	if not configured_model.is_empty() and not models_by_id.has(configured_model):
+		models_by_id[configured_model] = {
+			"id": configured_model,
+			"displayName": configured_model
+		}
+
+	var result: Array[Dictionary] = []
+	for model_id: String in models_by_id.keys():
+		result.append(models_by_id[model_id])
+	return result
+
+
+func _get_model_routing_payload() -> Dictionary:
+	return {
+		"imageRecognition": _get_task_model_ref(image_recognition_model_option_button),
+		"workflowPlanner": _get_task_model_ref(workflow_planner_model_option_button),
+		"sessionTitle": _get_task_model_ref(session_title_model_option_button)
+	}
+
+
+func _get_task_model_ref(option_button: OptionButton) -> Variant:
+	var selected_index: int = option_button.selected
+	if selected_index < 0 or selected_index >= option_button.get_item_count():
+		return null
+
+	var metadata_value: Variant = option_button.get_item_metadata(selected_index)
+	if typeof(metadata_value) != TYPE_DICTIONARY:
+		return null
+
+	var metadata: Dictionary = metadata_value as Dictionary
+	var provider_id: String = str(metadata.get("provider", "")).strip_edges()
+	var model_id: String = str(metadata.get("model", "")).strip_edges()
+	if provider_id.is_empty() or model_id.is_empty():
+		return null
+
+	return {
+		"provider": provider_id,
+		"model": model_id
+	}
+
+
 func _get_selected_provider_id() -> String:
 	var selected_index: int = provider_option_button.selected
 	if selected_index >= 0 and selected_index < provider_option_button.get_item_count():
@@ -222,10 +365,39 @@ func _get_selected_provider_name() -> String:
 	return PROVIDER_NAMES[0]
 
 
+func _get_provider_display_name(provider_id: String) -> String:
+	var provider_status: Dictionary = provider_status_by_id.get(provider_id, {}) as Dictionary
+	var display_name: String = str(provider_status.get("displayName", "")).strip_edges()
+	if not display_name.is_empty():
+		return display_name
+
+	for index: int in range(PROVIDER_IDS.size()):
+		if PROVIDER_IDS[index] == provider_id:
+			return PROVIDER_NAMES[index]
+
+	return provider_id
+
+
+func _get_optional_string(record: Dictionary, key: String) -> String:
+	var value: Variant = record.get(key, null)
+	if typeof(value) != TYPE_STRING:
+		return ""
+
+	return (value as String).strip_edges()
+
+
 func _update_provider_key_labels() -> void:
 	var provider_name: String = _get_selected_provider_name()
 	var provider_status: Dictionary = provider_status_by_id.get(_get_selected_provider_id(), {}) as Dictionary
 	var configured: bool = bool(provider_status.get("configured", false))
+	var default_base_url: String = _get_optional_string(provider_status, "defaultBaseUrl")
+	var custom_base_url: String = _get_optional_string(provider_status, "baseUrl")
+	provider_base_url_line_edit.placeholder_text = default_base_url
+	provider_base_url_line_edit.text = custom_base_url
+	provider_base_url_line_edit.tooltip_text = "OpenAI-compatible request base URL for %s. Leave empty to use %s." % [
+		provider_name,
+		default_base_url if not default_base_url.is_empty() else "the provider default"
+	]
 	api_key_label.text = "%s API Key" % provider_name
 	deepseek_api_key_line_edit.placeholder_text = "Set new API key" if configured else "Set API key"
 	clear_deepseek_api_key_button.disabled = not configured

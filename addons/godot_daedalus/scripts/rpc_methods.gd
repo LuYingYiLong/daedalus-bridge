@@ -51,6 +51,7 @@ const FILE_CHANGE_CREATE: String = "fileChange.create"
 const FILE_CHANGE_OVERWRITE: String = "fileChange.overwrite"
 const FILE_CHANGE_DELETE: String = "fileChange.delete"
 const FILE_EDIT_BATCH_GET: String = "fileEdit.batch.get"
+const ATTACHMENT_IMAGE_SAVE: String = "attachment.image.save"
 const PLAN_GET: String = "plan.get"
 const PLAN_CLARIFY: String = "plan.clarify"
 const PLAN_REVISE: String = "plan.revise"
@@ -120,6 +121,7 @@ static func all() -> PackedStringArray:
 		FILE_CHANGE_OVERWRITE,
 		FILE_CHANGE_DELETE,
 		FILE_EDIT_BATCH_GET,
+		ATTACHMENT_IMAGE_SAVE,
 		PLAN_GET,
 		PLAN_CLARIFY,
 		PLAN_REVISE,

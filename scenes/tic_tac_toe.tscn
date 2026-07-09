@@ -1,8 +1,8 @@
-[gd_scene format=3]
+[gd_scene format=3 uid="uid://hrk15nsddptd"]
 
-[ext_resource type="Script" path="res://scripts/tic_tac_toe_board.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://b2o6obb6dhdv2" path="res://scripts/tic_tac_toe_board.gd" id="1_script"]
 
-[node name="TicTacToe" type="Control"]
+[node name="TicTacToe" type="Control" unique_id=1815696172]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_script")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="."]
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=478276351]
 layout_mode = 0
 anchor_left = 0.5
 anchor_top = 0.5
@@ -22,54 +22,63 @@ offset_top = -160.0
 offset_right = 120.0
 offset_bottom = 160.0
 
-[node name="StatusLabel" type="Label" parent="VBoxContainer"]
+[node name="StatusLabel" type="Label" parent="VBoxContainer" unique_id=2091480981]
 unique_name_in_owner = true
 layout_mode = 2
 text = "X 的回合"
 horizontal_alignment = 1
 
-[node name="GridContainer" type="GridContainer" parent="VBoxContainer"]
+[node name="GridContainer" type="GridContainer" parent="VBoxContainer" unique_id=1867916863]
 unique_name_in_owner = true
 layout_mode = 2
 columns = 3
 
-[node name="Cell_0_0" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_0_0" type="Button" parent="VBoxContainer/GridContainer" unique_id=614444556]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_0_1" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_0_1" type="Button" parent="VBoxContainer/GridContainer" unique_id=1944683712]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_0_2" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_0_2" type="Button" parent="VBoxContainer/GridContainer" unique_id=1288495866]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_1_0" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_1_0" type="Button" parent="VBoxContainer/GridContainer" unique_id=1343243498]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_1_1" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_1_1" type="Button" parent="VBoxContainer/GridContainer" unique_id=1683579233]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_1_2" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_1_2" type="Button" parent="VBoxContainer/GridContainer" unique_id=306094442]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_2_0" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_2_0" type="Button" parent="VBoxContainer/GridContainer" unique_id=589286699]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_2_1" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_2_1" type="Button" parent="VBoxContainer/GridContainer" unique_id=81464750]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="Cell_2_2" type="Button" parent="VBoxContainer/GridContainer"]
+[node name="Cell_2_2" type="Button" parent="VBoxContainer/GridContainer" unique_id=1337583264]
+custom_minimum_size = Vector2(64, 64)
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
 
-[node name="ReplayButton" type="Button" parent="VBoxContainer"]
+[node name="ReplayButton" type="Button" parent="VBoxContainer" unique_id=1903306269]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
