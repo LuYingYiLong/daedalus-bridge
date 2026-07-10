@@ -1,7 +1,7 @@
 @tool
 extends RefCounted
 
-const PACKAGE_NAME: String = "godot-daedalus_backend"
+const PACKAGE_NAME: String = "daedalus-backend"
 const MANAGER_BIN_NAME: String = "godot-daedalus-manager"
 
 var backend_dev_dir: String

@@ -20,14 +20,15 @@ func _init() -> void:
 func _run_tests() -> void:
 	var main_instance: VBoxContainer = MAIN_SCENE.instantiate() as VBoxContainer
 	var approval_mode_button: OptionButton = main_instance.get_node("MainViewer/FooterContainer/ApprovalModeButton") as OptionButton
-	main_instance.set("approval_mode_button", approval_mode_button)
+	var controller: Node = main_instance.get_node("Controllers/ProviderNavigationController")
+	controller.call("setup", approval_mode_button, null, null, null)
 
 	_expect_equal(approval_mode_button.get_item_count(), 2, "approval mode item count")
 	_expect_equal(approval_mode_button.get_item_text(0), "Manual", "manual approval item")
 	_expect_equal(approval_mode_button.get_item_text(1), "Auto Safe", "auto-safe approval item")
-	_expect_equal(bool(main_instance.call("_select_approval_mode", "manual")), true, "manual selectable")
-	_expect_equal(bool(main_instance.call("_select_approval_mode", "auto-safe")), true, "auto-safe selectable")
-	_expect_equal(bool(main_instance.call("_select_approval_mode", "read-only")), false, "read-only removed")
+	_expect_equal(bool(controller.call("select_approval_mode", "manual")), true, "manual selectable")
+	_expect_equal(bool(controller.call("select_approval_mode", "auto-safe")), true, "auto-safe selectable")
+	_expect_equal(bool(controller.call("select_approval_mode", "read-only")), false, "read-only removed")
 
 	main_instance.free()
 

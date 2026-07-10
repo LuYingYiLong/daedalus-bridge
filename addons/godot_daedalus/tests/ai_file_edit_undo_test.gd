@@ -2,8 +2,10 @@
 extends SceneTree
 
 const MAIN_SCRIPT: GDScript = preload("uid://c20c3llfub24q")
+const FILE_EDIT_CONTROLLER_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/controllers/daedalus_file_edit_controller.gd")
 
 var failures: PackedStringArray
+var captured_inline_diff_summary: Dictionary
 
 
 func _init() -> void:
@@ -19,24 +21,27 @@ func _init() -> void:
 
 func _run_tests() -> void:
 	var main_node: VBoxContainer = MAIN_SCRIPT.new() as VBoxContainer
-	_test_display_path(main_node)
-	_test_inline_diff_flushes_active_batches(main_node)
+	var file_edit_controller: Node = FILE_EDIT_CONTROLLER_SCRIPT.new() as Node
+	file_edit_controller.connect("inline_diff_ready", _on_inline_diff_ready)
+	_test_display_path(file_edit_controller)
+	_test_inline_diff_flushes_active_batches(file_edit_controller)
 	_test_failed_message_body_parts(main_node)
 	_test_orphan_error_event_creates_assistant_entry(main_node)
-	_test_overwrite_restore(main_node)
-	_test_create_delete_restore(main_node)
+	_test_overwrite_restore(file_edit_controller)
+	_test_create_delete_restore(file_edit_controller)
+	file_edit_controller.free()
 	main_node.free()
 
 
-func _test_display_path(main_node: VBoxContainer) -> void:
-	var display_path: String = str(main_node.call("_format_file_edit_display_path", {
+func _test_display_path(file_edit_controller: Node) -> void:
+	var display_path: String = str(file_edit_controller.call("format_display_path", {
 		"path": "scripts/player.gd",
 		"absolutePath": "D:/Project/scripts/player.gd",
 		"workspaceRoot": "D:/Project"
 	}))
 	_expect_equal(display_path, "scripts/player.gd", "workspace relative display path")
 
-	var external_path: String = str(main_node.call("_format_file_edit_display_path", {
+	var external_path: String = str(file_edit_controller.call("format_display_path", {
 		"path": "",
 		"absolutePath": "D:/Outside/file.gd",
 		"workspaceRoot": "D:/Project"
@@ -44,11 +49,9 @@ func _test_display_path(main_node: VBoxContainer) -> void:
 	_expect_equal(external_path, "D:/Outside/file.gd", "external absolute display path")
 
 
-func _test_inline_diff_flushes_active_batches(main_node: VBoxContainer) -> void:
-	var entry_id: String = str(main_node.call("_append_timeline_entry", "assistant", "request-inline-diff", ""))
-	main_node.set("active_session_id", "session-inline-diff")
-	main_node.set("active_assistant_entry_id", entry_id)
-
+func _test_inline_diff_flushes_active_batches(file_edit_controller: Node) -> void:
+	captured_inline_diff_summary.clear()
+	file_edit_controller.call("set_active_session_id", "session-inline-diff")
 	var batch: Dictionary = {
 		"batchId": "batch-inline-diff",
 		"editedFiles": [{
@@ -62,25 +65,13 @@ func _test_inline_diff_flushes_active_batches(main_node: VBoxContainer) -> void:
 			"undoable": true
 		}]
 	}
-	var batches: Array[Dictionary] = [batch]
-	main_node.set("active_file_edit_batches", batches)
-	main_node.call("_append_inline_diff_for_completed_stream", entry_id)
-
-	var stored_batches: Array = main_node.get("active_file_edit_batches") as Array
-	_expect_equal(stored_batches.size(), 0, "active file edit batches cleared after inline diff")
-
-	var timeline_entries: Array = main_node.get("timeline_entries") as Array
-	if timeline_entries.is_empty():
-		failures.append("inline diff flush did not keep timeline entry")
-		return
-
-	var entry: Dictionary = timeline_entries[0] as Dictionary
-	var body_parts: Array = entry.get("body_parts", []) as Array
-	if body_parts.is_empty():
+	file_edit_controller.call("collect_active_batch", { "fileEditBatch": batch })
+	file_edit_controller.call("complete_stream", "assistant-inline-diff")
+	if captured_inline_diff_summary.is_empty():
 		failures.append("inline diff flush did not append body part")
 		return
 
-	var inline_part: Dictionary = body_parts[body_parts.size() - 1] as Dictionary
+	var inline_part: Dictionary = captured_inline_diff_summary
 	_expect_equal(str(inline_part.get("type", "")), "inline_diff", "inline diff body part type")
 	_expect_equal(str(inline_part.get("sessionId", "")), "session-inline-diff", "inline diff session id")
 	_expect_equal(int(inline_part.get("editedFileCount", 0)), 1, "inline diff edited file count")
@@ -200,7 +191,7 @@ func _test_orphan_error_event_creates_assistant_entry(main_node: VBoxContainer) 
 	_expect_equal(str(status_part.get("details", "")), "旧会话错误", "orphan error details")
 
 
-func _test_overwrite_restore(main_node: VBoxContainer) -> void:
+func _test_overwrite_restore(file_edit_controller: Node) -> void:
 	var file_path: String = ProjectSettings.globalize_path("user://daedalus_inline_diff_overwrite_test.gd")
 	_write_text(file_path, "new\n")
 	var edit: Dictionary = {
@@ -216,16 +207,16 @@ func _test_overwrite_restore(main_node: VBoxContainer) -> void:
 		"undoable": true
 	}
 	var edits: Array[Dictionary] = [edit]
-	_expect_equal(bool(main_node.call("_is_file_edit_group_current", edits, true)), true, "after hash matches")
-	main_node.call("_apply_file_edit_snapshots", edits, false)
+	_expect_equal(bool(file_edit_controller.call("is_group_current", edits, true)), true, "after hash matches")
+	file_edit_controller.call("apply_snapshots", edits, false)
 	_expect_equal(_read_text(file_path), "old\n", "overwrite undo restores before")
-	_expect_equal(bool(main_node.call("_is_file_edit_group_current", edits, false)), true, "before hash matches")
-	main_node.call("_apply_file_edit_snapshots", edits, true)
+	_expect_equal(bool(file_edit_controller.call("is_group_current", edits, false)), true, "before hash matches")
+	file_edit_controller.call("apply_snapshots", edits, true)
 	_expect_equal(_read_text(file_path), "new\n", "overwrite redo restores after")
 	DirAccess.remove_absolute(file_path)
 
 
-func _test_create_delete_restore(main_node: VBoxContainer) -> void:
+func _test_create_delete_restore(file_edit_controller: Node) -> void:
 	var file_path: String = ProjectSettings.globalize_path("user://daedalus_inline_diff_create_test.gd")
 	if FileAccess.file_exists(file_path):
 		DirAccess.remove_absolute(file_path)
@@ -241,10 +232,14 @@ func _test_create_delete_restore(main_node: VBoxContainer) -> void:
 		"undoable": true
 	}
 	var edits: Array[Dictionary] = [edit]
-	main_node.call("_apply_file_edit_snapshots", edits, true)
+	file_edit_controller.call("apply_snapshots", edits, true)
 	_expect_equal(_read_text(file_path), "created\n", "create apply writes file")
-	main_node.call("_apply_file_edit_snapshots", edits, false)
+	file_edit_controller.call("apply_snapshots", edits, false)
 	_expect_equal(FileAccess.file_exists(file_path), false, "create undo deletes file")
+
+
+func _on_inline_diff_ready(_entry_id: String, summary: Dictionary) -> void:
+	captured_inline_diff_summary = summary.duplicate(true)
 
 
 func _write_text(file_path: String, text: String) -> void:

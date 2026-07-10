@@ -168,11 +168,14 @@ const CHAT_MODE_LABELS: PackedStringArray = [
 @onready var additional_context_viewer: ScrollContainer = %AdditionalContextViewer
 @onready var additional_context_container: HBoxContainer = %AdditionalContextContainer
 @onready var add_context_button: MenuButton = %AddContextButton
+@onready var additional_context_controller: DaedalusAdditionalContextController = %AdditionalContextController
+@onready var editor_bridge_controller: DaedalusEditorBridgeController = %EditorBridgeController
+@onready var file_edit_controller: DaedalusFileEditController = %FileEditController
+@onready var backend_connection_controller: DaedalusBackendConnectionController = %BackendConnectionController
+@onready var provider_navigation_controller: DaedalusProviderNavigationController = %ProviderNavigationController
 
-var socket: WebSocketPeer = WebSocketPeer.new()
-var socket_ready: bool
-var editor_instance_id: String
 var connected_workspace_id: String
+var socket_ready: bool
 var has_connected_once: bool
 var connection_attempts: int
 var connection_attempt_generation: int
@@ -181,8 +184,8 @@ var backend_recovery_mode: bool
 var restore_session_after_reconnect_id: String
 var connection_status_entry_id: String
 var pending_recovery_status_after_session_open: bool
-var request_id: int
 var active_stream_id: String
+var chat_request_id: int
 var active_session_id: String
 var pending_chat_text: String
 var pending_chat_additional_context: Array[Dictionary]
@@ -229,7 +232,6 @@ var active_tool_entry_ids_by_call_id: Dictionary[String, String]
 var active_stream_request_id: String
 var active_stream_started_at_utc: String
 var active_stream_status_code: String
-var active_file_edit_batches: Array[Dictionary]
 var paused_stream_request_id: String
 var paused_stream_started_at_utc: String
 var paused_assistant_entry_id: String
@@ -289,19 +291,7 @@ var next_step_hint_request_id: String
 var next_step_hint_anchor_request_id: String
 var next_step_hint_entry_ids: PackedStringArray
 var next_step_hints_by_action_id: Dictionary[String, String]
-var editor_plugin: EditorPlugin
-var editor_interface: EditorInterface
-var editor_selection: EditorSelection
-var editor_undo_redo: EditorUndoRedoManager
-var editor_script_editor: Object
-var editor_context_update_queued: bool
-var editor_context_next_poll_msec: int
-var additional_context_items: Array[Dictionary]
-var additional_context_next_id: int
-var dismissed_live_context_signatures: Dictionary[String, String]
-var pending_file_edit_batch_requests: Dictionary[String, String]
-var pending_file_edit_batch_groups: Dictionary[String, Dictionary]
-var inline_diff_action_titles_by_key: Dictionary[String, String]
+var pending_editor_bridge_plugin: EditorPlugin
 var pending_plan_detail_requests: Dictionary[String, Dictionary]
 var plan_assistant_entry_ids_by_plan_id: Dictionary[String, String]
 
@@ -596,20 +586,12 @@ func _select_model_id(model_id: String) -> bool:
 
 
 func _select_approval_mode(approval_mode: String) -> bool:
-	for index: int in range(APPROVAL_MODE_IDS.size()):
-		if APPROVAL_MODE_IDS[index] == approval_mode:
-			approval_mode_button.select(index)
-			return true
-
-	return false
+	return provider_navigation_controller.select_approval_mode(approval_mode)
 
 
 func _add_image_context(resource_path: String) -> void:
-	var context: Dictionary = _create_image_context(resource_path, additional_context_items, "manual", false)
-	if context.is_empty():
+	if not additional_context_controller.add_image_path(resource_path):
 		return
-
-	_add_or_replace_additional_context(context)
 	if not _selected_model_supports_image_input():
 		_show_image_model_warning()
 
@@ -644,7 +626,7 @@ func _create_clipboard_image_payload(clipboard_image: Image) -> Dictionary:
 
 	var byte_size: int = png_bytes.size()
 	var unique_path: String = "clipboard://%d" % Time.get_ticks_usec()
-	var limit_message: String = MAIN_HELPERS.validate_image_context_limits(additional_context_items, unique_path, byte_size)
+	var limit_message: String = MAIN_HELPERS.validate_image_context_limits(additional_context_controller.get_items(), unique_path, byte_size)
 	if not limit_message.is_empty():
 		_upsert_connection_status_entry("warning", "图片无法添加", limit_message)
 		return {}
@@ -705,75 +687,23 @@ func _handle_attachment_image_save_response(response_id: String, ok: bool, resul
 		return true
 
 	var context: Dictionary = attachment_value as Dictionary
-	_add_or_replace_additional_context(context)
+	additional_context_controller.add_or_replace(context)
 	if not _can_send_image_contexts():
 		_show_image_model_warning()
 	return true
 
 
 func _create_image_context(resource_path: String, existing_contexts: Array, context_source: String, is_pinned: bool) -> Dictionary:
-	if not MAIN_HELPERS.is_supported_image_resource_path(resource_path):
-		_upsert_connection_status_entry("warning", "图片格式不支持", "第一版仅支持 PNG、JPEG、WebP 和 GIF 图片。")
-		return {}
-
-	var image_file: FileAccess = FileAccess.open(resource_path, FileAccess.READ)
-	if image_file == null:
-		_upsert_connection_status_entry("warning", "图片读取失败", "无法读取图片：%s" % resource_path)
-		return {}
-
-	var byte_size: int = image_file.get_length()
-	var limit_message: String = MAIN_HELPERS.validate_image_context_limits(existing_contexts, resource_path, byte_size)
-	if not limit_message.is_empty():
-		image_file.close()
-		_upsert_connection_status_entry("warning", "图片无法添加", limit_message)
-		return {}
-
-	var image_bytes: PackedByteArray = image_file.get_buffer(byte_size)
-	image_file.close()
-	if image_bytes.size() != byte_size:
-		_upsert_connection_status_entry("warning", "图片读取失败", "图片读取不完整：%s" % resource_path)
-		return {}
-
-	var image_width: int = 0
-	var image_height: int = 0
-	var image_texture: Texture2D = load(resource_path) as Texture2D
-	var image_resource: Image = image_texture.get_image() if image_texture != null else null
-	if image_resource != null:
-		image_width = image_resource.get_width()
-		image_height = image_resource.get_height()
-
-	var mime_type: String = MAIN_HELPERS.get_image_mime_type(resource_path)
-	var image_data: Dictionary = {
-		"mimeType": mime_type,
-		"dataUrl": "data:%s;base64,%s" % [mime_type, Marshalls.raw_to_base64(image_bytes)],
-		"byteSize": byte_size
-	}
-	if image_width > 0:
-		image_data["width"] = image_width
-	if image_height > 0:
-		image_data["height"] = image_height
-
-	var dimension_text: String = "%dx%d" % [image_width, image_height] if image_width > 0 and image_height > 0 else "未知尺寸"
-	var context: Dictionary = {
-		"id": _make_additional_context_id("image", resource_path, ""),
-		"kind": "image",
-		"title": resource_path.get_file(),
-		"subtitle": "%s · %s · %s" % [mime_type, MAIN_HELPERS.format_byte_size(byte_size), dimension_text],
-		"pinned": is_pinned,
-		"source": context_source,
-		"resourcePath": resource_path,
-		"summary": "用户为本轮消息附加了一张图片；图片二进制会作为多模态输入发送给支持 image 的模型。",
-		"data": image_data
-	}
-	return context
+	return additional_context_controller.create_image_context(resource_path, existing_contexts, context_source, is_pinned)
 
 
 func _add_selected_nodes_context() -> void:
+	var editor_selection: EditorSelection = editor_bridge_controller.get_selection()
 	if editor_selection == null:
 		_upsert_connection_status_entry("warning", "编辑器上下文不可用", "当前 Dock 没有获得 Godot EditorSelection。")
 		return
 
-	var edited_root: Node = _get_edited_scene_root()
+	var edited_root: Node = editor_bridge_controller.get_edited_scene_root()
 	if edited_root == null:
 		_upsert_connection_status_entry("warning", "没有打开场景", "请先在编辑器中打开一个场景。")
 		return
@@ -786,19 +716,19 @@ func _add_selected_nodes_context() -> void:
 	for selected_node: Node in selected_nodes:
 		if selected_node == null:
 			continue
-		_add_or_replace_additional_context(_create_node_additional_context(selected_node, edited_root))
+		additional_context_controller.add_or_replace(_create_node_additional_context(selected_node, edited_root))
 
 
 func _add_active_scene_context() -> void:
-	var edited_root: Node = _get_edited_scene_root()
+	var edited_root: Node = editor_bridge_controller.get_edited_scene_root()
 	if edited_root == null:
 		_upsert_connection_status_entry("warning", "没有打开场景", "请先在编辑器中打开一个场景。")
 		return
 
-	var scene_path: String = _get_scene_resource_path(edited_root)
+	var scene_path: String = editor_bridge_controller.get_scene_resource_path(edited_root)
 	var scene_title: String = scene_path.get_file() if not scene_path.is_empty() else edited_root.name
 	var context: Dictionary = {
-		"id": _make_additional_context_id("scene", scene_path, "."),
+		"id": additional_context_controller.make_context_id("scene", scene_path, "."),
 		"kind": "scene",
 		"title": scene_title,
 		"subtitle": "Active scene",
@@ -808,44 +738,48 @@ func _add_active_scene_context() -> void:
 		"nodePath": ".",
 		"nodeType": edited_root.get_class(),
 		"summary": "Current open Godot editor scene.",
-		"data": _serialize_editor_node_summary(edited_root, edited_root)
+		"data": editor_bridge_controller.serialize_editor_node_summary(edited_root, edited_root)
 	}
-	_add_or_replace_additional_context(context)
+	additional_context_controller.add_or_replace(context)
 
 
 func _add_current_script_selection_context() -> void:
-	var context: Dictionary = _collect_script_selection_context()
+	var context: Dictionary = editor_bridge_controller.collect_script_selection_context()
 	if context.is_empty():
 		_upsert_connection_status_entry("warning", "没有脚本选区", "请先在 Godot 脚本编辑器中打开脚本，或把光标放到目标行。")
 		return
 
-	context["id"] = _make_additional_context_id(
+	context["id"] = additional_context_controller.make_context_id(
 		"script_selection",
 		str(context.get("resourcePath", "")),
-		_make_script_selection_context_key(context)
+		additional_context_controller.make_script_selection_key(context)
 	)
 	context["pinned"] = false
-	_add_or_replace_additional_context(context)
+	additional_context_controller.add_or_replace(context)
 
 
 func _add_filesystem_selection_context() -> void:
-	var context: Dictionary = _collect_filesystem_selection_context()
+	var context: Dictionary = editor_bridge_controller.collect_filesystem_selection_context()
 	if context.is_empty():
 		_upsert_connection_status_entry("warning", "没有文件系统选择", "请先在 FileSystem Dock 中选择一个或多个文件/文件夹。")
 		return
 
-	context["id"] = _make_additional_context_id("filesystem_selection", "", _make_filesystem_selection_context_key(context))
+	context["id"] = additional_context_controller.make_context_id(
+		"filesystem_selection",
+		"",
+		additional_context_controller.make_filesystem_selection_key(context)
+	)
 	context["pinned"] = false
-	_add_or_replace_additional_context(context)
+	additional_context_controller.add_or_replace(context)
 
 
 func _create_node_additional_context(target_node: Node, edited_root: Node) -> Dictionary:
-	var scene_path: String = _get_scene_resource_path(edited_root)
-	var node_path: String = _get_relative_node_path(edited_root, target_node)
-	var script_path: String = _get_node_script_path(target_node)
+	var scene_path: String = editor_bridge_controller.get_scene_resource_path(edited_root)
+	var node_path: String = editor_bridge_controller.get_relative_node_path(edited_root, target_node)
+	var script_path: String = editor_bridge_controller.get_node_script_path(target_node)
 	var node_type: String = target_node.get_class()
 	var context: Dictionary = {
-		"id": _make_additional_context_id("node", scene_path, node_path),
+		"id": additional_context_controller.make_context_id("node", scene_path, node_path),
 		"kind": "node",
 		"title": target_node.name,
 		"subtitle": "%s in %s" % [node_type, scene_path.get_file() if not scene_path.is_empty() else edited_root.name],
@@ -854,266 +788,18 @@ func _create_node_additional_context(target_node: Node, edited_root: Node) -> Di
 		"resourcePath": scene_path,
 		"nodePath": node_path,
 		"nodeType": node_type,
-		"summary": _summarize_editor_node(target_node),
-		"data": _serialize_editor_node_summary(target_node, edited_root)
+		"summary": editor_bridge_controller.summarize_editor_node(target_node),
+		"data": editor_bridge_controller.serialize_editor_node_summary(target_node, edited_root)
 	}
 	if not script_path.is_empty():
 		context["scriptPath"] = script_path
 	return context
 
 
-func _add_or_replace_additional_context(context: Dictionary) -> void:
-	var context_id: String = str(context.get("id", ""))
-	if context_id.is_empty():
-		context["id"] = _make_additional_context_id(str(context.get("kind", "context")), str(context.get("resourcePath", "")), str(context.get("nodePath", "")))
-
-	var context_key: String = _make_additional_context_key(context)
-	for index: int in range(additional_context_items.size()):
-		var existing_context: Dictionary = additional_context_items[index]
-		if _make_additional_context_key(existing_context) == context_key:
-			context["pinned"] = bool(existing_context.get("pinned", false))
-			additional_context_items[index] = context.duplicate(true)
-			_render_additional_context_items()
-			_update_send_state()
-			return
-
-	if not _can_append_additional_context(true):
-		return
-
-	additional_context_items.append(context.duplicate(true))
-	_render_additional_context_items()
-	_update_send_state()
-
-
-func _can_append_additional_context(show_warning: bool) -> bool:
-	if additional_context_items.size() < ADDITIONAL_CONTEXT_MAX_ITEMS:
-		return true
-
-	if show_warning:
-		_upsert_connection_status_entry(
-			"warning",
-			"额外上下文已满",
-			"最多只能装填 %d 个额外编辑器上下文。请先移除或发送当前上下文。" % ADDITIONAL_CONTEXT_MAX_ITEMS
-		)
-	return false
-
-
-func _render_additional_context_items() -> void:
-	if additional_context_container == null:
-		return
-
-	for child: Node in additional_context_container.get_children():
-		child.queue_free()
-
-	additional_context_viewer.visible = not additional_context_items.is_empty()
-	if additional_context_items.is_empty():
-		return
-
-	for context: Dictionary in additional_context_items:
-		var context_item: Node = ADDITIONAL_CONTEXT_ITEM_SCENE.instantiate()
-		additional_context_container.add_child(context_item)
-		context_item.call("setup", context)
-		if context_item.has_signal("pin_toggled"):
-			context_item.connect("pin_toggled", Callable(self, "_on_additional_context_pin_toggled"))
-		if context_item.has_signal("remove_requested"):
-			context_item.connect("remove_requested", Callable(self, "_on_additional_context_remove_requested"))
-
-
-func _on_additional_context_pin_toggled(context_id: String, pinned: bool) -> void:
-	for index: int in range(additional_context_items.size()):
-		var context: Dictionary = additional_context_items[index]
-		if str(context.get("id", "")) == context_id:
-			if pinned and _is_live_additional_context_id(context_id):
-				_ensure_dismissed_live_context_signatures()
-				dismissed_live_context_signatures[context_id] = _make_live_additional_context_signature(context_id, context)
-				var detached_context: Dictionary = context.duplicate(true)
-				detached_context["id"] = _make_additional_context_id(
-					str(detached_context.get("kind", "context")),
-					str(detached_context.get("resourcePath", "")),
-					_make_additional_context_key(detached_context)
-				)
-				detached_context["pinned"] = true
-				additional_context_items[index] = detached_context
-				_render_additional_context_items()
-				_update_send_state()
-				return
-
-			context["pinned"] = pinned
-			additional_context_items[index] = context
-			break
-
-
-func _on_additional_context_remove_requested(context_id: String) -> void:
-	for index: int in range(additional_context_items.size() - 1, -1, -1):
-		var context: Dictionary = additional_context_items[index]
-		if str(context.get("id", "")) == context_id:
-			_dismiss_live_additional_context_if_needed(context_id, context)
-			additional_context_items.remove_at(index)
-			break
-	_render_additional_context_items()
-	_update_send_state()
-
-
 func _get_additional_context_snapshot() -> Array[Dictionary]:
-	var cloned_contexts: Array[Dictionary] = _clone_additional_context_array(additional_context_items)
-	return _expand_filesystem_image_selection_contexts(cloned_contexts)
-
-
-func _expand_filesystem_image_selection_contexts(source_contexts: Array[Dictionary]) -> Array[Dictionary]:
-	var expanded_contexts: Array[Dictionary] = []
-	var known_image_paths: Dictionary = {}
-	for context_dictionary: Dictionary in source_contexts:
-		if str(context_dictionary.get("kind", "")) != "image":
-			continue
-
-		var image_path: String = str(context_dictionary.get("resourcePath", "")).strip_edges()
-		if not image_path.is_empty():
-			known_image_paths[image_path] = true
-
-	for context_dictionary: Dictionary in source_contexts:
-		if str(context_dictionary.get("kind", "")) != "filesystem_selection":
-			expanded_contexts.append(context_dictionary)
-			continue
-
-		var image_contexts: Array[Dictionary] = _create_image_contexts_from_filesystem_selection(
-			context_dictionary,
-			expanded_contexts,
-			known_image_paths
-		)
-		for image_context: Dictionary in image_contexts:
-			expanded_contexts.append(image_context)
-
-		if image_contexts.is_empty() or _filesystem_selection_has_non_image_paths(context_dictionary):
-			expanded_contexts.append(context_dictionary)
-
-	return expanded_contexts
-
-
-func _create_image_contexts_from_filesystem_selection(context: Dictionary, existing_contexts: Array[Dictionary], known_image_paths: Dictionary) -> Array[Dictionary]:
-	var image_contexts: Array[Dictionary] = []
-	var data: Dictionary = _get_additional_context_data(context)
-	var selected_paths_value: Variant = data.get("selectedPaths", [])
-	if typeof(selected_paths_value) != TYPE_ARRAY:
-		return image_contexts
-
-	var selected_paths: Array = selected_paths_value as Array
-	var working_contexts: Array[Dictionary] = _clone_additional_context_array(existing_contexts)
-	for selected_path_value: Variant in selected_paths:
-		if typeof(selected_path_value) != TYPE_DICTIONARY:
-			continue
-
-		var selected_path: Dictionary = selected_path_value as Dictionary
-		if str(selected_path.get("kind", "")) != "file":
-			continue
-
-		var resource_path: String = str(selected_path.get("resourcePath", "")).strip_edges()
-		if resource_path.is_empty() or not MAIN_HELPERS.is_supported_image_resource_path(resource_path):
-			continue
-		if bool(known_image_paths.get(resource_path, false)):
-			continue
-
-		var image_context: Dictionary = _create_image_context(resource_path, working_contexts, "editor", false)
-		if image_context.is_empty():
-			continue
-
-		image_contexts.append(image_context)
-		working_contexts.append(image_context)
-		known_image_paths[resource_path] = true
-
-	return image_contexts
-
-
-func _filesystem_selection_has_non_image_paths(context: Dictionary) -> bool:
-	var data: Dictionary = _get_additional_context_data(context)
-	var selected_paths_value: Variant = data.get("selectedPaths", [])
-	if typeof(selected_paths_value) != TYPE_ARRAY:
-		return true
-
-	var selected_paths: Array = selected_paths_value as Array
-	for selected_path_value: Variant in selected_paths:
-		if typeof(selected_path_value) != TYPE_DICTIONARY:
-			continue
-
-		var selected_path: Dictionary = selected_path_value as Dictionary
-		if str(selected_path.get("kind", "")) != "file":
-			return true
-
-		var resource_path: String = str(selected_path.get("resourcePath", "")).strip_edges()
-		if resource_path.is_empty() or not MAIN_HELPERS.is_supported_image_resource_path(resource_path):
-			return true
-
-	return false
-
-
-func _clone_additional_context_array(source_contexts: Array) -> Array[Dictionary]:
-	var cloned_contexts: Array[Dictionary] = []
-	for context_value: Variant in source_contexts:
-		if typeof(context_value) != TYPE_DICTIONARY:
-			continue
-		var context_dictionary: Dictionary = context_value as Dictionary
-		var cloned_context: Dictionary = context_dictionary.duplicate(true)
-		if str(cloned_context.get("kind", "")) == "image":
-			var data_value: Variant = cloned_context.get("data", {})
-			if typeof(data_value) == TYPE_DICTIONARY:
-				var image_data: Dictionary = data_value as Dictionary
-				if not str(image_data.get("attachmentId", "")).is_empty():
-					image_data.erase("dataUrl")
-					image_data.erase("thumbnailDataUrl")
-					cloned_context["data"] = image_data
-		cloned_contexts.append(cloned_context)
-	return cloned_contexts
-
-
-func _clear_unpinned_additional_context_items() -> void:
-	var retained_contexts: Array[Dictionary] = []
-	for context: Dictionary in additional_context_items:
-		if bool(context.get("pinned", false)):
-			retained_contexts.append(context)
-		else:
-			_dismiss_live_additional_context_if_needed(str(context.get("id", "")), context)
-	additional_context_items = retained_contexts
-	_render_additional_context_items()
-	_update_send_state()
-
-
-func _make_additional_context_id(context_kind: String, resource_path: String, node_path: String) -> String:
-	additional_context_next_id += 1
-	var key_text: String = "%s:%s:%s:%d" % [context_kind, resource_path, node_path, additional_context_next_id]
-	return "ctx-%d-%d" % [Time.get_ticks_msec(), abs(hash(key_text))]
-
-
-func _make_additional_context_key(context: Dictionary) -> String:
-	var context_kind: String = str(context.get("kind", ""))
-	if context_kind == "image":
-		var image_data: Dictionary = _get_additional_context_data(context)
-		var attachment_id: String = str(image_data.get("attachmentId", "")).strip_edges()
-		if not attachment_id.is_empty():
-			return "%s\n%s" % [context_kind, attachment_id]
-	if context_kind == "script_selection":
-		return "%s\n%s\n%s" % [
-			context_kind,
-			str(context.get("resourcePath", "")),
-			_make_script_selection_context_key(context)
-		]
-	if context_kind == "filesystem_selection":
-		return "%s\n%s" % [
-			context_kind,
-			_make_filesystem_selection_context_key(context)
-		]
-
-	return "%s\n%s\n%s" % [
-		context_kind,
-		str(context.get("resourcePath", "")),
-		str(context.get("nodePath", ""))
-	]
-
-
-func _get_additional_context_data(context: Dictionary) -> Dictionary:
-	var data_value: Variant = context.get("data", {})
-	if typeof(data_value) != TYPE_DICTIONARY:
-		return {}
-
-	return data_value as Dictionary
+	return additional_context_controller.expand_filesystem_image_selections(
+		additional_context_controller.get_timeline_snapshot()
+	)
 
 
 func _context_array_has_images(contexts: Array) -> bool:
@@ -1161,32 +847,6 @@ func _show_image_model_warning() -> void:
 		"当前模型不支持图片输入",
 		"请切换到带有 image capability 的模型，或在设置里配置 Image recognition model。"
 	)
-
-
-func _make_script_selection_context_key(context: Dictionary) -> String:
-	var data: Dictionary = _get_additional_context_data(context)
-	return "%d:%d-%d:%d" % [
-		int(data.get("lineStart", 0)),
-		int(data.get("columnStart", 0)),
-		int(data.get("lineEnd", 0)),
-		int(data.get("columnEnd", 0))
-	]
-
-
-func _make_filesystem_selection_context_key(context: Dictionary) -> String:
-	var data: Dictionary = _get_additional_context_data(context)
-	var selected_paths_value: Variant = data.get("selectedPaths", [])
-	if typeof(selected_paths_value) != TYPE_ARRAY:
-		return str(context.get("resourcePath", ""))
-
-	var selected_paths: Array = selected_paths_value as Array
-	var path_parts: PackedStringArray
-	for selected_path_value: Variant in selected_paths:
-		if typeof(selected_path_value) != TYPE_DICTIONARY:
-			continue
-		var selected_path: Dictionary = selected_path_value as Dictionary
-		path_parts.append(str(selected_path.get("resourcePath", "")))
-	return "\n".join(path_parts)
 
 
 func _render_message_panel() -> void:
@@ -1623,7 +1283,7 @@ func _on_add_context_menu_id_pressed(menu_id: int) -> void:
 	elif menu_id == ADD_CONTEXT_FOLDER_ID:
 		_show_add_context_resource_dialog(EditorFileDialog.FILE_MODE_OPEN_DIR, "folder")
 	elif menu_id == ADD_CONTEXT_CLEAR_UNPINNED_ID:
-		_clear_unpinned_additional_context_items()
+		additional_context_controller.clear_unpinned()
 
 
 func _show_add_context_resource_dialog(file_mode: int, context_kind: String) -> void:
@@ -1659,7 +1319,7 @@ func _on_add_context_resource_selected(resource_path: String, context_kind: Stri
 		return
 
 	var context: Dictionary = {
-		"id": _make_additional_context_id(context_kind, normalized_path, ""),
+		"id": additional_context_controller.make_context_id(context_kind, normalized_path, ""),
 		"kind": context_kind,
 		"title": normalized_path.get_file() if context_kind != "folder" else normalized_path.trim_suffix("/").get_file(),
 		"subtitle": normalized_path,
@@ -1668,7 +1328,7 @@ func _on_add_context_resource_selected(resource_path: String, context_kind: Stri
 		"resourcePath": normalized_path,
 		"summary": "用户为本轮消息附加了项目 %s 引用；仅在需要时通过 MCP 读取内容。" % context_kind
 	}
-	_add_or_replace_additional_context(context)
+	additional_context_controller.add_or_replace(context)
 
 
 func _on_text_edit_gui_input(event: InputEvent) -> void:
@@ -1744,10 +1404,7 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 
 func _connect_to_backend() -> void:
 	connection_attempts += 1
-	socket = WebSocketPeer.new()
-	socket.inbound_buffer_size = WEBSOCKET_BUFFER_SIZE
-	socket.outbound_buffer_size = WEBSOCKET_BUFFER_SIZE
-	var connect_error: Error = socket.connect_to_url(backend_url)
+	var connect_error: Error = backend_connection_controller.connect_to_backend(backend_url, WEBSOCKET_BUFFER_SIZE)
 	if connect_error != OK:
 		status_button.icon = CONNECT_FAILED_ICON
 		status_button.tooltip_text = "Connect failed: %d. Click to reconnect." % connect_error
@@ -1861,8 +1518,7 @@ func _show_backend_startup_error(title: String, details: String) -> void:
 	backend_health_pending = false
 	status_button.icon = CONNECT_FAILED_ICON
 	status_button.tooltip_text = "Connect failed. Click to reconnect."
-	if socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
-		socket.close()
+	backend_connection_controller.shutdown()
 	boot_splash.call("show_error", title, details)
 
 
@@ -2117,7 +1773,7 @@ func _on_boot_splash_backend_check_requested() -> void:
 
 
 func _on_status_button_pressed() -> void:
-	if socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
+	if backend_connection_controller.is_open():
 		return
 
 	_restart_backend_connection(has_connected_once)
@@ -2220,13 +1876,7 @@ func _send_environment_config() -> void:
 
 
 func _ensure_editor_instance_id() -> String:
-	if not editor_instance_id.is_empty():
-		return editor_instance_id
-
-	var project_path: String = ProjectSettings.globalize_path("res://")
-	var project_hash: int = project_path.hash()
-	editor_instance_id = "godot-editor-%s-%d" % [str(project_hash).replace("-", "m"), Time.get_ticks_usec()]
-	return editor_instance_id
+	return editor_bridge_controller.get_editor_instance_id()
 
 
 func _send_client_hello() -> void:
@@ -2241,6 +1891,7 @@ func _send_client_hello() -> void:
 		"capabilities": {
 			"editorTools": true,
 			"editorUndoRedo": true,
+			"sceneViewCapture": true,
 			"inlineDiffUndo": true,
 			"inlineDiffView": true,
 			"sessionSubscribe": true,
@@ -2257,6 +1908,7 @@ func _update_connection_identity_tooltip() -> void:
 	var identity_lines: PackedStringArray = []
 	if not connected_workspace_id.is_empty():
 		identity_lines.append("Workspace: %s" % connected_workspace_id)
+	var editor_instance_id: String = editor_bridge_controller.get_editor_instance_id()
 	if not editor_instance_id.is_empty():
 		identity_lines.append("Editor: %s" % editor_instance_id)
 	if identity_lines.is_empty():
@@ -2269,819 +1921,16 @@ func _update_connection_identity_tooltip() -> void:
 
 # --- editor_bridge_controller.gd ---
 
-# --- editor_bridge_controller.gd ---
 func setup_editor_bridge(plugin: EditorPlugin) -> void:
-	editor_plugin = plugin
-	if editor_plugin == null:
-		return
-
-	editor_interface = editor_plugin.get_editor_interface()
-	editor_selection = editor_interface.get_selection()
-	editor_undo_redo = editor_plugin.get_undo_redo()
-	editor_script_editor = editor_interface.get_script_editor()
-	if editor_selection != null and not editor_selection.selection_changed.is_connected(_on_editor_selection_changed):
-		editor_selection.selection_changed.connect(_on_editor_selection_changed)
-	var script_changed_callable: Callable = Callable(self, "_on_editor_script_changed")
-	if editor_script_editor != null and editor_script_editor.has_signal("editor_script_changed") and not editor_script_editor.is_connected("editor_script_changed", script_changed_callable):
-		editor_script_editor.connect("editor_script_changed", script_changed_callable)
-	_queue_editor_context_update()
+	pending_editor_bridge_plugin = plugin
+	if is_node_ready():
+		editor_bridge_controller.setup(pending_editor_bridge_plugin)
 
 
-func _on_editor_selection_changed() -> void:
-	_queue_editor_context_update()
-
-
-func _on_editor_script_changed(_script: Resource) -> void:
-	_queue_editor_context_update()
-
-
-func _poll_live_editor_context() -> void:
-	if editor_interface == null:
-		return
-
-	var now_msec: int = Time.get_ticks_msec()
-	if now_msec < editor_context_next_poll_msec:
-		return
-
-	editor_context_next_poll_msec = now_msec + EDITOR_CONTEXT_POLL_INTERVAL_MSEC
-	_queue_editor_context_update()
-
-
-func _queue_editor_context_update() -> void:
-	if editor_context_update_queued:
-		return
-
-	editor_context_update_queued = true
-	call_deferred("_send_editor_context_update")
-
-
-func _send_editor_context_update() -> void:
-	editor_context_update_queued = false
-	if editor_interface == null:
-		return
-
-	var edited_root: Node = _get_edited_scene_root()
-	var selected_nodes: Array[Dictionary] = []
-	if editor_selection != null and edited_root != null:
-		var raw_selected_nodes: Array[Node] = editor_selection.get_selected_nodes()
-		for selected_node: Node in raw_selected_nodes:
-			if selected_node == null:
-				continue
-			selected_nodes.append(_serialize_editor_node_summary(selected_node, edited_root))
-
-	var script_context: Dictionary = _collect_script_selection_context()
-	var filesystem_selection_context: Dictionary = _collect_filesystem_selection_context()
-	_sync_live_editor_selection_context(edited_root, selected_nodes)
-	_sync_live_script_selection_context(script_context)
-	_sync_live_filesystem_selection_context(filesystem_selection_context)
+func _on_editor_bridge_request_ready(method: String, params: Dictionary, request_prefix: String) -> void:
 	if not _is_socket_open():
 		return
-
-	var params: Dictionary[String, Variant] = {
-		"hasEditor": true,
-		"workspaceId": ProjectSettings.globalize_path("res://"),
-		"editorInstanceId": _ensure_editor_instance_id(),
-		"activeScenePath": _get_scene_resource_path(edited_root) if edited_root != null else "",
-		"selectedNodeCount": selected_nodes.size(),
-		"selectedNodes": selected_nodes,
-		"scriptContext": script_context if not script_context.is_empty() else null,
-		"filesystemSelection": filesystem_selection_context if not filesystem_selection_context.is_empty() else null,
-		"updatedAt": MAIN_HELPERS.get_utc_timestamp()
-	}
-	if edited_root != null:
-		params["editedSceneRoot"] = _serialize_editor_node_summary(edited_root, edited_root)
-
-	_send_request(RPC_METHODS.EDITOR_CONTEXT_UPDATE, params, "editor-context")
-
-
-func _sync_live_editor_selection_context(edited_root: Node, selected_nodes: Array[Dictionary]) -> void:
-	if edited_root == null or selected_nodes.is_empty():
-		_upsert_live_additional_context(LIVE_EDITOR_SELECTION_CONTEXT_ID, {})
-		return
-
-	var scene_path: String = _get_scene_resource_path(edited_root)
-	var title_text: String = "Selected Node (%d)" % selected_nodes.size()
-	var selected_names: PackedStringArray
-	for selected_node_info: Dictionary in selected_nodes:
-		selected_names.append(str(selected_node_info.get("name", "")))
-
-	var context: Dictionary = {
-		"id": LIVE_EDITOR_SELECTION_CONTEXT_ID,
-		"kind": "editor_selection",
-		"title": title_text,
-		"subtitle": scene_path,
-		"pinned": false,
-		"source": "editor",
-		"resourcePath": scene_path,
-		"summary": "Currently selected node in the editor: %s" % ", ".join(selected_names),
-		"data": {
-			"selectedNodes": selected_nodes
-		}
-	}
-	_upsert_live_additional_context(LIVE_EDITOR_SELECTION_CONTEXT_ID, context)
-
-
-func _sync_live_script_selection_context(context: Dictionary) -> void:
-	_upsert_live_additional_context(LIVE_SCRIPT_SELECTION_CONTEXT_ID, context)
-
-
-func _sync_live_filesystem_selection_context(context: Dictionary) -> void:
-	_upsert_live_additional_context(LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, context)
-
-
-func _upsert_live_additional_context(context_id: String, context: Dictionary) -> void:
-	_ensure_dismissed_live_context_signatures()
-	var existing_index: int = _find_additional_context_index(context_id)
-	if existing_index >= 0:
-		var existing_context: Dictionary = additional_context_items[existing_index]
-		if bool(existing_context.get("pinned", false)):
-			return
-
-	if context.is_empty():
-		dismissed_live_context_signatures.erase(context_id)
-		if existing_index >= 0:
-			additional_context_items.remove_at(existing_index)
-			_render_additional_context_items()
-		return
-
-	var live_context: Dictionary = context.duplicate(true)
-	live_context["id"] = context_id
-	live_context["pinned"] = false
-	var next_signature: String = _make_live_additional_context_signature(context_id, live_context)
-	if str(dismissed_live_context_signatures.get(context_id, "")) == next_signature:
-		return
-	if existing_index >= 0:
-		var current_signature: String = _make_live_additional_context_signature(context_id, additional_context_items[existing_index])
-		if current_signature == next_signature:
-			return
-		additional_context_items[existing_index] = live_context
-	else:
-		if not _can_append_additional_context(false):
-			return
-		additional_context_items.append(live_context)
-	_render_additional_context_items()
-
-
-func _dismiss_live_additional_context_if_needed(context_id: String, context: Dictionary) -> void:
-	if not _is_live_additional_context_id(context_id):
-		return
-
-	_ensure_dismissed_live_context_signatures()
-	dismissed_live_context_signatures[context_id] = _make_live_additional_context_signature(context_id, context)
-
-
-func _ensure_dismissed_live_context_signatures() -> void:
-	if typeof(dismissed_live_context_signatures) != TYPE_DICTIONARY:
-		dismissed_live_context_signatures = {}
-
-
-func _is_live_additional_context_id(context_id: String) -> bool:
-	return (
-		context_id == LIVE_EDITOR_SELECTION_CONTEXT_ID
-		or context_id == LIVE_SCRIPT_SELECTION_CONTEXT_ID
-		or context_id == LIVE_FILESYSTEM_SELECTION_CONTEXT_ID
-	)
-
-
-func _make_live_additional_context_signature(context_id: String, context: Dictionary) -> String:
-	var signature_context: Dictionary = context.duplicate(true)
-	signature_context["id"] = context_id
-	signature_context["pinned"] = false
-	return JSON.stringify(signature_context)
-
-
-func _find_additional_context_index(context_id: String) -> int:
-	for index: int in range(additional_context_items.size()):
-		var context: Dictionary = additional_context_items[index]
-		if str(context.get("id", "")) == context_id:
-			return index
-	return -1
-
-
-func _collect_script_selection_context() -> Dictionary:
-	if editor_script_editor == null:
-		return {}
-	if not editor_script_editor.has_method("get_current_editor"):
-		return {}
-
-	var current_editor_value: Variant = editor_script_editor.call("get_current_editor")
-	if not (current_editor_value is Object):
-		return {}
-	var current_editor_object: Object = current_editor_value as Object
-	if current_editor_object == null or not current_editor_object.has_method("get_base_editor"):
-		return {}
-
-	var base_editor_value: Variant = current_editor_object.call("get_base_editor")
-	if not (base_editor_value is TextEdit):
-		return {}
-	var base_text_edit: TextEdit = base_editor_value as TextEdit
-	var line_count: int = base_text_edit.get_line_count()
-	if line_count <= 0:
-		return {}
-
-	var editor_text: String = base_text_edit.text
-	var resource_path: String = _get_current_script_resource_path(current_editor_object)
-	var caret_line_zero: int = clampi(base_text_edit.get_caret_line(0), 0, maxi(line_count - 1, 0))
-	var caret_column_zero: int = maxi(base_text_edit.get_caret_column(0), 0)
-	var has_script_selection: bool = base_text_edit.has_selection(0)
-	var line_start: int = caret_line_zero + 1
-	var column_start: int = caret_column_zero + 1
-	var line_end: int = line_start
-	var column_end: int = column_start
-	var data: Dictionary = {
-		"caretLine": line_start,
-		"caretColumn": column_start,
-		"hasSelection": has_script_selection,
-		"editorTextPreview": _clip_context_text(editor_text, SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT),
-		"editorTextTruncated": editor_text.length() > SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT,
-		"editorTextLineCount": line_count,
-		"resourcePathAvailable": not resource_path.is_empty()
-	}
-
-	if has_script_selection:
-		line_start = base_text_edit.get_selection_from_line(0) + 1
-		column_start = base_text_edit.get_selection_from_column(0) + 1
-		line_end = base_text_edit.get_selection_to_line(0) + 1
-		column_end = base_text_edit.get_selection_to_column(0) + 1
-		var selected_text: String = base_text_edit.get_selected_text(0)
-		data["selectedTextPreview"] = _clip_context_text(selected_text, SCRIPT_SELECTION_PREVIEW_LIMIT)
-		data["selectedTextTruncated"] = selected_text.length() > SCRIPT_SELECTION_PREVIEW_LIMIT
-	else:
-		var current_line_text: String = base_text_edit.get_line(caret_line_zero)
-		data["lineTextPreview"] = _clip_context_text(current_line_text, SCRIPT_LINE_PREVIEW_LIMIT)
-		data["lineTextTruncated"] = current_line_text.length() > SCRIPT_LINE_PREVIEW_LIMIT
-
-	data["lineStart"] = line_start
-	data["columnStart"] = column_start
-	data["lineEnd"] = line_end
-	data["columnEnd"] = column_end
-
-	var script_name: String = resource_path.get_file()
-	if script_name.is_empty():
-		script_name = "未保存脚本"
-	var range_text: String = _format_script_selection_range(line_start, line_end)
-	var selection_label: String = "选区" if has_script_selection else "光标行"
-	var context: Dictionary = {
-		"id": LIVE_SCRIPT_SELECTION_CONTEXT_ID,
-		"kind": "script_selection",
-		"title": "%s:%s" % [script_name, range_text],
-		"subtitle": "%s · %d:%d-%d:%d" % [selection_label, line_start, column_start, line_end, column_end],
-		"pinned": false,
-		"source": "editor",
-		"summary": "Godot 脚本编辑器当前%s，行列使用 1-based：%d:%d-%d:%d。" % [selection_label, line_start, column_start, line_end, column_end],
-		"data": data
-	}
-	if not resource_path.is_empty():
-		context["resourcePath"] = resource_path
-		context["scriptPath"] = resource_path
-	return context
-
-
-func _get_current_script_resource_path(current_editor_object: Object) -> String:
-	var script_resource: Resource
-	if editor_script_editor != null and editor_script_editor.has_method("get_current_script"):
-		var script_value: Variant = editor_script_editor.call("get_current_script")
-		if script_value is Resource:
-			script_resource = script_value as Resource
-
-	if script_resource == null and current_editor_object.has_method("get_edited_resource"):
-		var edited_resource_value: Variant = current_editor_object.call("get_edited_resource")
-		if edited_resource_value is Resource:
-			script_resource = edited_resource_value as Resource
-
-	if script_resource == null:
-		return ""
-
-	return script_resource.resource_path
-
-
-func _collect_filesystem_selection_context() -> Dictionary:
-	if editor_interface == null:
-		return {}
-
-	var selected_paths: PackedStringArray = editor_interface.get_selected_paths()
-	if selected_paths.is_empty():
-		return {}
-
-	var selected_path_items: Array[Dictionary]
-	var selected_names: PackedStringArray
-	var truncated: bool = false
-	for index: int in range(selected_paths.size()):
-		if selected_path_items.size() >= FILESYSTEM_CONTEXT_MAX_PATHS:
-			truncated = true
-			break
-
-		var selected_path: String = selected_paths[index].strip_edges()
-		if selected_path.is_empty():
-			continue
-
-		var normalized_path: String = selected_path.trim_suffix("/")
-		var selected_kind: String = "folder" if DirAccess.dir_exists_absolute(selected_path) else "file"
-		var selected_name: String = normalized_path.get_file()
-		if selected_name.is_empty():
-			selected_name = selected_path
-		var selected_item: Dictionary = {
-			"resourcePath": selected_path,
-			"kind": selected_kind,
-			"name": selected_name
-		}
-		if selected_kind == "file":
-			selected_item["extension"] = selected_path.get_extension()
-		selected_path_items.append(selected_item)
-		selected_names.append(selected_name)
-
-	if selected_path_items.is_empty():
-		return {}
-
-	var first_item: Dictionary = selected_path_items[0]
-	var first_path: String = str(first_item.get("resourcePath", ""))
-	var title_text: String = "文件系统选中项 (%d)" % selected_path_items.size()
-	if selected_path_items.size() == 1:
-		title_text = str(first_item.get("name", title_text))
-
-	var subtitle_text: String = first_path
-	if selected_path_items.size() > 1:
-		subtitle_text = "%s 等 %d 项" % [first_path, selected_path_items.size()]
-
-	return {
-		"id": LIVE_FILESYSTEM_SELECTION_CONTEXT_ID,
-		"kind": "filesystem_selection",
-		"title": title_text,
-		"subtitle": subtitle_text,
-		"pinned": false,
-		"source": "editor",
-		"resourcePath": first_path,
-		"summary": "FileSystem Dock 当前选中：%s%s" % [", ".join(selected_names.slice(0, 6)), " ..." if truncated or selected_names.size() > 6 else ""],
-		"data": {
-			"selectedPaths": selected_path_items,
-			"truncated": truncated
-		}
-	}
-
-
-func _format_script_selection_range(line_start: int, line_end: int) -> String:
-	if line_start == line_end:
-		return "%d" % line_start
-	return "%d-%d" % [line_start, line_end]
-
-
-func _clip_context_text(source_text: String, max_chars: int) -> String:
-	if source_text.length() <= max_chars:
-		return source_text
-	return source_text.substr(0, max_chars)
-
-
-func _get_edited_scene_root() -> Node:
-	if editor_interface == null:
-		return null
-
-	return editor_interface.get_edited_scene_root()
-
-
-func _get_scene_resource_path(scene_root: Node) -> String:
-	if scene_root == null:
-		return ""
-	return scene_root.scene_file_path
-
-
-func _get_relative_node_path(scene_root: Node, target_node: Node) -> String:
-	if scene_root == null or target_node == null:
-		return ""
-	if scene_root == target_node:
-		return "."
-	return str(scene_root.get_path_to(target_node))
-
-
-func _find_editor_node(scene_path: String, node_path: String) -> Node:
-	var edited_root: Node = _get_edited_scene_root()
-	if edited_root == null:
-		return null
-
-	var requested_scene_path: String = scene_path.strip_edges()
-	if not requested_scene_path.is_empty() and requested_scene_path != _get_scene_resource_path(edited_root):
-		return null
-
-	var requested_node_path: String = node_path.strip_edges()
-	if requested_node_path.is_empty() or requested_node_path == ".":
-		return edited_root
-	if not edited_root.has_node(NodePath(requested_node_path)):
-		return null
-
-	return edited_root.get_node(NodePath(requested_node_path))
-
-
-func _serialize_editor_node_summary(target_node: Node, scene_root: Node) -> Dictionary:
-	var script_path: String = _get_node_script_path(target_node)
-	var summary: Dictionary = {
-		"name": target_node.name,
-		"path": _get_relative_node_path(scene_root, target_node),
-		"type": target_node.get_class(),
-		"ownerPath": _get_relative_node_path(scene_root, target_node.owner) if target_node.owner != null else "",
-		"childCount": target_node.get_child_count(),
-		"properties": _get_node_key_properties(target_node)
-	}
-	if not script_path.is_empty():
-		summary["scriptPath"] = script_path
-	return summary
-
-
-func _serialize_editor_node_deep(target_node: Node, scene_root: Node, depth: int = 0) -> Dictionary:
-	var summary: Dictionary = _serialize_editor_node_summary(target_node, scene_root)
-	if depth >= 2:
-		return summary
-
-	var children: Array[Dictionary] = []
-	for child_node: Node in target_node.get_children():
-		children.append(_serialize_editor_node_deep(child_node, scene_root, depth + 1))
-	summary["children"] = children
-	return summary
-
-
-func _get_node_script_path(target_node: Node) -> String:
-	var script_value: Variant = target_node.get_script()
-	if script_value is Script:
-		var script_resource: Script = script_value as Script
-		return script_resource.resource_path
-	return ""
-
-
-func _get_node_key_properties(target_node: Node) -> Dictionary:
-	var properties: Dictionary = {}
-	for property_name: String in ["text", "tooltip_text", "visible", "disabled", "placeholder_text", "position", "size", "custom_minimum_size"]:
-		if _node_has_property(target_node, property_name):
-			var property_value: Variant = target_node.get(property_name)
-			properties[property_name] = _compact_variant_for_json(property_value)
-	return properties
-
-
-func _node_has_property(target_node: Node, property_name: String) -> bool:
-	for property_info: Dictionary in target_node.get_property_list():
-		if str(property_info.get("name", "")) == property_name:
-			return true
-	return false
-
-
-func _compact_variant_for_json(value: Variant) -> Variant:
-	if value is Vector2:
-		var vector_value: Vector2 = value as Vector2
-		return { "x": vector_value.x, "y": vector_value.y }
-	if value is Vector2i:
-		var vector_i_value: Vector2i = value as Vector2i
-		return { "x": vector_i_value.x, "y": vector_i_value.y }
-	if value is Color:
-		var color_value: Color = value as Color
-		return color_value.to_html(true)
-	if value is Resource:
-		var resource_value: Resource = value as Resource
-		return resource_value.resource_path
-	if typeof(value) == TYPE_ARRAY:
-		var source_array: Array = value as Array
-		var compact_array: Array = []
-		for item: Variant in source_array:
-			compact_array.append(_compact_variant_for_json(item))
-		return compact_array
-	if typeof(value) == TYPE_DICTIONARY:
-		var source_dictionary: Dictionary = value as Dictionary
-		var compact_dictionary: Dictionary = {}
-		for key_value: Variant in source_dictionary.keys():
-			compact_dictionary[str(key_value)] = _compact_variant_for_json(source_dictionary[key_value])
-		return compact_dictionary
-	return value
-
-
-func _summarize_editor_node(target_node: Node) -> String:
-	var node_path: String = ""
-	var edited_root: Node = _get_edited_scene_root()
-	if edited_root != null:
-		node_path = _get_relative_node_path(edited_root, target_node)
-	return "%s `%s` (%d children)" % [target_node.get_class(), node_path, target_node.get_child_count()]
-
-
-func _handle_editor_tool_requested(data: Dictionary) -> void:
-	var call_id: String = str(data.get("callId", ""))
-	var tool_name: String = str(data.get("toolName", ""))
-	var args_value: Variant = data.get("args", {})
-	var args: Dictionary = args_value as Dictionary if typeof(args_value) == TYPE_DICTIONARY else {}
-	var ok: bool = true
-	var result: Variant = {}
-	var error_message: String = ""
-
-	if call_id.is_empty():
-		return
-
-	if tool_name == "inspect_node":
-		result = _execute_editor_inspect_node(args)
-	elif tool_name == "apply_scene_patch":
-		result = _execute_editor_apply_scene_patch(args)
-	elif tool_name == "refresh_filesystem":
-		result = _execute_editor_refresh_filesystem(args)
-	else:
-		ok = false
-		error_message = "Unknown editor tool: %s" % tool_name
-
-	if typeof(result) == TYPE_DICTIONARY and bool((result as Dictionary).get("ok", true)) == false:
-		ok = false
-		error_message = str((result as Dictionary).get("error", "Editor tool failed"))
-
-	_send_request(
-		RPC_METHODS.EDITOR_TOOL_RESULT,
-		{
-			"callId": call_id,
-			"ok": ok,
-			"result": result if ok else null,
-			"error": error_message if not ok else ""
-		},
-		"editor-tool-result"
-	)
-
-
-func _execute_editor_inspect_node(args: Dictionary) -> Dictionary:
-	var scene_path: String = str(args.get("scenePath", ""))
-	var node_path: String = str(args.get("nodePath", "."))
-	var target_node: Node = _find_editor_node(scene_path, node_path)
-	var edited_root: Node = _get_edited_scene_root()
-	if target_node == null or edited_root == null:
-		return { "ok": false, "error": "editor_node_not_found" }
-
-	return {
-		"ok": true,
-		"node": _serialize_editor_node_deep(target_node, edited_root)
-	}
-
-
-func _execute_editor_refresh_filesystem(args: Dictionary) -> Dictionary:
-	if editor_interface == null:
-		return { "ok": false, "error": "editor_interface_unavailable" }
-
-	var resource_filesystem: EditorFileSystem = editor_interface.get_resource_filesystem()
-	if resource_filesystem == null:
-		return { "ok": false, "error": "editor_filesystem_unavailable" }
-
-	var changed_paths_value: Variant = args.get("changedPaths", [])
-	var changed_paths: PackedStringArray
-	if typeof(changed_paths_value) == TYPE_ARRAY:
-		for path_value: Variant in changed_paths_value as Array:
-			var changed_path: String = str(path_value).strip_edges()
-			if not changed_path.is_empty():
-				changed_paths.append(changed_path)
-
-	var should_scan_sources: bool = bool(args.get("scanSources", true))
-	if should_scan_sources and resource_filesystem.has_method("scan_sources"):
-		resource_filesystem.call("scan_sources")
-	resource_filesystem.scan()
-	_queue_editor_context_update()
-
-	return {
-		"ok": true,
-		"changedPaths": changed_paths,
-		"scanSources": should_scan_sources
-	}
-
-
-func _execute_editor_apply_scene_patch(args: Dictionary) -> Dictionary:
-	if editor_undo_redo == null:
-		return { "ok": false, "error": "editor_undo_redo_unavailable" }
-
-	var edited_root: Node = _get_edited_scene_root()
-	if edited_root == null:
-		return { "ok": false, "error": "editor_scene_unavailable" }
-
-	var scene_path: String = str(args.get("scenePath", ""))
-	if not scene_path.strip_edges().is_empty() and scene_path != _get_scene_resource_path(edited_root):
-		return { "ok": false, "error": "editor_scene_mismatch" }
-
-	var operations_value: Variant = args.get("operations", [])
-	if typeof(operations_value) != TYPE_ARRAY:
-		return { "ok": false, "error": "invalid_operations" }
-
-	var operations: Array = operations_value as Array
-	if operations.is_empty():
-		return { "ok": false, "error": "empty_operations" }
-
-	var action_title: String = str(args.get("title", "Scene patch")).strip_edges()
-	if action_title.is_empty():
-		action_title = "Scene patch"
-	if not action_title.begins_with("Daedalus:"):
-		action_title = "Daedalus: %s" % action_title
-
-	var created_nodes: Array[Node] = []
-	for operation_value: Variant in operations:
-		if typeof(operation_value) != TYPE_DICTIONARY:
-			return { "ok": false, "error": "invalid_operation" }
-
-		var operation: Dictionary = operation_value as Dictionary
-		var operation_error: String = _validate_editor_patch_operation(operation)
-		if not operation_error.is_empty():
-			return { "ok": false, "error": operation_error }
-
-	editor_undo_redo.create_action(action_title)
-	for operation_value: Variant in operations:
-		var operation: Dictionary = operation_value as Dictionary
-		var operation_error: String = _add_editor_patch_operation(operation, edited_root, created_nodes)
-		if not operation_error.is_empty():
-			return { "ok": false, "error": operation_error }
-
-	editor_undo_redo.commit_action()
-
-	var should_save: bool = bool(args.get("saveAfter", true))
-	var save_error: Error = OK
-	if should_save:
-		save_error = _save_current_editor_scene()
-
-	return {
-		"ok": save_error == OK,
-		"operations": operations.size(),
-		"createdNodes": created_nodes.size(),
-		"saved": should_save and save_error == OK,
-		"error": "" if save_error == OK else "editor_save_failed:%d" % int(save_error)
-	}
-
-
-func _add_editor_patch_operation(operation: Dictionary, edited_root: Node, created_nodes: Array[Node]) -> String:
-	var operation_type: String = str(operation.get("type", ""))
-	if operation_type == "set_property":
-		return _add_editor_set_property_operation(operation, edited_root)
-	if operation_type == "add_node":
-		return _add_editor_add_node_operation(operation, edited_root, created_nodes)
-	if operation_type == "rename_node":
-		return _add_editor_rename_node_operation(operation, edited_root)
-	if operation_type == "attach_script":
-		return _add_editor_attach_script_operation(operation, edited_root)
-	if operation_type == "connect_signal":
-		return _add_editor_connect_signal_operation(operation, edited_root)
-	return "unsupported_operation:%s" % operation_type
-
-
-func _validate_editor_patch_operation(operation: Dictionary) -> String:
-	var operation_type: String = str(operation.get("type", ""))
-	if operation_type == "set_property":
-		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
-		var property_name: String = str(operation.get("property", ""))
-		if target_node == null:
-			return "node_not_found"
-		if property_name.is_empty() or not _node_has_property(target_node, property_name):
-			return "property_not_found:%s" % property_name
-		return ""
-	if operation_type == "add_node":
-		var parent_node: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
-		var node_type: String = str(operation.get("nodeType", "Node"))
-		if parent_node == null:
-			return "parent_not_found"
-		if not ClassDB.class_exists(node_type):
-			return "class_not_found:%s" % node_type
-		var created_node_value: Variant = ClassDB.instantiate(node_type)
-		if not (created_node_value is Node):
-			return "class_is_not_node:%s" % node_type
-		var validation_node: Node = created_node_value as Node
-		validation_node.free()
-		return ""
-	if operation_type == "rename_node":
-		var rename_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
-		var node_name: String = str(operation.get("name", "")).strip_edges()
-		if rename_node == null:
-			return "node_not_found"
-		if node_name.is_empty():
-			return "empty_node_name"
-		return ""
-	if operation_type == "attach_script":
-		var script_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
-		var script_path: String = str(operation.get("scriptPath", "")).strip_edges()
-		if script_node == null:
-			return "node_not_found"
-		if script_path.is_empty():
-			return "empty_script_path"
-		var script_resource: Resource = load(script_path)
-		if not (script_resource is Script):
-			return "script_not_found:%s" % script_path
-		return ""
-	if operation_type == "connect_signal":
-		var source_node: Node = _find_editor_node("", str(operation.get("fromNode", ".")))
-		var target_node: Node = _find_editor_node("", str(operation.get("toNode", ".")))
-		var signal_name: String = str(operation.get("signal", "")).strip_edges()
-		var method_name: String = str(operation.get("method", "")).strip_edges()
-		if source_node == null or target_node == null:
-			return "signal_node_not_found"
-		if signal_name.is_empty() or method_name.is_empty():
-			return "invalid_signal_or_method"
-		return ""
-	return "unsupported_operation:%s" % operation_type
-
-
-func _add_editor_set_property_operation(operation: Dictionary, edited_root: Node) -> String:
-	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
-	var property_name: String = str(operation.get("property", ""))
-	if target_node == null:
-		return "node_not_found"
-	if property_name.is_empty() or not _node_has_property(target_node, property_name):
-		return "property_not_found:%s" % property_name
-
-	var old_value: Variant = target_node.get(property_name)
-	var new_value: Variant = _coerce_property_value(operation.get("value", null), old_value)
-	editor_undo_redo.add_do_property(target_node, property_name, new_value)
-	editor_undo_redo.add_undo_property(target_node, property_name, old_value)
-	return ""
-
-
-func _add_editor_add_node_operation(operation: Dictionary, edited_root: Node, created_nodes: Array[Node]) -> String:
-	var parent_node: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
-	var node_type: String = str(operation.get("nodeType", "Node"))
-	var node_name: String = str(operation.get("nodeName", node_type))
-	if parent_node == null:
-		return "parent_not_found"
-	if not ClassDB.class_exists(node_type):
-		return "class_not_found:%s" % node_type
-
-	var created_node_value: Variant = ClassDB.instantiate(node_type)
-	if not (created_node_value is Node):
-		return "class_is_not_node:%s" % node_type
-
-	var created_node: Node = created_node_value as Node
-	created_node.name = node_name
-	var properties_value: Variant = operation.get("properties", {})
-	if typeof(properties_value) == TYPE_DICTIONARY:
-		var properties: Dictionary = properties_value as Dictionary
-		for property_key: Variant in properties.keys():
-			var property_name: String = str(property_key)
-			if _node_has_property(created_node, property_name):
-				var old_value: Variant = created_node.get(property_name)
-				created_node.set(property_name, _coerce_property_value(properties[property_key], old_value))
-
-	editor_undo_redo.add_do_method(parent_node, "add_child", created_node)
-	editor_undo_redo.add_do_property(created_node, "owner", edited_root)
-	editor_undo_redo.add_undo_method(parent_node, "remove_child", created_node)
-	editor_undo_redo.add_do_reference(created_node)
-	created_nodes.append(created_node)
-	return ""
-
-
-func _add_editor_rename_node_operation(operation: Dictionary, _edited_root: Node) -> String:
-	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
-	var node_name: String = str(operation.get("name", "")).strip_edges()
-	if target_node == null:
-		return "node_not_found"
-	if node_name.is_empty():
-		return "empty_node_name"
-
-	var old_name: String = target_node.name
-	editor_undo_redo.add_do_property(target_node, "name", node_name)
-	editor_undo_redo.add_undo_property(target_node, "name", old_name)
-	return ""
-
-
-func _add_editor_attach_script_operation(operation: Dictionary, _edited_root: Node) -> String:
-	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
-	var script_path: String = str(operation.get("scriptPath", "")).strip_edges()
-	if target_node == null:
-		return "node_not_found"
-	if script_path.is_empty():
-		return "empty_script_path"
-
-	var script_resource: Resource = load(script_path)
-	if not (script_resource is Script):
-		return "script_not_found:%s" % script_path
-
-	var old_script: Variant = target_node.get_script()
-	editor_undo_redo.add_do_method(target_node, "set_script", script_resource)
-	editor_undo_redo.add_undo_method(target_node, "set_script", old_script)
-	return ""
-
-
-func _add_editor_connect_signal_operation(operation: Dictionary, _edited_root: Node) -> String:
-	var source_node: Node = _find_editor_node("", str(operation.get("fromNode", ".")))
-	var target_node: Node = _find_editor_node("", str(operation.get("toNode", ".")))
-	var signal_name: String = str(operation.get("signal", "")).strip_edges()
-	var method_name: String = str(operation.get("method", "")).strip_edges()
-	if source_node == null or target_node == null:
-		return "signal_node_not_found"
-	if signal_name.is_empty() or method_name.is_empty():
-		return "invalid_signal_or_method"
-
-	var callable: Callable = Callable(target_node, method_name)
-	if source_node.is_connected(signal_name, callable):
-		return ""
-
-	editor_undo_redo.add_do_method(source_node, "connect", signal_name, callable)
-	editor_undo_redo.add_undo_method(source_node, "disconnect", signal_name, callable)
-	return ""
-
-
-func _coerce_property_value(value: Variant, old_value: Variant) -> Variant:
-	if old_value is Vector2 and typeof(value) == TYPE_DICTIONARY:
-		var vector_dictionary: Dictionary = value as Dictionary
-		return Vector2(float(vector_dictionary.get("x", 0.0)), float(vector_dictionary.get("y", 0.0)))
-	if old_value is Vector2i and typeof(value) == TYPE_DICTIONARY:
-		var vector_i_dictionary: Dictionary = value as Dictionary
-		return Vector2i(int(vector_i_dictionary.get("x", 0)), int(vector_i_dictionary.get("y", 0)))
-	if old_value is Color and typeof(value) == TYPE_STRING:
-		return Color(str(value))
-	return value
-
-
-func _save_current_editor_scene() -> Error:
-	if editor_interface == null:
-		return FAILED
-
-	return editor_interface.save_scene()
+	_send_request(method, params, request_prefix)
 
 # --- provider_navigation_controller.gd ---
 
@@ -3267,13 +2116,13 @@ func _on_send_button_pressed() -> void:
 	if _should_queue_outgoing_message():
 		if _enqueue_message(message_text, additional_context_snapshot):
 			_clear_text_edit_after_submit()
-			_clear_unpinned_additional_context_items()
+			additional_context_controller.clear_unpinned()
 			_update_send_state()
 			_process_message_queue()
 		return
 
 	if _dispatch_message_text(message_text, additional_context_snapshot):
-		_clear_unpinned_additional_context_items()
+		additional_context_controller.clear_unpinned()
 		if active_session_id.is_empty():
 			_clear_text_edit_after_submit()
 			_update_send_state()
@@ -3345,7 +2194,8 @@ func _stop_active_stream_locally(prepare_continue: bool) -> void:
 		active_assistant_item.call("finish_message")
 	if active_thinking_item != null:
 		active_thinking_item.call("finish_thinking")
-	_append_inline_diff_for_completed_stream(active_assistant_entry_id)
+	file_edit_controller.set_active_session_id(active_session_id)
+	file_edit_controller.complete_stream(active_assistant_entry_id)
 
 	active_stream_id = ""
 	active_stream_request_id = ""
@@ -3356,7 +2206,7 @@ func _stop_active_stream_locally(prepare_continue: bool) -> void:
 	active_assistant_entry_id = ""
 	active_thinking_entry_id = ""
 	active_assistant_text = ""
-	active_file_edit_batches.clear()
+	file_edit_controller.clear_active_batches()
 	_clear_paused_stream_context()
 	_set_streaming_state(false)
 
@@ -3469,7 +2319,7 @@ func _dispatch_message_text(message_text: String, additional_contexts: Array = [
 
 	if active_session_id.is_empty():
 		pending_chat_text = message_text
-		pending_chat_additional_context = _clone_additional_context_array(additional_contexts)
+		pending_chat_additional_context = additional_context_controller.clone_contexts(additional_contexts)
 		_create_session(MAIN_HELPERS.make_session_title(message_text))
 		return true
 
@@ -3512,16 +2362,17 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	active_assistant_entry_id = ""
 	active_thinking_entry_id = ""
 	active_assistant_text = ""
-	active_file_edit_batches.clear()
+	file_edit_controller.clear_active_batches()
 	_clear_paused_stream_context()
 	_clear_todo_items()
 
-	request_id += 1
-	active_stream_id = "daedalus-chat-%d" % request_id
+	chat_request_id += 1
+	active_stream_id = "daedalus-chat-%d" % chat_request_id
 	active_stream_request_id = active_stream_id
 	active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
 	active_stream_status_code = ""
-	var additional_context_snapshot: Array[Dictionary] = _clone_additional_context_array(additional_contexts)
+	var timeline_additional_context_snapshot: Array[Dictionary] = additional_context_controller.clone_contexts(additional_contexts, true)
+	var request_additional_context_snapshot: Array[Dictionary] = additional_context_controller.clone_contexts(additional_contexts)
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_append_timeline_entry(
 		"user",
@@ -3530,7 +2381,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 		"",
 		{
 			"sent_at_utc": active_stream_started_at_utc,
-			"additional_context": additional_context_snapshot
+			"additional_context": timeline_additional_context_snapshot
 		}
 	)
 	active_assistant_entry_id = _append_timeline_entry(
@@ -3553,8 +2404,8 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 		chat_params["systemPrompt"] = custom_instructions
 	if not retry_from_request_id.is_empty():
 		chat_params["retryFromRequestId"] = retry_from_request_id
-	if not additional_context_snapshot.is_empty():
-		chat_params["additionalContext"] = additional_context_snapshot
+	if not request_additional_context_snapshot.is_empty():
+		chat_params["additionalContext"] = request_additional_context_snapshot
 
 	var payload: Dictionary[String, Variant] = {
 		"type": "request",
@@ -3563,7 +2414,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 		"params": chat_params
 	}
 
-	var send_error: Error = socket.send_text(JSON.stringify(payload))
+	var send_error: Error = backend_connection_controller.send_json(payload)
 	if send_error != OK:
 		var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
 		_show_response_error({
@@ -3613,7 +2464,7 @@ func _enqueue_message(message_text: String, additional_contexts: Array = []) -> 
 	var queued_message: Dictionary = {
 		"id": message_queue_next_id,
 		"text": message_text,
-		"additional_context": _clone_additional_context_array(additional_contexts),
+		"additional_context": additional_context_controller.clone_contexts(additional_contexts, true),
 		"status": MESSAGE_QUEUE_STATUS_PENDING,
 		"created_at_utc": MAIN_HELPERS.get_utc_timestamp()
 	}
@@ -3929,60 +2780,20 @@ func _clear_manual_guides() -> void:
 # --- message_router_controller.gd ---
 
 func _send_request(method: String, params: Dictionary, id_prefix: String) -> String:
-	if not _is_socket_open():
-		return ""
-
-	request_id += 1
-	var next_request_id: String = "%s-%d" % [id_prefix, request_id]
-	var payload: Dictionary[String, Variant] = {
-		"type": "request",
-		"id": next_request_id,
-		"method": method,
-		"params": params
-	}
-	var send_error: Error = socket.send_text(JSON.stringify(payload))
-	if send_error != OK:
-		push_warning("Failed to send request %s: %s" % [method, error_string(send_error)])
-		return ""
-
-	return next_request_id
+	return backend_connection_controller.send_request(method, params, id_prefix)
 
 
 func _is_socket_open() -> bool:
-	return socket.get_ready_state() == WebSocketPeer.STATE_OPEN
+	return backend_connection_controller.is_open()
 
 
 func _format_socket_close_tooltip(prefix: String) -> String:
-	var close_code: int = socket.get_close_code()
-	var close_reason: String = socket.get_close_reason()
+	var close_code: int = backend_connection_controller.get_close_code()
+	var close_reason: String = backend_connection_controller.get_close_reason()
 	if close_reason.is_empty():
 		return "%s (%d)" % [prefix, close_code]
 
 	return "%s (%d): %s" % [prefix, close_code, close_reason]
-
-
-func _receive_messages() -> void:
-	var processed_count: int = 0
-	var started_at_msec: int = Time.get_ticks_msec()
-	while socket.get_available_packet_count() > 0:
-		if processed_count >= MAX_MESSAGES_PER_FRAME:
-			return
-		if Time.get_ticks_msec() - started_at_msec >= MAX_MESSAGE_PROCESS_MSEC:
-			return
-
-		var packet: PackedByteArray = socket.get_packet()
-		processed_count += 1
-		if not socket.was_string_packet():
-			continue
-
-		var json: JSON = JSON.new()
-		var parse_error: Error = json.parse(packet.get_string_from_utf8())
-		if parse_error != OK:
-			continue
-
-		var data: Variant = json.data
-		if typeof(data) == TYPE_DICTIONARY:
-			_handle_message(data as Dictionary)
 
 
 func _handle_message(message: Dictionary) -> void:
@@ -4001,7 +2812,7 @@ func _handle_response(message: Dictionary) -> void:
 	if not ok:
 		if _handle_attachment_image_save_response(str(message.get("id", "")), false, {}):
 			return
-		if _handle_file_edit_batch_response(str(message.get("id", "")), false, {}):
+		if file_edit_controller.handle_batch_response(str(message.get("id", "")), false, {}):
 			return
 		if _handle_plan_response_error(str(message.get("id", ""))):
 			return
@@ -4040,7 +2851,8 @@ func _handle_response(message: Dictionary) -> void:
 			return
 		if str(message.get("id", "")) == active_stream_id:
 			_show_response_error(message)
-			_append_inline_diff_for_completed_stream(active_assistant_entry_id)
+			file_edit_controller.set_active_session_id(active_session_id)
+			file_edit_controller.complete_stream(active_assistant_entry_id)
 			if active_queue_message_id > 0:
 				_finish_active_queue_message(false, MESSAGE_QUEUE_STATUS_FAILED)
 			active_stream_id = ""
@@ -4050,7 +2862,7 @@ func _handle_response(message: Dictionary) -> void:
 			active_assistant_item = null
 			active_assistant_entry_id = ""
 			active_assistant_text = ""
-			active_file_edit_batches.clear()
+			file_edit_controller.clear_active_batches()
 			_clear_paused_stream_context()
 			_set_streaming_state(false)
 			_process_message_queue()
@@ -4070,7 +2882,7 @@ func _handle_response(message: Dictionary) -> void:
 		return
 	if _handle_attachment_image_save_response(response_id, true, result_dictionary):
 		return
-	if _handle_file_edit_batch_response(str(message.get("id", "")), true, result_dictionary):
+	if file_edit_controller.handle_batch_response(str(message.get("id", "")), true, result_dictionary):
 		return
 	if _handle_plan_response(response_id, result_dictionary):
 		return
@@ -4106,7 +2918,7 @@ func _handle_response(message: Dictionary) -> void:
 
 		if not pending_chat_text.is_empty():
 			var next_message: String = pending_chat_text
-			var next_additional_context: Array[Dictionary] = _clone_additional_context_array(pending_chat_additional_context)
+			var next_additional_context: Array[Dictionary] = additional_context_controller.clone_contexts(pending_chat_additional_context)
 			pending_chat_text = ""
 			pending_chat_additional_context.clear()
 			if not _send_chat_text(next_message, "", next_additional_context) and active_queue_message_id > 0:
@@ -4150,7 +2962,7 @@ func _handle_response(message: Dictionary) -> void:
 		var editor_instance_value: Variant = result_dictionary.get("editorInstance", {})
 		if typeof(editor_instance_value) == TYPE_DICTIONARY:
 			var editor_instance_dictionary: Dictionary = editor_instance_value as Dictionary
-			editor_instance_id = str(editor_instance_dictionary.get("editorInstanceId", editor_instance_id)).strip_edges()
+			editor_bridge_controller.set_editor_instance_id(str(editor_instance_dictionary.get("editorInstanceId", "")))
 			connected_workspace_id = str(editor_instance_dictionary.get("workspaceId", connected_workspace_id)).strip_edges()
 			_update_connection_identity_tooltip()
 	elif result_dictionary.has("contextWindowTokens"):
@@ -4213,7 +3025,8 @@ func _handle_event(message: Dictionary) -> void:
 			_set_timeline_entry_times(active_assistant_entry_id, active_stream_started_at_utc, completed_at_utc)
 		if active_assistant_item != null:
 			active_assistant_item.call("finish_message", active_stream_started_at_utc, completed_at_utc)
-		_append_inline_diff_for_completed_stream(active_assistant_entry_id)
+		file_edit_controller.set_active_session_id(active_session_id)
+		file_edit_controller.complete_stream(active_assistant_entry_id)
 		_schedule_timeline_render(should_follow_bottom)
 		active_assistant_item = null
 		active_assistant_entry_id = ""
@@ -4238,7 +3051,8 @@ func _handle_event(message: Dictionary) -> void:
 			_save_paused_stream_context()
 		_flush_pending_assistant_delta()
 		if not has_approval_request:
-			_append_inline_diff_for_completed_stream(active_assistant_entry_id)
+			file_edit_controller.set_active_session_id(active_session_id)
+			file_edit_controller.complete_stream(active_assistant_entry_id)
 		active_assistant_item = null
 		active_assistant_entry_id = ""
 		active_stream_id = ""
@@ -4270,9 +3084,11 @@ func _handle_event(message: Dictionary) -> void:
 		active_thinking_entry_id = ""
 	elif event_name == "agent.tool.call" or event_name == "tool.call":
 		_add_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
+	elif event_name == "agent.tool.progress" or event_name == "tool.progress":
+		_append_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
 	elif event_name == "agent.tool.result" or event_name == "tool.result":
 		var normalized_tool_result: Dictionary = _normalize_agent_tool_event_data(event_name, data_dictionary)
-		_collect_active_file_edit_batch(normalized_tool_result)
+		file_edit_controller.collect_active_batch(normalized_tool_result)
 		_append_tool_event(normalized_tool_result)
 	elif event_name == "agent.tool.error" or event_name == "tool.error":
 		_append_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
@@ -4310,7 +3126,7 @@ func _handle_event(message: Dictionary) -> void:
 		if not mcp_error_text.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 			active_settings_menu.call("show_mcp_error", mcp_error_text)
 	elif event_name == "editor.tool.requested":
-		_handle_editor_tool_requested(data_dictionary)
+		editor_bridge_controller.handle_tool_requested(data_dictionary)
 
 # --- next_step_controller.gd ---
 
@@ -4535,7 +3351,7 @@ func _begin_plan_followup_stream(plan_request_id: String, _user_text: String, pl
 		active_assistant_entry_id = ""
 	active_thinking_entry_id = ""
 	active_assistant_text = _get_timeline_entry_content(active_assistant_entry_id)
-	active_file_edit_batches.clear()
+	file_edit_controller.clear_active_batches()
 	_clear_paused_stream_context()
 	_clear_todo_items()
 
@@ -4599,7 +3415,7 @@ func _start_plan_execution_stream(event_data: Dictionary) -> void:
 	active_assistant_entry_id = ""
 	active_thinking_entry_id = ""
 	active_assistant_text = ""
-	active_file_edit_batches.clear()
+	file_edit_controller.clear_active_batches()
 	_clear_paused_stream_context()
 	_clear_todo_items()
 
@@ -5459,7 +4275,7 @@ func _append_timeline_blocks(blocks_value: Variant) -> void:
 				entry_id,
 				{
 					"sent_at_utc": str(block.get("sentAtUtc", "")),
-					"additional_context": _clone_additional_context_array(additional_contexts)
+					"additional_context": additional_context_controller.clone_contexts(additional_contexts)
 				}
 			)
 		elif block_type == "assistant":
@@ -5515,7 +4331,7 @@ func _append_session_records_to_timeline(messages_value: Variant, events_value: 
 				_make_message_entry_id(message, role),
 				{
 					"sent_at_utc": created_at,
-					"additional_context": _clone_additional_context_array(additional_contexts)
+					"additional_context": additional_context_controller.clone_contexts(additional_contexts)
 				}
 			)
 			if not request_id.is_empty() and not created_at.is_empty():
@@ -5843,7 +4659,7 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 		elif event_name.begins_with("tool.") or event_name.begins_with("agent.tool."):
 			var normalized_tool_event: Dictionary = _normalize_agent_tool_event_data(event_name, event_data)
 			_append_tool_event_to_body_parts(body_parts, normalized_tool_event, request_id)
-			_append_file_edit_batch_from_event(file_edit_batches, normalized_tool_event)
+			file_edit_controller.append_batch_from_event(file_edit_batches, normalized_tool_event)
 		elif event_name == "ai.thinking.delta" or event_name == "agent.thinking.delta":
 			_append_thinking_event_to_body_parts(body_parts, str(event_data.get("text", "")), false)
 		elif event_name == "ai.thinking.done" or event_name == "agent.thinking.done":
@@ -5872,7 +4688,8 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 	if not has_error_status and str(assistant_message.get("status", "")) == "failed":
 		_append_failed_message_status_to_body_parts(body_parts, assistant_message)
 
-	var inline_diff_summary: Dictionary = _create_inline_diff_summary(file_edit_batches)
+	file_edit_controller.set_active_session_id(active_session_id)
+	var inline_diff_summary: Dictionary = file_edit_controller.create_inline_diff_summary(file_edit_batches)
 	if not inline_diff_summary.is_empty():
 		body_parts.append(inline_diff_summary)
 
@@ -6040,462 +4857,25 @@ func _append_status_event_to_body_parts(body_parts: Array, status_data: Dictiona
 	body_parts.append(part)
 
 
-func _append_file_edit_batch_from_event(file_edit_batches: Array[Dictionary], event_data: Dictionary) -> void:
-	var batch_value: Variant = event_data.get("fileEditBatch", {})
-	if typeof(batch_value) != TYPE_DICTIONARY:
-		return
-
-	var batch: Dictionary = (batch_value as Dictionary).duplicate(true)
-	if str(batch.get("batchId", "")).is_empty():
-		return
-
-	file_edit_batches.append(batch)
-
-
-func _collect_active_file_edit_batch(event_data: Dictionary) -> void:
-	_append_file_edit_batch_from_event(active_file_edit_batches, event_data)
-
-
-func _create_inline_diff_summary(file_edit_batches: Array[Dictionary]) -> Dictionary:
-	if file_edit_batches.is_empty():
-		return {}
-
-	var batch_ids: Array[String] = []
-	var edited_files_by_key: Dictionary = {}
-	var edited_file_keys: PackedStringArray
-	var is_undoable: bool = true
-	for batch: Dictionary in file_edit_batches:
-		var batch_id: String = str(batch.get("batchId", ""))
-		if batch_id.is_empty() or batch_ids.has(batch_id):
-			continue
-		batch_ids.append(batch_id)
-
-		var files_value: Variant = batch.get("editedFiles", [])
-		if typeof(files_value) != TYPE_ARRAY:
-			continue
-
-		for file_value: Variant in files_value as Array:
-			if typeof(file_value) != TYPE_DICTIONARY:
-				continue
-
-			var file_summary: Dictionary = (file_value as Dictionary).duplicate(true)
-			var file_key: String = _get_file_edit_key(file_summary)
-			if file_key.is_empty():
-				continue
-
-			var file_additions: int = int(file_summary.get("additions", 0))
-			var file_deletions: int = int(file_summary.get("deletions", 0))
-			if not edited_files_by_key.has(file_key):
-				file_summary["displayPath"] = _format_file_edit_display_path(file_summary)
-				file_summary["additions"] = 0
-				file_summary["deletions"] = 0
-				edited_files_by_key[file_key] = file_summary
-				edited_file_keys.append(file_key)
-
-			var merged_file: Dictionary = edited_files_by_key[file_key] as Dictionary
-			merged_file["additions"] = int(merged_file.get("additions", 0)) + file_additions
-			merged_file["deletions"] = int(merged_file.get("deletions", 0)) + file_deletions
-			merged_file["existsAfter"] = bool(file_summary.get("existsAfter", merged_file.get("existsAfter", false)))
-			merged_file["afterSha256"] = str(file_summary.get("afterSha256", merged_file.get("afterSha256", "")))
-			merged_file["undoable"] = bool(merged_file.get("undoable", true)) and bool(file_summary.get("undoable", true))
-			edited_files_by_key[file_key] = merged_file
-
-	var edited_files: Array[Dictionary] = []
-	var total_additions: int = 0
-	var total_deletions: int = 0
-	for file_key: String in edited_file_keys:
-		var edited_file: Dictionary = edited_files_by_key[file_key] as Dictionary
-		total_additions += int(edited_file.get("additions", 0))
-		total_deletions += int(edited_file.get("deletions", 0))
-		if not bool(edited_file.get("undoable", true)):
-			is_undoable = false
-		edited_files.append(edited_file)
-
-	if batch_ids.is_empty() or edited_files.is_empty():
-		return {}
-
-	return {
-		"type": "inline_diff",
-		"sessionId": active_session_id,
-		"batchIds": batch_ids,
-		"editedFileCount": edited_files.size(),
-		"additions": total_additions,
-		"deletions": total_deletions,
-		"undoable": is_undoable,
-		"editedFiles": edited_files
-	}
-
-
-func _format_file_edit_display_path(file_summary: Dictionary) -> String:
-	var path_text: String = str(file_summary.get("path", "")).replace("\\", "/")
-	var absolute_path: String = str(file_summary.get("absolutePath", "")).replace("\\", "/")
-	var workspace_root: String = str(file_summary.get("workspaceRoot", "")).replace("\\", "/").trim_suffix("/")
-	if not absolute_path.is_empty() and not workspace_root.is_empty():
-		var root_prefix: String = "%s/" % workspace_root
-		if absolute_path.to_lower().begins_with(root_prefix.to_lower()):
-			return absolute_path.substr(root_prefix.length())
-
-	if not path_text.is_empty():
-		return path_text
-
-	return absolute_path
-
-
-func _append_inline_diff_for_completed_stream(entry_id: String) -> void:
-	var summary: Dictionary = _create_inline_diff_summary(active_file_edit_batches)
-	active_file_edit_batches.clear()
-	if summary.is_empty():
-		return
-
-	_append_inline_diff_to_timeline(entry_id, summary)
-	if active_assistant_item != null:
-		active_assistant_item.call("add_inline_diff_viewer", summary)
-	_request_file_edit_batches(summary, "register", entry_id)
-
-
-func _append_inline_diff_to_timeline(entry_id: String, summary: Dictionary) -> void:
-	var index: int = _find_timeline_entry_index(entry_id)
-	if index < 0:
-		return
-
-	var entry: Dictionary = timeline_entries[index]
-	var body_parts: Array = entry.get("body_parts", []) as Array
-	body_parts.append(summary.duplicate(true))
-	entry["body_parts"] = body_parts
-	entry["height_actual"] = 0.0
-	timeline_entries[index] = entry
-	_mark_timeline_height_dirty(index)
-
-
-func _request_file_edit_batches(summary: Dictionary, mode: String, entry_id: String) -> void:
+func _on_file_edit_request_ready(params: Dictionary, group_id: String) -> void:
 	if not _is_socket_open():
 		return
-
-	var session_id: String = str(summary.get("sessionId", active_session_id))
-	if session_id.is_empty():
-		session_id = active_session_id
-	if session_id.is_empty():
-		return
-
-	var batch_ids_value: Variant = summary.get("batchIds", [])
-	if typeof(batch_ids_value) != TYPE_ARRAY:
-		return
-
-	var group_id: String = "file-edit-group-%d-%d" % [Time.get_ticks_msec(), pending_file_edit_batch_groups.size()]
-	var group: Dictionary = {
-		"mode": mode,
-		"entry_id": entry_id,
-		"summary": summary.duplicate(true),
-		"remaining": 0,
-		"failed": false,
-		"batches": []
-	}
-	pending_file_edit_batch_groups[group_id] = group
-
-	var remaining: int = 0
-	for batch_id_value: Variant in batch_ids_value as Array:
-		var batch_id: String = str(batch_id_value).strip_edges()
-		if batch_id.is_empty():
-			continue
-
-		var request_params: Dictionary[String, Variant] = {
-			"sessionId": session_id,
-			"batchId": batch_id
-		}
-		var request_key: String = _send_request(RPC_METHODS.FILE_EDIT_BATCH_GET, request_params, "file-edit-batch")
-		if request_key.is_empty():
-			continue
-
-		pending_file_edit_batch_requests[request_key] = group_id
-		remaining += 1
-
-	group["remaining"] = remaining
-	pending_file_edit_batch_groups[group_id] = group
-	if remaining == 0:
-		pending_file_edit_batch_groups.erase(group_id)
-
-
-func _handle_file_edit_batch_response(response_id: String, ok: bool, result_dictionary: Dictionary) -> bool:
-	var group_id: String = str(pending_file_edit_batch_requests.get(response_id, ""))
-	if group_id.is_empty():
-		return false
-
-	pending_file_edit_batch_requests.erase(response_id)
-	var group: Dictionary = pending_file_edit_batch_groups.get(group_id, {}) as Dictionary
-	if group.is_empty():
-		return true
-
-	var batches: Array = group.get("batches", []) as Array
-	if ok:
-		var batch_value: Variant = result_dictionary.get("fileEditBatch", {})
-		if typeof(batch_value) == TYPE_DICTIONARY:
-			batches.append((batch_value as Dictionary).duplicate(true))
-		else:
-			group["failed"] = true
-	else:
-		group["failed"] = true
-
-	group["batches"] = batches
-	group["remaining"] = maxi(0, int(group.get("remaining", 1)) - 1)
-	if int(group.get("remaining", 0)) > 0:
-		pending_file_edit_batch_groups[group_id] = group
-		return true
-
-	pending_file_edit_batch_groups.erase(group_id)
-	_complete_file_edit_batch_group(group)
-	return true
-
-
-func _complete_file_edit_batch_group(group: Dictionary) -> void:
-	if bool(group.get("failed", false)):
-		return
-
-	var batches: Array = group.get("batches", []) as Array
-	var summary: Dictionary = group.get("summary", {}) as Dictionary
-	var mode: String = str(group.get("mode", ""))
-	if mode == "register":
-		_register_file_edit_undo_action(summary, batches)
-	elif mode == "undo":
-		_undo_inline_diff_summary(summary, batches)
-
-
-func _register_file_edit_undo_action(summary: Dictionary, batches: Array) -> void:
-	if editor_undo_redo == null:
-		return
-	if not bool(summary.get("undoable", true)):
-		return
-
-	var action_key: String = _get_inline_diff_action_key(summary)
-	if action_key.is_empty() or inline_diff_action_titles_by_key.has(action_key):
-		return
-
-	var edits: Array[Dictionary] = _aggregate_file_edit_snapshots(batches)
-	if edits.is_empty() or not _is_file_edit_group_current(edits, true):
-		return
-
-	var action_title: String = _create_file_edit_action_title("Daedalus AI edit", edits.size())
-	editor_undo_redo.create_action(action_title, 0, self, true, false)
-	editor_undo_redo.add_do_method(self, "_apply_file_edit_snapshots", edits, true)
-	editor_undo_redo.add_undo_method(self, "_apply_file_edit_snapshots", edits, false)
-	editor_undo_redo.commit_action(false)
-	inline_diff_action_titles_by_key[action_key] = action_title
-
-
-func _undo_inline_diff_summary(summary: Dictionary, batches: Array) -> void:
-	if not bool(summary.get("undoable", true)):
-		return
-
-	var edits: Array[Dictionary] = _aggregate_file_edit_snapshots(batches)
-	if edits.is_empty() or not _is_file_edit_group_current(edits, true):
-		return
-
-	var action_key: String = _get_inline_diff_action_key(summary)
-	var action_title: String = str(inline_diff_action_titles_by_key.get(action_key, ""))
-	if not action_title.is_empty() and _try_undo_registered_file_edit_action(action_title):
-		return
-
-	if editor_undo_redo == null:
-		_apply_file_edit_snapshots(edits, false)
-		return
-
-	var restore_title: String = _create_file_edit_action_title("Undo Daedalus AI edit", edits.size())
-	editor_undo_redo.create_action(restore_title, 0, self, true, false)
-	editor_undo_redo.add_do_method(self, "_apply_file_edit_snapshots", edits, false)
-	editor_undo_redo.add_undo_method(self, "_apply_file_edit_snapshots", edits, true)
-	editor_undo_redo.commit_action()
-
-
-func _try_undo_registered_file_edit_action(action_title: String) -> bool:
-	if editor_undo_redo == null:
-		return false
-
-	var history_id: int = editor_undo_redo.get_object_history_id(self)
-	var undo_redo: UndoRedo = editor_undo_redo.get_history_undo_redo(history_id)
-	if undo_redo == null:
-		return false
-
-	var current_action: int = undo_redo.get_current_action()
-	if current_action < 0 or undo_redo.get_action_name(current_action) != action_title:
-		return false
-
-	return undo_redo.undo()
-
-
-func _aggregate_file_edit_snapshots(batches: Array) -> Array[Dictionary]:
-	var edits_by_key: Dictionary = {}
-	var edit_keys: PackedStringArray
-	for batch_value: Variant in batches:
-		if typeof(batch_value) != TYPE_DICTIONARY:
-			continue
-
-		var batch: Dictionary = batch_value as Dictionary
-		var edits_value: Variant = batch.get("edits", [])
-		if typeof(edits_value) != TYPE_ARRAY:
-			continue
-
-		for edit_value: Variant in edits_value as Array:
-			if typeof(edit_value) != TYPE_DICTIONARY:
-				continue
-
-			var edit: Dictionary = (edit_value as Dictionary).duplicate(true)
-			if not bool(edit.get("undoable", false)):
-				continue
-
-			var edit_key: String = _get_file_edit_key(edit)
-			if edit_key.is_empty():
-				continue
-
-			if not edits_by_key.has(edit_key):
-				edits_by_key[edit_key] = edit
-				edit_keys.append(edit_key)
-				continue
-
-			var existing_edit: Dictionary = edits_by_key[edit_key] as Dictionary
-			existing_edit["existsAfter"] = bool(edit.get("existsAfter", false))
-			existing_edit["afterText"] = str(edit.get("afterText", ""))
-			existing_edit["afterSha256"] = str(edit.get("afterSha256", ""))
-			existing_edit["additions"] = int(existing_edit.get("additions", 0)) + int(edit.get("additions", 0))
-			existing_edit["deletions"] = int(existing_edit.get("deletions", 0)) + int(edit.get("deletions", 0))
-			edits_by_key[edit_key] = existing_edit
-
-	var edits: Array[Dictionary] = []
-	for edit_key: String in edit_keys:
-		edits.append((edits_by_key[edit_key] as Dictionary).duplicate(true))
-
-	return edits
-
-
-func _get_file_edit_key(edit: Dictionary) -> String:
-	var absolute_path: String = str(edit.get("absolutePath", "")).replace("\\", "/")
-	if not absolute_path.is_empty():
-		return absolute_path.to_lower()
-
-	return str(edit.get("path", "")).replace("\\", "/").to_lower()
-
-
-func _get_inline_diff_action_key(summary: Dictionary) -> String:
-	var batch_ids_value: Variant = summary.get("batchIds", [])
-	if typeof(batch_ids_value) != TYPE_ARRAY:
-		return ""
-
-	var batch_ids: PackedStringArray
-	for batch_id_value: Variant in batch_ids_value as Array:
-		var batch_id: String = str(batch_id_value).strip_edges()
-		if not batch_id.is_empty():
-			batch_ids.append(batch_id)
-
-	return "|".join(batch_ids)
-
-
-func _create_file_edit_action_title(prefix: String, file_count: int) -> String:
-	return "%s: %d file%s" % [prefix, file_count, "" if file_count == 1 else "s"]
-
-
-func _is_file_edit_group_current(edits: Array[Dictionary], use_after_state: bool) -> bool:
-	for edit: Dictionary in edits:
-		if not bool(edit.get("undoable", false)):
-			return false
-
-		var absolute_path: String = str(edit.get("absolutePath", "")).strip_edges()
-		if absolute_path.is_empty():
-			return false
-
-		var should_exist_key: String = "existsAfter" if use_after_state else "existedBefore"
-		var expected_hash_key: String = "afterSha256" if use_after_state else "beforeSha256"
-		var should_exist: bool = bool(edit.get(should_exist_key, false))
-		if not should_exist:
-			if FileAccess.file_exists(absolute_path):
-				return false
-			continue
-
-		if not FileAccess.file_exists(absolute_path):
-			return false
-
-		var read_result: Dictionary = _read_text_file_absolute(absolute_path)
-		if not bool(read_result.get("ok", false)):
-			return false
-
-		var expected_hash: String = str(edit.get(expected_hash_key, ""))
-		if expected_hash.is_empty() or str(read_result.get("text", "")).sha256_text() != expected_hash:
-			return false
-
-	return true
-
-
-func _apply_file_edit_snapshots(edits: Array, use_after_state: bool) -> void:
-	for edit_value: Variant in edits:
-		if typeof(edit_value) != TYPE_DICTIONARY:
-			continue
-
-		_apply_file_edit_snapshot(edit_value as Dictionary, use_after_state)
-
-	_refresh_editor_filesystem_after_file_edits()
-
-
-func _apply_file_edit_snapshot(edit: Dictionary, use_after_state: bool) -> void:
-	var absolute_path: String = str(edit.get("absolutePath", "")).strip_edges()
-	if absolute_path.is_empty():
-		return
-
-	var should_exist_key: String = "existsAfter" if use_after_state else "existedBefore"
-	var text_key: String = "afterText" if use_after_state else "beforeText"
-	var should_exist: bool = bool(edit.get(should_exist_key, false))
-	if should_exist:
-		_write_text_file_absolute(absolute_path, str(edit.get(text_key, "")))
-	elif FileAccess.file_exists(absolute_path):
-		_delete_file_absolute(absolute_path)
-
-
-func _read_text_file_absolute(absolute_path: String) -> Dictionary:
-	var file: FileAccess = FileAccess.open(absolute_path, FileAccess.READ)
-	if file == null:
-		return {
-			"ok": false,
-			"error": error_string(FileAccess.get_open_error())
-		}
-
-	return {
-		"ok": true,
-		"text": file.get_as_text()
-	}
-
-
-func _write_text_file_absolute(absolute_path: String, content: String) -> bool:
-	var directory_path: String = absolute_path.get_base_dir()
-	if not directory_path.is_empty():
-		var directory_error: Error = DirAccess.make_dir_recursive_absolute(directory_path)
-		if directory_error != OK:
-			return false
-
-	var file: FileAccess = FileAccess.open(absolute_path, FileAccess.WRITE)
-	if file == null:
-		return false
-
-	file.store_string(content)
-	return true
-
-
-func _delete_file_absolute(absolute_path: String) -> bool:
-	var remove_error: Error = DirAccess.remove_absolute(absolute_path)
-	return remove_error == OK or not FileAccess.file_exists(absolute_path)
-
-
-func _refresh_editor_filesystem_after_file_edits() -> void:
-	if editor_interface == null:
-		return
-
-	var resource_filesystem: EditorFileSystem = editor_interface.get_resource_filesystem()
-	if resource_filesystem == null:
-		return
-
-	if resource_filesystem.has_method("scan_sources"):
-		resource_filesystem.call("scan_sources")
-	resource_filesystem.scan()
-	_queue_editor_context_update()
-
-
-func _on_inline_diff_undo_requested(summary: Dictionary) -> void:
-	_request_file_edit_batches(summary, "undo", "")
+	var request_id_value: String = _send_request(RPC_METHODS.FILE_EDIT_BATCH_GET, params, "file-edit-batch")
+	file_edit_controller.register_batch_request(group_id, request_id_value)
+
+
+func _on_file_edit_inline_diff_ready(entry_id: String, summary: Dictionary) -> void:
+	var entry_index: int = _find_timeline_entry_index(entry_id)
+	if entry_index >= 0:
+		var entry: Dictionary = timeline_entries[entry_index]
+		var body_parts: Array = entry.get("body_parts", []) as Array
+		body_parts.append(summary.duplicate(true))
+		entry["body_parts"] = body_parts
+		entry["height_actual"] = 0.0
+		timeline_entries[entry_index] = entry
+		_mark_timeline_height_dirty(entry_index)
+	if active_assistant_item != null:
+		active_assistant_item.call("add_inline_diff_viewer", summary)
 
 
 func _does_event_list_have_record(events: Array, event_record_id: String) -> bool:
@@ -6612,7 +4992,7 @@ func _append_event_to_timeline(event_name: String, event_data: Dictionary, reque
 		active_thinking_entry_id = ""
 	elif event_name == "tool.call" or event_name == "tool.approval_required" or event_name == "agent.tool.call" or event_name == "agent.tool.approval_required":
 		_append_tool_event_to_timeline(_normalize_agent_tool_event_data(event_name, event_data), request_id)
-	elif event_name == "tool.result" or event_name == "tool.error" or event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "agent.tool.result" or event_name == "agent.tool.error" or event_name == "agent.tool.approved" or event_name == "agent.tool.rejected":
+	elif event_name == "tool.progress" or event_name == "tool.result" or event_name == "tool.error" or event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "agent.tool.progress" or event_name == "agent.tool.result" or event_name == "agent.tool.error" or event_name == "agent.tool.approved" or event_name == "agent.tool.rejected":
 		_append_tool_event_to_timeline(_normalize_agent_tool_event_data(event_name, event_data), request_id)
 	elif event_name == "ai.status":
 		_append_timeline_entry(
@@ -7045,8 +5425,8 @@ func _configure_timeline_entry_node(node: Node, entry: Dictionary, _index: int) 
 		)
 		if node.has_signal("action_requested") and not node.is_connected("action_requested", Callable(self, "_on_status_item_action_requested")):
 			node.connect("action_requested", Callable(self, "_on_status_item_action_requested"))
-		if node.has_signal("inline_diff_undo_requested") and not node.is_connected("inline_diff_undo_requested", Callable(self, "_on_inline_diff_undo_requested")):
-			node.connect("inline_diff_undo_requested", Callable(self, "_on_inline_diff_undo_requested"))
+		if node.has_signal("inline_diff_undo_requested") and not node.is_connected("inline_diff_undo_requested", file_edit_controller.undo_inline_diff):
+			node.connect("inline_diff_undo_requested", file_edit_controller.undo_inline_diff)
 		if node.has_signal("plan_details_requested") and not node.is_connected("plan_details_requested", Callable(self, "_on_plan_details_requested")):
 			node.connect("plan_details_requested", Callable(self, "_on_plan_details_requested"))
 	elif entry_type == "thinking":
@@ -7800,7 +6180,7 @@ func _update_send_state() -> void:
 	var is_streaming: bool = not active_stream_id.is_empty()
 	var has_message_draft: bool = _has_message_draft()
 	var has_pending_queue: bool = _has_pending_queued_messages()
-	var has_unsupported_image: bool = _context_array_has_images(additional_context_items) and not _can_send_image_contexts()
+	var has_unsupported_image: bool = _context_array_has_images(additional_context_controller.get_items()) and not _can_send_image_contexts()
 	var should_show_send_button: bool = _should_show_send_button(is_streaming, has_message_draft)
 	send_button.visible = should_show_send_button
 	stop_button.visible = is_streaming
@@ -7969,8 +6349,7 @@ func _on_backend_manager_backend_update_started() -> void:
 	backend_health_request_id = ""
 	status_button.icon = DISCONNECTED_ICON
 	status_button.tooltip_text = "Backend update in progress"
-	if socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
-		socket.close()
+	backend_connection_controller.shutdown()
 
 	if backend_launcher != null:
 		backend_launcher.call("stop_started_backend")
@@ -8192,8 +6571,7 @@ func _restart_backend_connection(recovery_mode: bool = false) -> void:
 	context_popup_open_after_info = false
 	socket_ready = false
 	is_connecting = false
-	if socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
-		socket.close()
+	backend_connection_controller.shutdown()
 	_start_backend_connection_attempts(not recovery_mode, recovery_mode)
 
 # --- main.gd ---
@@ -8202,6 +6580,11 @@ func _restart_backend_connection(recovery_mode: bool = false) -> void:
 func _ready() -> void:
 	main_viewer.hide()
 	boot_splash.show()
+	additional_context_controller.setup(additional_context_viewer, additional_context_container)
+	file_edit_controller.setup(editor_bridge_controller)
+	provider_navigation_controller.setup(approval_mode_button, mode_button, provider_option_button, model_button)
+	if pending_editor_bridge_plugin != null:
+		editor_bridge_controller.setup(pending_editor_bridge_plugin)
 	backend_launcher = BACKEND_LAUNCHER_SCRIPT.new()
 	_setup_options()
 	_load_frontend_config()
@@ -8213,30 +6596,44 @@ func _ready() -> void:
 	_setup_plan_dialogs()
 	_render_message_panel()
 	_clear_template_items()
-	_render_additional_context_items()
+	additional_context_controller.render()
 	_update_send_state()
 	_update_navigation_state()
 	_set_context_length_icon(0.0, true)
 	_start_backend_connection_attempts()
 
 
+func _on_additional_context_controller_changed() -> void:
+	_update_send_state()
+
+
+func _on_additional_context_controller_status_requested(level: String, title: String, message: String) -> void:
+	_upsert_connection_status_entry(level, title, message)
+
+
 func _process(_delta: float) -> void:
 	if backend_launcher != null:
 		backend_launcher.call("poll_logs")
-	socket.poll()
-	var state: WebSocketPeer.State = socket.get_ready_state()
-
-	if state == WebSocketPeer.STATE_OPEN:
-		if not socket_ready:
-			socket_ready = true
-			_on_socket_opened()
-		_receive_messages()
+	backend_connection_controller.poll()
+	if backend_connection_controller.is_open():
 		_check_backend_health_timeout()
-	elif state == WebSocketPeer.STATE_CLOSED and socket_ready:
-		_handle_socket_closed_after_ready()
-	elif state == WebSocketPeer.STATE_CLOSED and is_connecting:
+	elif backend_connection_controller.is_closed() and is_connecting:
 		_retry_backend_connection()
-	_poll_live_editor_context()
+	editor_bridge_controller.poll_live_context()
+
+
+func _on_backend_connection_connected() -> void:
+	socket_ready = true
+	_on_socket_opened()
+
+
+func _on_backend_connection_disconnected(_close_code: int, _close_reason: String) -> void:
+	if socket_ready:
+		_handle_socket_closed_after_ready()
+
+
+func _on_backend_connection_protocol_error(message: String) -> void:
+	push_warning(message)
 
 
 func _input(event: InputEvent) -> void:
@@ -8270,5 +6667,4 @@ func _exit_tree() -> void:
 	if latest_backend_version_check_thread != null:
 		latest_backend_version_check_thread.wait_to_finish()
 		latest_backend_version_check_thread = null
-	if socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
-		socket.close()
+	backend_connection_controller.shutdown()

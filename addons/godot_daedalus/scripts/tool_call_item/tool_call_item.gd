@@ -72,7 +72,9 @@ func setup_thinking() -> void:
 func append_tool_event(event_data: Dictionary) -> void:
 	var display_event: Dictionary = _normalize_tool_event(event_data)
 	var event_type: String = str(display_event.get("type", ""))
-	if event_type == "tool.result":
+	if event_type == "tool.progress":
+		_add_progress_item(display_event)
+	elif event_type == "tool.result":
 		_add_result_item(display_event)
 	elif event_type == "tool.error":
 		_add_error_item(display_event)
@@ -265,6 +267,10 @@ func _add_result_item(event_data: Dictionary) -> void:
 	var truncated: bool = bool(event_data.get("truncated", false))
 	var suffix: String = "，已截断" if truncated else ""
 	_add_unknown_item("完成", "返回 %d 字符%s" % [result_chars, suffix])
+
+
+func _add_progress_item(event_data: Dictionary) -> void:
+	_add_unknown_item(str(event_data.get("title", "工具进度")), str(event_data.get("details", "")))
 
 
 func _add_error_item(event_data: Dictionary) -> void:

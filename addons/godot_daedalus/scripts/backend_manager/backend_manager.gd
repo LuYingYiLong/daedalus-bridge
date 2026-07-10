@@ -6,7 +6,7 @@ signal backend_update_finished(exit_code: int)
 
 const DOWNLOAD_DIALOG_SCENE: PackedScene = preload("uid://dg0dps48fpc7h")
 const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
-const PACKAGE_NAME: String = "godot-daedalus_backend"
+const PACKAGE_NAME: String = "daedalus-backend"
 const BACKEND_BIN_FILES: PackedStringArray = [
 	"godot-daedalus-backend",
 	"godot-daedalus-backend.cmd",
@@ -812,7 +812,7 @@ func _on_download_npm_button_pressed() -> void:
 
 
 func _on_open_backend_page_button_pressed() -> void:
-	OS.shell_open("https://www.npmjs.com/package/godot-daedalus_backend")
+	OS.shell_open("https://www.npmjs.com/package/daedalus-backend")
 
 
 func _on_open_frontend_page_button_pressed() -> void:

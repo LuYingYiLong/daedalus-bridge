@@ -1,7 +1,7 @@
 @tool
 extends RefCounted
 
-const PACKAGE_NAME: String = "godot-daedalus_backend"
+const PACKAGE_NAME: String = "daedalus-backend"
 const BACKEND_BIN_NAME: String = "godot-daedalus-backend"
 const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
 const DEFAULT_PUBLISHED_BACKEND_PORT: int = 38180

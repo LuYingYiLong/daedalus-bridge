@@ -18,11 +18,38 @@
 [ext_resource type="Texture2D" uid="uid://b2gn4c0mefhra" path="res://addons/godot_daedalus/assets/icons/plan.svg" id="10_4ygoa"]
 [ext_resource type="Texture2D" uid="uid://ccw4n4twpde11" path="res://addons/godot_daedalus/assets/icons/shield.svg" id="14_42cu0"]
 [ext_resource type="Texture2D" uid="uid://cjjnoxgoriwwi" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="15_5j0us"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_additional_context_controller.gd" id="16_additional_context"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd" id="17_editor_bridge"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_file_edit_controller.gd" id="18_file_edit"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_backend_connection_controller.gd" id="19_backend_connection"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_provider_navigation_controller.gd" id="20_provider_navigation"]
 
 [node name="Main" type="VBoxContainer" unique_id=81601605]
 offset_right = 1152.0
 offset_bottom = 648.0
 script = ExtResource("1_p4vnu")
+
+[node name="Controllers" type="Node" parent="."]
+
+[node name="AdditionalContextController" type="Node" parent="Controllers"]
+unique_name_in_owner = true
+script = ExtResource("16_additional_context")
+
+[node name="EditorBridgeController" type="Node" parent="Controllers"]
+unique_name_in_owner = true
+script = ExtResource("17_editor_bridge")
+
+[node name="FileEditController" type="Node" parent="Controllers"]
+unique_name_in_owner = true
+script = ExtResource("18_file_edit")
+
+[node name="BackendConnectionController" type="Node" parent="Controllers"]
+unique_name_in_owner = true
+script = ExtResource("19_backend_connection")
+
+[node name="ProviderNavigationController" type="Node" parent="Controllers"]
+unique_name_in_owner = true
+script = ExtResource("20_provider_navigation")
 
 [node name="MainViewer" type="VBoxContainer" parent="." unique_id=430137850]
 unique_name_in_owner = true
@@ -399,12 +426,6 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/HeaderContainer/CreateNewSessionButton" to="." method="_on_create_new_session_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="MainViewer/HeaderContainer/StatusButton" to="." method="_on_status_button_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_pressed"]
-[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" method="_on_mouse_entered"]
-[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" method="_on_mouse_exited"]
-[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@27474" method="_on_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/ApproveButton" to="." method="_on_approve_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/RejectButton" to="." method="_on_reject_button_pressed"]
 [connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/SkipButton" to="." method="_on_skip_approval_button_pressed"]
@@ -420,3 +441,13 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/FooterContainer/BackendManagerButton" to="." method="_on_backend_manager_button_pressed"]
 [connection signal="backend_check_requested" from="BootSplash" to="." method="_on_boot_splash_backend_check_requested"]
 [connection signal="reconnect_requested" from="BootSplash" to="." method="_on_boot_splash_reconnect_requested"]
+[connection signal="changed" from="Controllers/AdditionalContextController" to="." method="_on_additional_context_controller_changed"]
+[connection signal="status_requested" from="Controllers/AdditionalContextController" to="." method="_on_additional_context_controller_status_requested"]
+[connection signal="request_ready" from="Controllers/EditorBridgeController" to="." method="_on_editor_bridge_request_ready"]
+[connection signal="live_context_changed" from="Controllers/EditorBridgeController" to="Controllers/AdditionalContextController" method="upsert_live"]
+[connection signal="request_ready" from="Controllers/FileEditController" to="." method="_on_file_edit_request_ready"]
+[connection signal="inline_diff_ready" from="Controllers/FileEditController" to="." method="_on_file_edit_inline_diff_ready"]
+[connection signal="connected" from="Controllers/BackendConnectionController" to="." method="_on_backend_connection_connected"]
+[connection signal="disconnected" from="Controllers/BackendConnectionController" to="." method="_on_backend_connection_disconnected"]
+[connection signal="message_received" from="Controllers/BackendConnectionController" to="." method="_handle_message"]
+[connection signal="protocol_error" from="Controllers/BackendConnectionController" to="." method="_on_backend_connection_protocol_error"]
