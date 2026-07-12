@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://cb877u5eo8nw4"]
+
+[ext_resource type="Script" uid="uid://cl063p8uoxrd5" path="res://addons/godot_daedalus/scripts/settings_menu/skill_item.gd" id="1_hfkvf"]
+[ext_resource type="Texture2D" uid="uid://qpmvpq6q2q60" path="res://addons/godot_daedalus/assets/icons/remove.svg" id="1_qm2qf"]
+[ext_resource type="Texture2D" uid="uid://pj7m0o4eos6a" path="res://addons/godot_daedalus/assets/icons/edit.svg" id="2_cc21v"]
+
+[node name="SkillItem" type="MarginContainer" unique_id=2082364128]
+offset_right = 562.0
+offset_bottom = 33.0
+script = ExtResource("1_hfkvf")
+
+[node name="Button" type="Button" parent="." unique_id=1960267313]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Skill Name"
+alignment = 0
+
+[node name="MarginContainer" type="MarginContainer" parent="Button" unique_id=1967192587]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="Button/MarginContainer" unique_id=466520509]
+layout_mode = 2
+alignment = 2
+
+[node name="RemoveButton" type="Button" parent="Button/MarginContainer/HBoxContainer" unique_id=1746808796]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+icon = ExtResource("1_qm2qf")
+
+[node name="EditButton" type="Button" parent="Button/MarginContainer/HBoxContainer" unique_id=941922868]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+icon = ExtResource("2_cc21v")
+
+[node name="DisableCheckButton" type="CheckButton" parent="Button/MarginContainer/HBoxContainer" unique_id=1553656933]
+unique_name_in_owner = true
+layout_mode = 2

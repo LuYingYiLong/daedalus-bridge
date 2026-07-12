@@ -265,9 +265,12 @@ var latest_backend_version_check_started: bool
 var latest_backend_version_check_thread: Thread
 var slash_command_overlay: Control
 var slash_commands: Array[Dictionary]
-var slash_command_items: Array[Dictionary]
+var slash_command_items: Array
 var slash_command_selected_index: int
 var slash_command_completion_consumed: bool
+var completion_trigger: String
+var skill_summaries: Array[Dictionary]
+var skill_catalog_revision: String
 var custom_instructions: String
 var next_step_hints_enabled: bool
 var check_for_updates_enabled: bool = true
@@ -300,6 +303,10 @@ func _load_slash_commands() -> void:
 	slash_commands.clear()
 	_hide_slash_command_popup()
 	_send_request(RPC_METHODS.COMMAND_LIST, {}, "command-list")
+
+
+func _load_skills() -> void:
+	_send_request(RPC_METHODS.SKILL_LIST, {}, "skill-list")
 
 
 func _get_fallback_models_for_provider(provider_id: String) -> Array[Dictionary]:
@@ -961,12 +968,17 @@ func _update_slash_command_popup() -> void:
 		_hide_slash_command_popup()
 		return
 
-	var filter_text: String = _get_slash_command_filter()
+	var filter_text: String = _get_skill_completion_filter()
+	if not filter_text.is_empty():
+		completion_trigger = "@"
+		slash_command_items = _filter_skills(filter_text)
+	else:
+		filter_text = _get_slash_command_filter()
+		completion_trigger = "/" if not filter_text.is_empty() else ""
+		slash_command_items = _filter_slash_commands(filter_text) if not filter_text.is_empty() else []
 	if filter_text.is_empty():
 		_hide_slash_command_popup()
 		return
-
-	slash_command_items = _filter_slash_commands(filter_text)
 	if slash_command_items.is_empty():
 		_hide_slash_command_popup()
 		return
@@ -998,7 +1010,7 @@ func _get_slash_command_filter() -> String:
 	return filter_text
 
 
-func _filter_slash_commands(filter_text: String) -> Array[Dictionary]:
+func _filter_slash_commands(filter_text: String) -> Array:
 	var filtered_commands: Array[Dictionary] = []
 	var normalized_filter: String = filter_text.to_lower()
 	for command: Dictionary in slash_commands:
@@ -1008,6 +1020,80 @@ func _filter_slash_commands(filter_text: String) -> Array[Dictionary]:
 			filtered_commands.append(command)
 
 	return filtered_commands
+
+
+func _get_skill_completion_filter() -> String:
+	var caret_line: int = text_edit.get_caret_line()
+	if caret_line < 0 or caret_line >= text_edit.get_line_count():
+		return ""
+	var line_text: String = text_edit.get_line(caret_line)
+	var caret_column: int = clampi(text_edit.get_caret_column(), 0, line_text.length())
+	var prefix_text: String = line_text.substr(0, caret_column)
+	var at_index: int = prefix_text.rfind("@")
+	if at_index < 0:
+		return ""
+	if at_index > 0:
+		var preceding_codepoint: int = prefix_text.unicode_at(at_index - 1)
+		if preceding_codepoint != 32 and preceding_codepoint != 9:
+			return ""
+	var token_text: String = prefix_text.substr(at_index + 1)
+	if token_text.contains(" ") or token_text.contains("\t"):
+		return ""
+	return token_text if not token_text.is_empty() else "@"
+
+
+func _filter_skills(filter_text: String) -> Array[Dictionary]:
+	var filtered_skills: Array[Dictionary] = []
+	var normalized_filter: String = "" if filter_text == "@" else filter_text.to_lower()
+	for metadata: Dictionary in skill_summaries:
+		if not bool(metadata.get("enabled", false)) or not bool(metadata.get("valid", false)):
+			continue
+		var skill_ref: String = str(metadata.get("ref", ""))
+		var skill_name: String = str(metadata.get("name", ""))
+		var description_text: String = str(metadata.get("description", ""))
+		var searchable_text: String = "%s %s %s" % [skill_ref, skill_name, description_text]
+		if not normalized_filter.is_empty() and searchable_text.to_lower().find(normalized_filter) < 0:
+			continue
+		filtered_skills.append({
+			"command": "@" + skill_ref,
+			"label": "@" + skill_ref,
+			"insert": "@" + skill_ref + " ",
+			"description": "%s - %s" % [skill_name, description_text]
+		})
+	return filtered_skills
+
+
+func _extract_skill_refs(message_text: String) -> Array[String]:
+	var refs: Array[String] = []
+	var enabled_refs: Dictionary[String, bool] = {}
+	for metadata: Dictionary in skill_summaries:
+		if bool(metadata.get("enabled", false)) and bool(metadata.get("valid", false)):
+			enabled_refs[str(metadata.get("ref", ""))] = true
+	var expression: RegEx = RegEx.new()
+	var compile_error: Error = expression.compile("(?:^|\\s)@(builtin|personal|project):([a-z0-9][a-z0-9-]{0,63})(?=\\s|$|[.,;:!?，。；：！？])")
+	if compile_error != OK:
+		return refs
+	var matches: Array[RegExMatch] = expression.search_all(message_text)
+	for match_result: RegExMatch in matches:
+		var skill_ref: String = "%s:%s" % [match_result.get_string(1), match_result.get_string(2)]
+		if enabled_refs.has(skill_ref) and not refs.has(skill_ref):
+			refs.append(skill_ref)
+		if refs.size() >= 4:
+			break
+	return refs
+
+
+func _apply_skill_list_response(result_dictionary: Dictionary) -> void:
+	skill_summaries.clear()
+	var skills_value: Variant = result_dictionary.get("skills", [])
+	if typeof(skills_value) == TYPE_ARRAY:
+		for item: Variant in skills_value as Array:
+			if typeof(item) == TYPE_DICTIONARY:
+				skill_summaries.append((item as Dictionary).duplicate(true))
+	skill_catalog_revision = str(result_dictionary.get("revision", ""))
+	if active_settings_menu != null and is_instance_valid(active_settings_menu):
+		active_settings_menu.call("setup_skills", skill_summaries, skill_catalog_revision, _is_socket_open())
+	_update_slash_command_popup()
 
 
 func _apply_slash_command_list_response(result_dictionary: Dictionary) -> void:
@@ -1076,22 +1162,22 @@ func _confirm_slash_command_completion() -> void:
 		return
 
 	var selected_command: Dictionary = slash_command_items[clampi(slash_command_selected_index, 0, slash_command_items.size() - 1)]
-	slash_command_completion_consumed = true
-	_replace_slash_command_token(str(selected_command.get("insert", "")))
+	slash_command_completion_consumed = completion_trigger == "/"
+	_replace_completion_token(str(selected_command.get("insert", "")))
 	_hide_slash_command_popup()
 	_update_send_state()
 
 
-func _replace_slash_command_token(insert_text: String) -> void:
+func _replace_completion_token(insert_text: String) -> void:
 	var caret_line: int = text_edit.get_caret_line()
 	var line_text: String = text_edit.get_line(caret_line)
 	var caret_column: int = clampi(text_edit.get_caret_column(), 0, line_text.length())
 	var prefix_text: String = line_text.substr(0, caret_column)
-	var slash_index: int = prefix_text.rfind("/")
-	if slash_index < 0:
+	var token_index: int = prefix_text.rfind(completion_trigger)
+	if token_index < 0:
 		return
 
-	text_edit.select(caret_line, slash_index, caret_line, caret_column)
+	text_edit.select(caret_line, token_index, caret_line, caret_column)
 	text_edit.delete_selection()
 	text_edit.insert_text_at_caret(insert_text)
 	text_edit.grab_focus()
@@ -1582,6 +1668,7 @@ func _handle_backend_health_response(message: Dictionary) -> bool:
 	pending_socket_open_session_id = ""
 	backend_health_request_id = ""
 	_load_slash_commands()
+	_load_skills()
 	_finalize_socket_opened(was_recovering, session_id_to_restore)
 	return true
 
@@ -1883,7 +1970,9 @@ func _send_client_hello() -> void:
 	if not _is_socket_open():
 		return
 
+	var executable_path: String = OS.get_executable_path().strip_edges()
 	var params: Dictionary[String, Variant] = {
+		"protocolVersion": 2,
 		"clientType": "godot_plugin",
 		"clientName": "Godot Daedalus Plugin",
 		"workspaceRoot": ProjectSettings.globalize_path("res://"),
@@ -1898,6 +1987,8 @@ func _send_client_hello() -> void:
 			"approval": true
 		}
 	}
+	if not executable_path.is_empty():
+		params["godotExecutablePath"] = executable_path
 	_send_request(RPC_METHODS.CLIENT_HELLO, params, "client-hello")
 
 
@@ -2400,6 +2491,9 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 		"promptId": "godot.assistant",
 		"options": _create_chat_options_for_mode(selected_chat_mode)
 	}
+	var explicit_skill_refs: Array[String] = _extract_skill_refs(message_text)
+	if not explicit_skill_refs.is_empty():
+		chat_params["skillRefs"] = explicit_skill_refs
 	if not custom_instructions.is_empty():
 		chat_params["systemPrompt"] = custom_instructions
 	if not retry_from_request_id.is_empty():
@@ -2819,6 +2913,14 @@ func _handle_response(message: Dictionary) -> void:
 		if str(message.get("id", "")).begins_with("mcp-config"):
 			_handle_mcp_config_error(message)
 			return
+		if str(message.get("id", "")).begins_with("skill-"):
+			var skill_error_text: String = "Skill operation failed"
+			var skill_error_value: Variant = message.get("error", {})
+			if typeof(skill_error_value) == TYPE_DICTIONARY:
+				skill_error_text = str((skill_error_value as Dictionary).get("message", skill_error_text))
+			if active_settings_menu != null and is_instance_valid(active_settings_menu):
+				active_settings_menu.call("show_skill_error", skill_error_text)
+			return
 		if str(message.get("id", "")).begins_with("next-step-hints"):
 			next_step_hint_request_id = ""
 			next_step_hint_anchor_request_id = ""
@@ -2878,6 +2980,10 @@ func _handle_response(message: Dictionary) -> void:
 	var result_dictionary: Dictionary = result as Dictionary
 	var response_id: String = str(message.get("id", ""))
 	if response_id.begins_with("client-hello"):
+		var connection_value: Variant = result_dictionary.get("connection", {})
+		if typeof(connection_value) == TYPE_DICTIONARY:
+			var connection_dictionary: Dictionary = connection_value as Dictionary
+			connected_workspace_id = str(connection_dictionary.get("workspaceId", connected_workspace_id)).strip_edges()
 		_update_connection_identity_tooltip()
 		return
 	if _handle_attachment_image_save_response(response_id, true, result_dictionary):
@@ -2888,6 +2994,19 @@ func _handle_response(message: Dictionary) -> void:
 		return
 	if result_dictionary.has("commands"):
 		_apply_slash_command_list_response(result_dictionary)
+	elif result_dictionary.has("skills") and result_dictionary.has("revision"):
+		_apply_skill_list_response(result_dictionary)
+		if response_id.begins_with("skill-update") and active_settings_menu != null and is_instance_valid(active_settings_menu):
+			active_settings_menu.call("close_skill_editor")
+	elif result_dictionary.has("content") and result_dictionary.has("ref") and response_id.begins_with("skill-get"):
+		var edit_ref: String = str(result_dictionary.get("ref", ""))
+		var edit_name: String = edit_ref
+		for metadata: Dictionary in skill_summaries:
+			if str(metadata.get("ref", "")) == edit_ref:
+				edit_name = str(metadata.get("name", edit_ref))
+				break
+		if active_settings_menu != null and is_instance_valid(active_settings_menu):
+			active_settings_menu.call("show_skill_editor", edit_ref, edit_name, str(result_dictionary.get("content", "")))
 	elif bool(result_dictionary.get("nextStepHints", false)):
 		_apply_next_step_hints_response(str(message.get("id", "")), result_dictionary)
 	elif result_dictionary.has("customMcpServers"):
@@ -3125,13 +3244,20 @@ func _handle_event(message: Dictionary) -> void:
 		var mcp_error_text: String = str(data_dictionary.get("error", "")).strip_edges()
 		if not mcp_error_text.is_empty() and active_settings_menu != null and is_instance_valid(active_settings_menu):
 			active_settings_menu.call("show_mcp_error", mcp_error_text)
+	elif event_name == "skill.catalog.changed":
+		_load_skills()
+	elif event_name == "skill.activated":
+		var activated_ref: String = str(data_dictionary.get("ref", ""))
+		var activation_kind: String = str(data_dictionary.get("activation", "automatic"))
+		if not activated_ref.is_empty():
+			_upsert_connection_status_entry("info", "Skill activated", "%s (%s)" % [activated_ref, activation_kind])
 	elif event_name == "editor.tool.requested":
 		editor_bridge_controller.handle_tool_requested(data_dictionary)
 
 # --- next_step_controller.gd ---
 
 func _is_global_event(event_name: String) -> bool:
-	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("agent.") or event_name.begins_with("plan.")
+	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("skill.") or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("agent.") or event_name.begins_with("plan.")
 
 
 func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary) -> Dictionary:
@@ -6310,6 +6436,7 @@ func _on_settings_button_pressed() -> void:
 	settings_menu.call("setup_provider_config", provider_config_status, _get_frontend_config_snapshot())
 	settings_menu.call("setup_archived_sessions", _get_archived_sessions_snapshot(), _get_workspace_snapshot())
 	settings_menu.call("setup_mcp_servers", _get_custom_mcp_servers_snapshot(), _is_socket_open())
+	settings_menu.call("setup_skills", skill_summaries, skill_catalog_revision, _is_socket_open())
 	settings_menu.connect("provider_config_save_requested", Callable(self, "_on_settings_provider_config_save_requested"))
 	settings_menu.connect("provider_config_clear_requested", Callable(self, "_on_settings_provider_config_clear_requested"))
 	settings_menu.connect("frontend_config_save_requested", Callable(self, "_on_settings_frontend_config_save_requested"))
@@ -6319,9 +6446,31 @@ func _on_settings_button_pressed() -> void:
 	settings_menu.connect("mcp_server_update_requested", Callable(self, "_on_settings_mcp_server_update_requested"))
 	settings_menu.connect("mcp_server_remove_requested", Callable(self, "_on_settings_mcp_server_remove_requested"))
 	settings_menu.connect("mcp_server_enabled_requested", Callable(self, "_on_settings_mcp_server_enabled_requested"))
+	settings_menu.connect("skill_reload_requested", Callable(self, "_load_skills"))
+	settings_menu.connect("skill_get_requested", Callable(self, "_on_settings_skill_get_requested"))
+	settings_menu.connect("skill_enabled_requested", Callable(self, "_on_settings_skill_enabled_requested"))
+	settings_menu.connect("skill_update_requested", Callable(self, "_on_settings_skill_update_requested"))
+	settings_menu.connect("skill_remove_requested", Callable(self, "_on_settings_skill_remove_requested"))
 	settings_menu.tree_exited.connect(_on_settings_menu_tree_exited.bind(settings_menu))
 	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
 	_load_mcp_config()
+	_load_skills()
+
+
+func _on_settings_skill_get_requested(skill_ref: String) -> void:
+	_send_request(RPC_METHODS.SKILL_GET, { "ref": skill_ref }, "skill-get")
+
+
+func _on_settings_skill_enabled_requested(skill_ref: String, enabled: bool) -> void:
+	_send_request(RPC_METHODS.SKILL_SET_ENABLED, { "ref": skill_ref, "enabled": enabled }, "skill-enabled")
+
+
+func _on_settings_skill_update_requested(skill_ref: String, content: String) -> void:
+	_send_request(RPC_METHODS.SKILL_UPDATE, { "ref": skill_ref, "content": content }, "skill-update")
+
+
+func _on_settings_skill_remove_requested(skill_ref: String) -> void:
+	_send_request(RPC_METHODS.SKILL_REMOVE, { "ref": skill_ref }, "skill-remove")
 
 
 func _open_backend_manager() -> void:

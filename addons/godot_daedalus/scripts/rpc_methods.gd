@@ -16,7 +16,11 @@ const AI_NEXT_STEP_HINTS: String = "ai.next_step_hints"
 const AI_CANCEL: String = "ai.cancel"
 const PROMPT_LIST: String = "prompt.list"
 const SKILL_LIST: String = "skill.list"
-const SKILL_ACTIVATE: String = "skill.activate"
+const SKILL_GET: String = "skill.get"
+const SKILL_SET_ENABLED: String = "skill.set_enabled"
+const SKILL_UPDATE: String = "skill.update"
+const SKILL_REMOVE: String = "skill.remove"
+const SKILL_RELOAD: String = "skill.reload"
 const SESSION_RESET: String = "session.reset"
 const SESSION_INFO: String = "session.info"
 const SESSION_CREATE: String = "session.create"
@@ -86,7 +90,11 @@ static func all() -> PackedStringArray:
 		AI_CANCEL,
 		PROMPT_LIST,
 		SKILL_LIST,
-		SKILL_ACTIVATE,
+		SKILL_GET,
+		SKILL_SET_ENABLED,
+		SKILL_UPDATE,
+		SKILL_REMOVE,
+		SKILL_RELOAD,
 		SESSION_RESET,
 		SESSION_INFO,
 		SESSION_CREATE,

@@ -4,6 +4,7 @@
 [ext_resource type="Texture2D" uid="uid://kesqy88rofwn" path="res://addons/godot_daedalus/assets/icons/folder_browse.svg" id="2_mcffq"]
 [ext_resource type="Texture2D" uid="uid://cwfwhi42kpukr" path="res://addons/godot_daedalus/assets/icons/clear.svg" id="2_y8kc5"]
 [ext_resource type="Texture2D" uid="uid://cjjnoxgoriwwi" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="3_pcvmy"]
+[ext_resource type="Texture2D" uid="uid://d2wspeualsu1d" path="res://addons/godot_daedalus/assets/icons/reload.svg" id="4_skill_reload"]
 
 [node name="SettingsMenu" type="AcceptDialog" unique_id=740368191]
 oversampling_override = 1.0
@@ -30,7 +31,7 @@ theme_type_variation = &"TabContainerOdd"
 tab_alignment = 1
 current_tab = 0
 tab_2/title = "MCP server"
-tab_3/title = "Archived chats"
+tab_4/title = "Archived chats"
 
 [node name="General" type="ScrollContainer" parent="TabContainer" unique_id=620720813]
 layout_mode = 2
@@ -239,6 +240,7 @@ custom_minimum_size = Vector2(64, 0)
 layout_mode = 2
 text = "No custom MCP servers"
 horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 2
 
 [node name="ScrollContainer" type="ScrollContainer" parent="TabContainer/MCPServer" unique_id=1478158191]
@@ -251,10 +253,42 @@ layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="ArchivedChats" type="VBoxContainer" parent="TabContainer" unique_id=1085550901]
+[node name="Skills" type="VBoxContainer" parent="TabContainer" unique_id=1614181837]
 visible = false
 layout_mode = 2
 metadata/_tab_index = 3
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Skills" unique_id=393295439]
+layout_mode = 2
+
+[node name="SkillsStatusLabel" type="Label" parent="TabContainer/Skills/HBoxContainer" unique_id=245110866]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "No skills discovered"
+vertical_alignment = 1
+
+[node name="RefreshSkillsButton" type="Button" parent="TabContainer/Skills/HBoxContainer" unique_id=2026071201]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Reload skills from disk"
+icon = ExtResource("4_skill_reload")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="TabContainer/Skills" unique_id=490341913]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SkillsList" type="VBoxContainer" parent="TabContainer/Skills/ScrollContainer" unique_id=1394093083]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ArchivedChats" type="VBoxContainer" parent="TabContainer" unique_id=1085550901]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 4
 metadata/_tab_name = "Archived chats"
 
 [node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/ArchivedChats" unique_id=1920292159]
@@ -308,6 +342,7 @@ access = 2
 [connection signal="pressed" from="TabContainer/Personalization/HBoxContainer/CustomInstructionsWarningButton" to="." method="_on_custom_instructions_warning_button_pressed"]
 [connection signal="text_changed" from="TabContainer/Personalization/CustomInstructionsEdit" to="." method="_on_custom_instructions_edit_text_changed"]
 [connection signal="pressed" from="TabContainer/MCPServer/AddMCPServerButton" to="." method="_on_add_mcp_server_button_pressed"]
+[connection signal="pressed" from="TabContainer/Skills/HBoxContainer/RefreshSkillsButton" to="." method="_on_refresh_skills_button_pressed"]
 [connection signal="item_selected" from="TabContainer/ArchivedChats/HBoxContainer/WorkspaceFilterOptionButton" to="." method="_on_workspace_filter_option_button_item_selected"]
 [connection signal="text_changed" from="TabContainer/ArchivedChats/HBoxContainer/SearchArchivedChatLineEdit" to="." method="_on_search_archived_chat_line_edit_text_changed"]
 [connection signal="pressed" from="TabContainer/ArchivedChats/HBoxContainer/DeleteAllArchivedChatsButton" to="." method="_on_delete_all_archived_chats_button_pressed"]

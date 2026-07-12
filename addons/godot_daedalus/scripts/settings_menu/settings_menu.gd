@@ -10,6 +10,11 @@ signal mcp_server_add_requested(config: Dictionary)
 signal mcp_server_update_requested(server_id: String, config: Dictionary)
 signal mcp_server_remove_requested(server_id: String)
 signal mcp_server_enabled_requested(server_id: String, enabled: bool)
+signal skill_reload_requested
+signal skill_get_requested(skill_ref: String)
+signal skill_enabled_requested(skill_ref: String, enabled: bool)
+signal skill_update_requested(skill_ref: String, content: String)
+signal skill_remove_requested(skill_ref: String)
 
 @onready var tab_container: TabContainer = %TabContainer
 @onready var provider_option_button: OptionButton = %ProviderOptionButton
@@ -30,6 +35,8 @@ signal mcp_server_enabled_requested(server_id: String, enabled: bool)
 @onready var add_mcp_server_button: Button = %AddMCPServerButton
 @onready var mcp_status_label: Label = %MCPStatusLabel
 @onready var mcp_server_list: VBoxContainer = %MCPServerList
+@onready var skills_status_label: Label = %SkillsStatusLabel
+@onready var skills_list: VBoxContainer = %SkillsList
 @onready var archived_workspace_filter_option_button: OptionButton = %WorkspaceFilterOptionButton
 @onready var search_archived_chat_line_edit: LineEdit = %SearchArchivedChatLineEdit
 @onready var delete_all_archived_chats_button: Button = %DeleteAllArchivedChatsButton
@@ -40,6 +47,8 @@ const ARCHIVED_CHAT_ITEM_SCENE_UID: String = "uid://kyksk24wd7d3"
 const MCP_SERVER_ITEM_SCENE_UID: String = "uid://cuwihfpwn6b68"
 const ADD_MCP_SERVER_DIALOG_UID: String = "uid://cb7acb4w7s4xl"
 const EDIT_MCP_SERVER_DIALOG_UID: String = "uid://c7vbtknay2b0y"
+const SKILL_ITEM_SCENE_UID: String = "uid://cb877u5eo8nw4"
+const EDIT_SKILL_DIALOG_UID: String = "uid://mm43il6ailq"
 const CUSTOM_INSTRUCTIONS_WARNING_CHARS: int = 4000
 const CUSTOM_INSTRUCTIONS_HEAVY_CHARS: int = 12000
 const EDITOR_TYPE: StringName = &"Editor"
@@ -73,6 +82,8 @@ const USE_CURRENT_MODEL_TEXT: String = "Use current model"
 var archived_sessions: Array[Dictionary]
 var archived_workspaces_by_id: Dictionary[String, Dictionary]
 var custom_mcp_servers: Array[Dictionary]
+var skill_summaries: Array[Dictionary]
+var skill_catalog_revision: String
 var provider_status_by_id: Dictionary[String, Dictionary]
 var mcp_backend_available: bool = true
 var mcp_add_pending: bool
@@ -87,6 +98,9 @@ var pending_delete_mcp_server_id: String
 var archive_delete_confirmation_dialog: ConfirmationDialog
 var custom_instructions_warning_dialog: AcceptDialog
 var mcp_delete_confirmation_dialog: ConfirmationDialog
+var skill_delete_confirmation_dialog: ConfirmationDialog
+var active_skill_editor: ConfirmationDialog
+var pending_delete_skill_ref: String
 
 
 func _ready() -> void:
@@ -99,6 +113,7 @@ func _ready() -> void:
 		provider_option_button.item_selected.connect(_on_provider_option_button_item_selected)
 	_update_custom_instructions_status()
 	_render_mcp_servers()
+	_render_skills()
 	_update_delete_all_archived_chats_button()
 	call_deferred(&"_apply_editor_dialog_theme")
 
@@ -170,6 +185,146 @@ func setup_mcp_servers(servers: Array, backend_available: bool = true) -> void:
 	pending_mcp_update_server_id = ""
 	pending_mcp_server_metadata.clear()
 	_render_mcp_servers()
+
+
+func setup_skills(skills: Array, revision: String = "", backend_available: bool = true) -> void:
+	skill_summaries.clear()
+	for item: Variant in skills:
+		if typeof(item) != TYPE_DICTIONARY:
+			continue
+		skill_summaries.append((item as Dictionary).duplicate(true))
+	skill_catalog_revision = revision
+	mcp_backend_available = backend_available
+	_render_skills()
+
+
+func show_skill_error(message_text: String) -> void:
+	if active_skill_editor != null and is_instance_valid(active_skill_editor):
+		active_skill_editor.call("show_error", message_text)
+		active_skill_editor.popup_centered()
+		return
+	skills_status_label.visible = true
+	skills_status_label.text = message_text
+	skills_status_label.tooltip_text = message_text
+
+
+func show_skill_editor(skill_ref: String, skill_name: String, content: String) -> void:
+	_close_skill_editor()
+	var packed_scene: PackedScene = load(EDIT_SKILL_DIALOG_UID)
+	if packed_scene == null:
+		show_skill_error("Edit skill dialog is unavailable.")
+		return
+	active_skill_editor = packed_scene.instantiate() as ConfirmationDialog
+	add_child(active_skill_editor)
+	active_skill_editor.call("setup", skill_ref, skill_name, content)
+	active_skill_editor.connect("save_requested", Callable(self, "_on_skill_editor_save_requested"))
+	active_skill_editor.canceled.connect(_close_skill_editor)
+	active_skill_editor.close_requested.connect(_close_skill_editor)
+	active_skill_editor.popup_centered()
+
+
+func close_skill_editor() -> void:
+	_close_skill_editor()
+
+
+func _render_skills() -> void:
+	if skills_list == null or skills_status_label == null:
+		return
+	for child_node: Node in skills_list.get_children():
+		child_node.queue_free()
+	if not mcp_backend_available:
+		skills_status_label.visible = true
+		skills_status_label.text = "Backend is disconnected. Skill settings are unavailable."
+		return
+	if skill_summaries.is_empty():
+		skills_status_label.visible = true
+		skills_status_label.text = "No skills discovered"
+		return
+	skills_status_label.visible = true
+	skills_status_label.text = _format_skills_status()
+	skills_status_label.tooltip_text = skills_status_label.text
+	var packed_scene: PackedScene = load(SKILL_ITEM_SCENE_UID)
+	if packed_scene == null:
+		show_skill_error("Skill item scene is unavailable.")
+		return
+	for source_name: String in ["project", "personal", "builtin"]:
+		var source_skills: Array[Dictionary] = []
+		for metadata: Dictionary in skill_summaries:
+			if str(metadata.get("source", "")) == source_name:
+				source_skills.append(metadata)
+		if source_skills.is_empty():
+			continue
+		var source_label: Label = Label.new()
+		source_label.text = source_name.capitalize()
+		source_label.theme_type_variation = &"HeaderSmall"
+		skills_list.add_child(source_label)
+		for metadata: Dictionary in source_skills:
+			var item_node: Node = packed_scene.instantiate()
+			skills_list.add_child(item_node)
+			item_node.call("setup", metadata)
+			item_node.connect("edit_requested", Callable(self, "_on_skill_edit_requested"))
+			item_node.connect("remove_requested", Callable(self, "_on_skill_remove_requested"))
+			item_node.connect("enabled_changed", Callable(self, "_on_skill_enabled_changed"))
+
+
+func _format_skills_status() -> String:
+	var total_count: int = skill_summaries.size()
+	var enabled_count: int
+	for metadata: Dictionary in skill_summaries:
+		if bool(metadata.get("enabled", false)):
+			enabled_count += 1
+
+	var total_label: String = "skill" if total_count == 1 else "skills"
+	return "%d %s - %d enabled" % [total_count, total_label, enabled_count]
+
+
+func _on_skill_edit_requested(skill_ref: String) -> void:
+	skill_get_requested.emit(skill_ref)
+
+
+func _on_refresh_skills_button_pressed() -> void:
+	skill_reload_requested.emit()
+
+
+func _on_skill_enabled_changed(skill_ref: String, enabled: bool) -> void:
+	skill_enabled_requested.emit(skill_ref, enabled)
+
+
+func _on_skill_remove_requested(skill_ref: String, skill_name: String) -> void:
+	_close_skill_delete_confirmation()
+	pending_delete_skill_ref = skill_ref
+	skill_delete_confirmation_dialog = ConfirmationDialog.new()
+	skill_delete_confirmation_dialog.title = "Remove personal skill"
+	skill_delete_confirmation_dialog.dialog_text = "Delete %s and its personal skill directory?\n\nThis cannot be undone." % skill_name
+	skill_delete_confirmation_dialog.ok_button_text = "Delete"
+	add_child(skill_delete_confirmation_dialog)
+	skill_delete_confirmation_dialog.confirmed.connect(_on_skill_delete_confirmed)
+	skill_delete_confirmation_dialog.canceled.connect(_close_skill_delete_confirmation)
+	skill_delete_confirmation_dialog.close_requested.connect(_close_skill_delete_confirmation)
+	skill_delete_confirmation_dialog.popup_centered()
+
+
+func _on_skill_delete_confirmed() -> void:
+	if not pending_delete_skill_ref.is_empty():
+		skill_remove_requested.emit(pending_delete_skill_ref)
+	_close_skill_delete_confirmation()
+
+
+func _on_skill_editor_save_requested(skill_ref: String, content: String) -> void:
+	skill_update_requested.emit(skill_ref, content)
+
+
+func _close_skill_editor() -> void:
+	if active_skill_editor != null and is_instance_valid(active_skill_editor):
+		active_skill_editor.queue_free()
+	active_skill_editor = null
+
+
+func _close_skill_delete_confirmation() -> void:
+	pending_delete_skill_ref = ""
+	if skill_delete_confirmation_dialog != null and is_instance_valid(skill_delete_confirmation_dialog):
+		skill_delete_confirmation_dialog.queue_free()
+	skill_delete_confirmation_dialog = null
 
 
 func show_mcp_error(message_text: String) -> void:

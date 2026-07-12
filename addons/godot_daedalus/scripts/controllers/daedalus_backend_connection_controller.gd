@@ -44,6 +44,7 @@ func send_request(method: String, params: Dictionary, id_prefix: String) -> Stri
 	_request_id += 1
 	var request_key: String = "%s-%d" % [id_prefix, _request_id]
 	var payload: Dictionary = {
+		"protocolVersion": 2,
 		"type": "request",
 		"id": request_key,
 		"method": method,
@@ -59,7 +60,9 @@ func send_request(method: String, params: Dictionary, id_prefix: String) -> Stri
 func send_json(payload: Dictionary) -> Error:
 	if not is_open():
 		return ERR_UNAVAILABLE
-	return _socket.send_text(JSON.stringify(payload))
+	var envelope: Dictionary = payload.duplicate(true)
+	envelope["protocolVersion"] = 2
+	return _socket.send_text(JSON.stringify(envelope))
 
 
 func is_open() -> bool:

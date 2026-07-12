@@ -21,6 +21,12 @@ func _run_tests() -> void:
 	_expect_equal(RPC_METHODS.AI_CHAT, "ai.chat", "ai chat method")
 	_expect_equal(RPC_METHODS.BACKEND_HEALTH, "backend.health", "backend health method")
 	_expect_equal(RPC_METHODS.COMMAND_LIST, "command.list", "command list method")
+	_expect_equal(RPC_METHODS.SKILL_LIST, "skill.list", "skill list method")
+	_expect_equal(RPC_METHODS.SKILL_GET, "skill.get", "skill get method")
+	_expect_equal(RPC_METHODS.SKILL_SET_ENABLED, "skill.set_enabled", "skill enabled method")
+	_expect_equal(RPC_METHODS.SKILL_UPDATE, "skill.update", "skill update method")
+	_expect_equal(RPC_METHODS.SKILL_REMOVE, "skill.remove", "skill remove method")
+	_expect_equal(RPC_METHODS.SKILL_RELOAD, "skill.reload", "skill reload method")
 	_expect_equal(RPC_METHODS.CLIENT_HELLO, "client.hello", "client hello method")
 	_expect_equal(RPC_METHODS.SESSION_OPEN, "session.open", "session open method")
 	_expect_equal(RPC_METHODS.SESSION_EDITOR_BIND, "session.editor.bind", "session editor bind method")
@@ -40,7 +46,7 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 65, "rpc method count")
+	_expect_equal(methods.size(), 69, "rpc method count")
 	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.CLIENT_INFO), true, "client info listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_INSTANCES_LIST), true, "editor instances list listed")
