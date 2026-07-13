@@ -21,10 +21,6 @@ const FRONTEND_CONFIG_SECTION: String = "frontend"
 
 const CONFIG_BACKEND_URL_KEY: String = "backend_url"
 const CONFIG_BACKEND_DEV_DIR_KEY: String = "backend_dev_dir"
-const CONFIG_PROVIDER_ID_KEY: String = "provider_id"
-const CONFIG_APPROVAL_MODE_KEY: String = "approval_mode"
-const CONFIG_CHAT_MODE_KEY: String = "chat_mode"
-const CONFIG_CUSTOM_INSTRUCTIONS_KEY: String = "custom_instructions"
 const CONFIG_NEXT_STEP_HINTS_KEY: String = "next_step_hints_enabled"
 const CONFIG_CHECK_FOR_UPDATES_KEY: String = "check_for_updates_enabled"
 
@@ -103,12 +99,14 @@ const DEFAULT_PROVIDER_ID: String = "deepseek"
 const PROVIDER_IDS: PackedStringArray = [
 	"deepseek",
 	"moonshot",
-	"openai"
+	"openai",
+	"zhipu"
 ]
 const PROVIDER_NAMES: PackedStringArray = [
 	"DeepSeek",
 	"Moonshot/Kimi",
-	"OpenAI"
+	"OpenAI",
+	"Zhipu AI"
 ]
 
 const APPROVAL_MODE_IDS: PackedStringArray = [
@@ -176,6 +174,7 @@ const CHAT_MODE_LABELS: PackedStringArray = [
 
 var connected_workspace_id: String
 var socket_ready: bool
+var workspace_ready: bool
 var has_connected_once: bool
 var connection_attempts: int
 var connection_attempt_generation: int
@@ -260,6 +259,8 @@ var backend_health_deadline_msec: int
 var backend_update_in_progress: bool
 var pending_socket_open_was_recovering: bool
 var pending_socket_open_session_id: String
+var pending_workspace_ready_was_recovering: bool
+var pending_workspace_ready_session_id: String
 var connected_backend_version: String
 var latest_backend_version_check_started: bool
 var latest_backend_version_check_thread: Thread
@@ -321,15 +322,25 @@ func _get_fallback_models_for_provider(provider_id: String) -> Array[Dictionary]
 			{ "id": "kimi-k2.6", "displayName": "Kimi K2.6", "capabilities": { "imageInput": true, "videoInput": true, "reasoning": true } },
 			{ "id": "kimi-k2.5", "displayName": "Kimi K2.5", "capabilities": { "reasoning": true } }
 		]
+	if provider_id == "zhipu":
+		return [
+			{ "id": "glm-5.2", "displayName": "GLM-5.2", "capabilities": { "reasoning": true } },
+			{ "id": "glm-5.1", "displayName": "GLM-5.1", "capabilities": { "reasoning": true } },
+			{ "id": "glm-5", "displayName": "GLM-5", "capabilities": { "reasoning": true } },
+			{ "id": "glm-5-turbo", "displayName": "GLM-5 Turbo", "capabilities": { "reasoning": true } },
+			{ "id": "glm-4.7", "displayName": "GLM-4.7", "capabilities": { "reasoning": true } },
+			{ "id": "glm-4.7-flashx", "displayName": "GLM-4.7 FlashX", "capabilities": { "reasoning": true } },
+			{ "id": "glm-4.6", "displayName": "GLM-4.6", "capabilities": { "reasoning": true } },
+			{ "id": "glm-5v-turbo", "displayName": "GLM-5V Turbo", "capabilities": { "imageInput": true, "reasoning": true } },
+			{ "id": "glm-4.6v", "displayName": "GLM-4.6V", "capabilities": { "imageInput": true, "reasoning": true } },
+			{ "id": "glm-4.6v-flash", "displayName": "GLM-4.6V Flash", "capabilities": { "imageInput": true, "reasoning": true } },
+			{ "id": "glm-4.1v-thinking-flashx", "displayName": "GLM-4.1V Thinking FlashX", "capabilities": { "imageInput": true, "reasoning": true } }
+		]
 
 	return [
 		{ "id": "deepseek-v4-flash", "displayName": "DeepSeek V4 Flash", "capabilities": { "reasoning": true } },
 		{ "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro", "capabilities": { "reasoning": true } }
 	]
-
-
-func _get_provider_model_config_key(provider_id: String) -> String:
-	return "model_id_%s" % provider_id
 
 
 func _is_known_chat_mode(chat_mode: String) -> bool:
@@ -485,14 +496,6 @@ func _get_provider_config_model_id(provider_id: String) -> String:
 	return ""
 
 
-func _get_saved_model_id_for_provider(provider_id: String) -> String:
-	var config: ConfigFile = ConfigFile.new()
-	if config.load(FRONTEND_CONFIG_PATH) != OK:
-		return ""
-
-	return str(config.get_value(FRONTEND_CONFIG_SECTION, _get_provider_model_config_key(provider_id), "")).strip_edges()
-
-
 func _select_or_add_model_id(model_id: String) -> bool:
 	var normalized_model_id: String = model_id.strip_edges()
 	if normalized_model_id.is_empty():
@@ -519,14 +522,11 @@ func _switch_active_provider(provider_id: String, activate_backend: bool) -> voi
 	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
 
 	var configured_model_id: String = _get_provider_config_model_id(active_provider_id)
-	if configured_model_id.is_empty():
-		configured_model_id = _get_saved_model_id_for_provider(active_provider_id)
 	_select_or_add_model_id(configured_model_id)
 
-	_save_frontend_config()
 	_load_provider_models(active_provider_id)
 	if activate_backend:
-		_apply_model_config_to_backend()
+		_save_active_session_metadata()
 
 
 func _populate_model_button(models: Array) -> void:
@@ -1184,6 +1184,10 @@ func _replace_completion_token(insert_text: String) -> void:
 
 
 func _on_timeline_scroll_value_changed(_value: float) -> void:
+	var should_follow_bottom: bool = _is_timeline_near_bottom()
+	if timeline_follow_bottom and not should_follow_bottom:
+		timeline_deferred_scroll_version += 1
+	timeline_follow_bottom = should_follow_bottom
 	_schedule_timeline_render(false)
 
 # --- backend_connection.gd ---
@@ -1223,31 +1227,14 @@ func _load_frontend_config() -> void:
 		_normalize_backend_url(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, DEFAULT_BACKEND_URL))),
 		backend_dev_dir
 	)
-	active_provider_id = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_PROVIDER_ID_KEY, DEFAULT_PROVIDER_ID)).strip_edges()
-	if not _is_known_provider_id(active_provider_id):
-		active_provider_id = DEFAULT_PROVIDER_ID
+	active_provider_id = DEFAULT_PROVIDER_ID
 	_select_provider_id(active_provider_id)
 	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
-	custom_instructions = str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, "")).strip_edges()
+	custom_instructions = ""
 	next_step_hints_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, false))
 	check_for_updates_enabled = bool(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, true))
-	if not _select_chat_mode(str(config.get_value(FRONTEND_CONFIG_SECTION, CONFIG_CHAT_MODE_KEY, CHAT_MODE_AGENT)).strip_edges()):
-		_select_chat_mode(CHAT_MODE_AGENT)
-	var saved_model_id: String = str(config.get_value(
-		FRONTEND_CONFIG_SECTION,
-		_get_provider_model_config_key(active_provider_id),
-		""
-	)).strip_edges()
-	if not saved_model_id.is_empty():
-		_select_or_add_model_id(saved_model_id)
-	var saved_approval_mode: String = str(config.get_value(
-		FRONTEND_CONFIG_SECTION,
-		CONFIG_APPROVAL_MODE_KEY,
-		APPROVAL_MODE_IDS[0]
-	)).strip_edges()
-	if not _select_approval_mode(saved_approval_mode):
-		_select_approval_mode(APPROVAL_MODE_IDS[0])
-		should_save_config = true
+	_select_chat_mode(CHAT_MODE_AGENT)
+	_select_approval_mode(APPROVAL_MODE_IDS[0])
 
 	if should_save_config:
 		_save_frontend_config()
@@ -1257,11 +1244,6 @@ func _save_frontend_config() -> void:
 	var config: ConfigFile = ConfigFile.new()
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_URL_KEY, backend_url)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_BACKEND_DEV_DIR_KEY, backend_dev_dir)
-	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_PROVIDER_ID_KEY, active_provider_id)
-	config.set_value(FRONTEND_CONFIG_SECTION, _get_provider_model_config_key(active_provider_id), _get_selected_model_id())
-	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_APPROVAL_MODE_KEY, _get_selected_approval_mode())
-	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CHAT_MODE_KEY, _get_selected_chat_mode())
-	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CUSTOM_INSTRUCTIONS_KEY, custom_instructions)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_NEXT_STEP_HINTS_KEY, next_step_hints_enabled)
 	config.set_value(FRONTEND_CONFIG_SECTION, CONFIG_CHECK_FOR_UPDATES_KEY, check_for_updates_enabled)
 	var save_error: Error = config.save(FRONTEND_CONFIG_PATH)
@@ -1465,6 +1447,8 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 	connection_attempt_generation += 1
 	is_connecting = true
 	socket_ready = false
+	workspace_ready = false
+	connected_workspace_id = ""
 	backend_launch_started = false
 	backend_health_pending = false
 	backend_health_request_id = ""
@@ -1807,6 +1791,9 @@ func _parse_semver_numbers(version_text: String) -> Array[int]:
 func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String) -> void:
 	backend_recovery_mode = false
 	has_connected_once = true
+	workspace_ready = false
+	pending_workspace_ready_was_recovering = was_recovering
+	pending_workspace_ready_session_id = session_id_to_restore
 	status_button.icon = CONNECTED_ICON
 	status_button.tooltip_text = "Connected"
 	boot_splash.hide()
@@ -1832,23 +1819,36 @@ func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String
 		_save_provider_config_to_backend(deferred_provider_id, deferred_api_key, deferred_base_url, deferred_model_routing)
 	else:
 		_load_provider_config()
-	_load_mcp_config()
-	_apply_approval_mode_to_backend()
-	_refresh_session_and_archive_lists()
-	if not was_recovering or session_id_to_restore.is_empty():
-		_process_message_queue()
-	if was_recovering:
-		_upsert_connection_status_entry(
-			"success",
-			"连接已恢复",
-			"已重新连接后端，正在恢复当前会话。"
-		)
-		if not session_id_to_restore.is_empty():
-			pending_recovery_status_after_session_open = true
-			_send_request(RPC_METHODS.SESSION_OPEN, { "sessionId": session_id_to_restore, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-recover-open")
-		else:
-			_finalize_recovery_status(false)
+	_load_user_prompt()
+	_load_approval_mode_from_backend()
 	_check_latest_backend_version_once()
+
+
+func _complete_workspace_initialization() -> void:
+	if not workspace_ready:
+		return
+
+	_update_send_state()
+	_load_mcp_config()
+	_refresh_session_and_archive_lists()
+	var was_recovering: bool = pending_workspace_ready_was_recovering
+	var session_id_to_restore: String = pending_workspace_ready_session_id
+	pending_workspace_ready_was_recovering = false
+	pending_workspace_ready_session_id = ""
+	if not was_recovering:
+		_process_message_queue()
+		return
+
+	_upsert_connection_status_entry(
+		"success",
+		"连接已恢复",
+		"工作区已连接，正在恢复当前会话。"
+	)
+	if not session_id_to_restore.is_empty():
+		pending_recovery_status_after_session_open = true
+		_send_request(RPC_METHODS.SESSION_OPEN, { "sessionId": session_id_to_restore, "limit": SESSION_OPEN_MESSAGE_LIMIT }, "session-recover-open")
+	else:
+		_finalize_recovery_status(false)
 
 
 func _on_boot_splash_reconnect_requested() -> void:
@@ -1869,12 +1869,14 @@ func _on_status_button_pressed() -> void:
 func _handle_socket_closed_after_ready() -> void:
 	if backend_update_in_progress:
 		socket_ready = false
+		workspace_ready = false
 		return
 
 	var close_detail: String = _format_socket_close_tooltip("Disconnected")
 	var session_id_to_restore: String = active_session_id
 	var was_streaming: bool = not active_stream_id.is_empty()
 	socket_ready = false
+	workspace_ready = false
 	status_button.icon = DISCONNECTED_ICON
 	status_button.tooltip_text = "%s. Reconnecting..." % close_detail
 	_update_send_state()
@@ -1931,6 +1933,10 @@ func _on_status_item_action_requested(action_id: String) -> void:
 
 func _load_provider_config() -> void:
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_GET, {}, "provider-config-get")
+
+
+func _load_user_prompt() -> void:
+	_send_request(RPC_METHODS.USER_PROMPT_GET, {}, "user-prompt-get")
 
 
 func _load_provider_models(provider_id: String, refresh: bool = false) -> void:
@@ -2081,17 +2087,19 @@ func _get_selected_approval_mode() -> String:
 	return APPROVAL_MODE_IDS[selected_index]
 
 
-func _apply_model_config_to_backend() -> void:
-	if not _is_socket_open():
-		return
-
-	var params: Dictionary[String, Variant] = {
+func _get_active_session_metadata_payload() -> Dictionary[String, Variant]:
+	return {
 		"provider": active_provider_id,
 		"model": _get_selected_model_id(),
-		"activate": true,
-		"modelRouting": provider_config_status.get("modelRouting", {})
+		"chatMode": _get_selected_chat_mode()
 	}
-	_send_request(RPC_METHODS.PROVIDER_CONFIG_SET, params, "provider-config-set")
+
+
+func _save_active_session_metadata() -> void:
+	if not _is_socket_open() or active_session_id.is_empty():
+		return
+
+	_send_request(RPC_METHODS.SESSION_SAVE, _get_active_session_metadata_payload(), "session-save-metadata")
 
 
 func _apply_approval_mode_to_backend() -> void:
@@ -2099,6 +2107,13 @@ func _apply_approval_mode_to_backend() -> void:
 		return
 
 	_send_request(RPC_METHODS.APPROVAL_MODE_SET, { "mode": _get_selected_approval_mode() }, "approval-mode-set")
+
+
+func _load_approval_mode_from_backend() -> void:
+	if not _is_socket_open():
+		return
+
+	_send_request(RPC_METHODS.APPROVAL_LIST, {}, "approval-list")
 
 
 func _on_back_button_pressed() -> void:
@@ -2164,8 +2179,7 @@ func _on_model_button_item_selected(index: int) -> void:
 		return
 
 	_update_model_button_tooltip()
-	_save_frontend_config()
-	_apply_model_config_to_backend()
+	_save_active_session_metadata()
 	_update_send_state()
 
 
@@ -2180,7 +2194,7 @@ func _on_approval_mode_button_item_selected(index: int) -> void:
 	if index < 0 or index >= APPROVAL_MODE_IDS.size():
 		return
 
-	_save_frontend_config()
+	_save_active_session_metadata()
 	_apply_approval_mode_to_backend()
 
 
@@ -2189,7 +2203,7 @@ func _on_mode_button_id_pressed(menu_id: int) -> void:
 	if not _select_chat_mode(selected_chat_mode):
 		_select_chat_mode(CHAT_MODE_AGENT)
 
-	_save_frontend_config()
+	_save_active_session_metadata()
 
 
 func _on_send_button_pressed() -> void:
@@ -2381,14 +2395,20 @@ func _create_session(title_text: String) -> void:
 		return
 
 	var params: Dictionary = { "title": title_text }
-	if not selected_workspace_filter.is_empty():
-		params["workspaceId"] = selected_workspace_filter
+	var metadata_payload: Dictionary[String, Variant] = _get_active_session_metadata_payload()
+	for metadata_key: Variant in metadata_payload.keys():
+		var metadata_key_text: String = str(metadata_key)
+		params[metadata_key_text] = metadata_payload[metadata_key_text]
+	if not connected_workspace_id.is_empty():
+		params["workspaceId"] = connected_workspace_id
 
 	_send_request(RPC_METHODS.SESSION_CREATE, params, "session-create")
 
 
 func _open_session(session_id: String) -> void:
-	if not _is_socket_open():
+	if not _is_socket_open() or not workspace_ready:
+		if _is_socket_open():
+			_upsert_connection_status_entry("message", "工作区正在初始化", "正在连接项目的 MCP 服务，请稍后再打开会话。")
 		return
 
 	if session_id != active_session_id:
@@ -2485,6 +2505,7 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	_schedule_timeline_render(should_follow_bottom)
 
 	var selected_chat_mode: String = _get_selected_chat_mode()
+	_save_active_session_metadata()
 	var chat_params: Dictionary[String, Variant] = {
 		"message": message_text,
 		"mode": selected_chat_mode,
@@ -2494,8 +2515,6 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	var explicit_skill_refs: Array[String] = _extract_skill_refs(message_text)
 	if not explicit_skill_refs.is_empty():
 		chat_params["skillRefs"] = explicit_skill_refs
-	if not custom_instructions.is_empty():
-		chat_params["systemPrompt"] = custom_instructions
 	if not retry_from_request_id.is_empty():
 		chat_params["retryFromRequestId"] = retry_from_request_id
 	if not request_additional_context_snapshot.is_empty():
@@ -2595,6 +2614,7 @@ func _process_message_queue() -> void:
 func _can_dispatch_queued_message() -> bool:
 	return (
 		_is_socket_open()
+		and workspace_ready
 		and active_stream_id.is_empty()
 		and pending_approval_id.is_empty()
 		and pending_chat_text.is_empty()
@@ -2984,7 +3004,9 @@ func _handle_response(message: Dictionary) -> void:
 		if typeof(connection_value) == TYPE_DICTIONARY:
 			var connection_dictionary: Dictionary = connection_value as Dictionary
 			connected_workspace_id = str(connection_dictionary.get("workspaceId", connected_workspace_id)).strip_edges()
+		workspace_ready = not connected_workspace_id.is_empty()
 		_update_connection_identity_tooltip()
+		_complete_workspace_initialization()
 		return
 	if _handle_attachment_image_save_response(response_id, true, result_dictionary):
 		return
@@ -3023,6 +3045,8 @@ func _handle_response(message: Dictionary) -> void:
 		_update_session_list(result_dictionary)
 	elif result_dictionary.has("keyStorage") and result_dictionary.has("configured"):
 		_apply_provider_config_status(result_dictionary)
+	elif result_dictionary.has("schemaVersion") and result_dictionary.has("prompt"):
+		_apply_user_prompt_config(result_dictionary)
 	elif result_dictionary.has("models") and result_dictionary.has("provider") and result_dictionary.has("stale"):
 		_apply_provider_models_list_response(result_dictionary)
 	elif result_dictionary.has("id") and result_dictionary.has("title") and result_dictionary.has("createdAt"):
@@ -3073,10 +3097,6 @@ func _handle_response(message: Dictionary) -> void:
 	elif bool(result_dictionary.get("configured", false)) and result_dictionary.has("godotProjectPath"):
 		connected_workspace_id = str(result_dictionary.get("workspaceId", connected_workspace_id)).strip_edges()
 		_update_connection_identity_tooltip()
-		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
-		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
-		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
-		_load_mcp_config()
 	elif result_dictionary.has("editorInstance"):
 		var editor_instance_value: Variant = result_dictionary.get("editorInstance", {})
 		if typeof(editor_instance_value) == TYPE_DICTIONARY:
@@ -3084,7 +3104,12 @@ func _handle_response(message: Dictionary) -> void:
 			editor_bridge_controller.set_editor_instance_id(str(editor_instance_dictionary.get("editorInstanceId", "")))
 			connected_workspace_id = str(editor_instance_dictionary.get("workspaceId", connected_workspace_id)).strip_edges()
 			_update_connection_identity_tooltip()
+	elif result_dictionary.has("mode") and result_dictionary.has("pendingApprovals"):
+		_apply_approval_mode_status(result_dictionary)
+		if int(result_dictionary.get("pendingApprovals", 0)) > 0 and not approval_dialog.visible:
+			_send_request(RPC_METHODS.APPROVAL_LIST, {}, "approval-list")
 	elif result_dictionary.has("contextWindowTokens"):
+		_apply_approval_mode_status(result_dictionary)
 		_update_context_length(result_dictionary)
 		if context_popup_open_after_info:
 			context_popup_open_after_info = false
@@ -3092,6 +3117,7 @@ func _handle_response(message: Dictionary) -> void:
 		if int(result_dictionary.get("pendingApprovals", 0)) > 0 and not approval_dialog.visible:
 			_send_request(RPC_METHODS.APPROVAL_LIST, {}, "approval-list")
 	elif result_dictionary.has("pending") and result_dictionary.has("mode"):
+		_apply_approval_mode_status(result_dictionary)
 		_show_first_pending_approval(result_dictionary)
 	elif bool(result_dictionary.get("saved", false)):
 		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
@@ -3246,11 +3272,6 @@ func _handle_event(message: Dictionary) -> void:
 			active_settings_menu.call("show_mcp_error", mcp_error_text)
 	elif event_name == "skill.catalog.changed":
 		_load_skills()
-	elif event_name == "skill.activated":
-		var activated_ref: String = str(data_dictionary.get("ref", ""))
-		var activation_kind: String = str(data_dictionary.get("activation", "automatic"))
-		if not activated_ref.is_empty():
-			_upsert_connection_status_entry("info", "Skill activated", "%s (%s)" % [activated_ref, activation_kind])
 	elif event_name == "editor.tool.requested":
 		editor_bridge_controller.handle_tool_requested(data_dictionary)
 
@@ -4071,6 +4092,20 @@ func _refresh_session_and_archive_lists() -> void:
 
 func _apply_session_metadata(metadata: Dictionary) -> void:
 	active_session_id = str(metadata.get("id", ""))
+	var metadata_provider_id: String = str(metadata.get("provider", "")).strip_edges()
+	if _is_known_provider_id(metadata_provider_id):
+		active_provider_id = metadata_provider_id
+		_select_provider_id(active_provider_id)
+		_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
+		var metadata_model_id: String = str(metadata.get("model", "")).strip_edges()
+		if not metadata_model_id.is_empty():
+			_select_or_add_model_id(metadata_model_id)
+		_load_provider_models(active_provider_id)
+
+	var metadata_chat_mode: String = str(metadata.get("chatMode", "")).strip_edges()
+	if not metadata_chat_mode.is_empty():
+		_select_chat_mode(metadata_chat_mode)
+
 	if not active_session_id.is_empty():
 		sessions_by_id[active_session_id] = _apply_renamed_session_override(metadata)
 		if not session_ids_in_order.has(active_session_id):
@@ -4131,7 +4166,7 @@ func _apply_provider_config_status(status: Dictionary) -> void:
 	provider_config_status = status
 	var configured: bool = bool(status.get("configured", false))
 	var provider_value: String = str(status.get("activeProvider", status.get("provider", active_provider_id))).strip_edges()
-	if _is_known_provider_id(provider_value):
+	if active_session_id.is_empty() and _is_known_provider_id(provider_value):
 		active_provider_id = provider_value
 	_select_provider_id(active_provider_id)
 	var model_value: Variant = status.get("model", null)
@@ -4144,14 +4179,25 @@ func _apply_provider_config_status(status: Dictionary) -> void:
 		status_button.tooltip_text = "Open settings and save %s API key" % _get_provider_display_name(active_provider_id)
 
 	_populate_model_button(_get_fallback_models_for_provider(active_provider_id))
-	if typeof(model_value) == TYPE_STRING:
+	if active_session_id.is_empty() and typeof(model_value) == TYPE_STRING:
 		_select_or_add_model_id(str(model_value))
-	_save_frontend_config()
 	_load_provider_models(active_provider_id)
-	if typeof(model_value) != TYPE_STRING:
-		_apply_model_config_to_backend()
 
 	_update_send_state()
+
+
+func _apply_user_prompt_config(config: Dictionary) -> void:
+	custom_instructions = str(config.get("prompt", "")).strip_edges()
+	if active_settings_menu != null and is_instance_valid(active_settings_menu):
+		active_settings_menu.call("setup_provider_config", provider_config_status, _get_frontend_config_snapshot())
+
+
+func _apply_approval_mode_status(status: Dictionary) -> void:
+	var mode_value: String = str(status.get("mode", status.get("approvalMode", ""))).strip_edges()
+	if mode_value.is_empty():
+		return
+
+	_select_approval_mode(mode_value)
 
 
 func _apply_provider_models_list_response(result: Dictionary) -> void:
@@ -4167,7 +4213,6 @@ func _apply_provider_models_list_response(result: Dictionary) -> void:
 	_populate_model_button(models_value as Array)
 	if not previous_model_id.is_empty():
 		_select_model_id(previous_model_id)
-	_save_frontend_config()
 	if bool(result.get("stale", false)) and result.has("error"):
 		model_button.tooltip_text = "%s\nModel list is using cached/default data: %s" % [
 			model_button.tooltip_text,
@@ -5668,24 +5713,60 @@ func _deferred_measure_timeline_items() -> void:
 			render_required = true
 
 	if changed:
+		var scroll_anchor: Dictionary[String, Variant] = _capture_timeline_scroll_anchor()
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		_rebuild_timeline_height_cache()
 		if render_required:
 			_render_visible_timeline(should_follow_bottom)
+			if not should_follow_bottom:
+				_restore_timeline_scroll_anchor(scroll_anchor)
 		elif should_follow_bottom:
 			_scroll_timeline_to_bottom_deferred()
 
 
+func _capture_timeline_scroll_anchor() -> Dictionary[String, Variant]:
+	if timeline_entries.is_empty():
+		return {}
+
+	_ensure_timeline_height_cache()
+	var anchor_index: int = _find_timeline_index_at_offset(float(scroll_container.scroll_vertical))
+	var anchor_entry: Dictionary = timeline_entries[anchor_index]
+	var anchor_entry_id: String = str(anchor_entry.get("id", ""))
+	if anchor_entry_id.is_empty():
+		return {}
+
+	return {
+		"entry_id": anchor_entry_id,
+		"offset": float(scroll_container.scroll_vertical) - timeline_prefix_heights[anchor_index]
+	}
+
+
+func _restore_timeline_scroll_anchor(scroll_anchor: Dictionary[String, Variant]) -> void:
+	var anchor_entry_id: String = str(scroll_anchor.get("entry_id", ""))
+	if anchor_entry_id.is_empty():
+		return
+
+	var anchor_index: int = _find_timeline_entry_index(anchor_entry_id)
+	if anchor_index < 0:
+		return
+
+	_ensure_timeline_height_cache()
+	var anchor_offset: float = float(scroll_anchor.get("offset", 0.0))
+	var next_scroll: float = max(0.0, timeline_prefix_heights[anchor_index] + anchor_offset)
+	scroll_container.scroll_vertical = int(round(next_scroll))
+
+
 func _scroll_timeline_to_bottom_deferred() -> void:
+	timeline_deferred_scroll_version += 1
 	if timeline_deferred_scroll_queued:
 		return
 
 	timeline_deferred_scroll_queued = true
-	timeline_deferred_scroll_version += 1
 	var scroll_version: int = timeline_deferred_scroll_version
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if scroll_version != timeline_deferred_scroll_version:
+		timeline_deferred_scroll_queued = false
 		return
 
 	timeline_deferred_scroll_queued = false
@@ -5876,7 +5957,6 @@ func _add_system_tool_item(title_text: String, detail_text: String) -> void:
 
 
 func _add_tool_event(event_data: Dictionary) -> void:
-	_show_background_context_viewer()
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_flush_pending_assistant_delta()
 	var item: Node = _append_active_assistant_tool_event(event_data, true)
@@ -5965,7 +6045,6 @@ func _append_assistant_status_to_timeline(entry_id: String, status_data: Diction
 
 
 func _append_assistant_status_event(status_data: Dictionary) -> void:
-	_show_background_context_viewer()
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_flush_pending_assistant_delta()
 	_ensure_active_assistant_item()
@@ -6020,7 +6099,6 @@ func _append_thinking_event(delta_text: String) -> void:
 	if delta_text.is_empty():
 		return
 
-	_show_background_context_viewer()
 	if active_thinking_entry_id.is_empty():
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		_flush_pending_assistant_delta()
@@ -6313,6 +6391,8 @@ func _update_send_state() -> void:
 	send_button.disabled = not text_edit.visible or (not has_message_draft and not has_pending_queue) or has_unsupported_image
 	if not socket_ready:
 		send_button.tooltip_text = "Queue message until reconnected"
+	elif not workspace_ready:
+		send_button.tooltip_text = "Queue message until workspace initialization finishes"
 	elif has_unsupported_image:
 		send_button.tooltip_text = "Current model does not support image input. Configure an image recognition model or remove image context."
 	elif is_streaming or not pending_approval_id.is_empty():
@@ -6323,6 +6403,7 @@ func _update_send_state() -> void:
 		send_button.tooltip_text = "Send"
 	stop_button.disabled = not socket_ready or not is_streaming
 	create_new_session_button.visible = socket_ready
+	create_new_session_button.disabled = not workspace_ready
 
 
 func _clear_todo_items() -> void:
@@ -6440,6 +6521,7 @@ func _on_settings_button_pressed() -> void:
 	settings_menu.connect("provider_config_save_requested", Callable(self, "_on_settings_provider_config_save_requested"))
 	settings_menu.connect("provider_config_clear_requested", Callable(self, "_on_settings_provider_config_clear_requested"))
 	settings_menu.connect("frontend_config_save_requested", Callable(self, "_on_settings_frontend_config_save_requested"))
+	settings_menu.connect("user_prompt_save_requested", Callable(self, "_on_settings_user_prompt_save_requested"))
 	settings_menu.connect("archived_session_restore_requested", Callable(self, "_on_settings_archived_session_restore_requested"))
 	settings_menu.connect("archived_session_delete_requested", Callable(self, "_on_settings_archived_session_delete_requested"))
 	settings_menu.connect("mcp_server_add_requested", Callable(self, "_on_settings_mcp_server_add_requested"))
@@ -6494,6 +6576,7 @@ func _on_backend_manager_backend_update_started() -> void:
 	backend_update_in_progress = true
 	is_connecting = false
 	socket_ready = false
+	workspace_ready = false
 	backend_health_pending = false
 	backend_health_request_id = ""
 	status_button.icon = DISCONNECTED_ICON
@@ -6524,7 +6607,6 @@ func _get_frontend_config_snapshot() -> Dictionary:
 		"backendDevDir": backend_dev_dir,
 		"provider": active_provider_id,
 		"model": _get_selected_model_id(),
-		"approvalMode": _get_selected_approval_mode(),
 		"customInstructions": custom_instructions,
 		"nextStepHintsEnabled": next_step_hints_enabled,
 		"checkForUpdatesEnabled": check_for_updates_enabled
@@ -6691,7 +6773,6 @@ func _on_settings_provider_config_clear_requested(provider_id: String) -> void:
 func _on_settings_frontend_config_save_requested(
 	next_backend_url: String,
 	next_backend_dev_dir: String,
-	next_custom_instructions: String,
 	next_step_hints_enabled_value: bool,
 	next_check_for_updates_enabled: bool
 ) -> void:
@@ -6701,7 +6782,6 @@ func _on_settings_frontend_config_save_requested(
 	var backend_dev_dir_changed: bool = normalized_backend_dev_dir != backend_dev_dir
 	backend_url = normalized_backend_url
 	backend_dev_dir = normalized_backend_dev_dir
-	custom_instructions = next_custom_instructions.strip_edges()
 	next_step_hints_enabled = next_step_hints_enabled_value
 	check_for_updates_enabled = next_check_for_updates_enabled
 	if not check_for_updates_enabled:
@@ -6716,9 +6796,16 @@ func _on_settings_frontend_config_save_requested(
 		_restart_backend_connection()
 
 
+func _on_settings_user_prompt_save_requested(next_user_prompt: String) -> void:
+	custom_instructions = next_user_prompt.strip_edges()
+	if _is_socket_open():
+		_send_request(RPC_METHODS.USER_PROMPT_SET, { "prompt": custom_instructions }, "user-prompt-set")
+
+
 func _restart_backend_connection(recovery_mode: bool = false) -> void:
 	context_popup_open_after_info = false
 	socket_ready = false
+	workspace_ready = false
 	is_connecting = false
 	backend_connection_controller.shutdown()
 	_start_backend_connection_attempts(not recovery_mode, recovery_mode)

@@ -103,6 +103,7 @@ icon = ExtResource("4_5ojoj")
 [node name="SendButton" type="Button" parent="VBoxContainer/FooterContainer" unique_id=1499827016]
 unique_name_in_owner = true
 layout_mode = 2
+mouse_filter = 1
 theme_type_variation = &"FlatButton"
 icon = ExtResource("5_4n5ck")
 

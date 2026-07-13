@@ -3,7 +3,8 @@ extends AcceptDialog
 
 signal provider_config_save_requested(provider_id: String, api_key: String, base_url: String, model_routing: Dictionary)
 signal provider_config_clear_requested(provider_id: String)
-signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, custom_instructions: String, next_step_hints_enabled: bool, check_for_updates_enabled: bool)
+signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, next_step_hints_enabled: bool, check_for_updates_enabled: bool)
+signal user_prompt_save_requested(prompt: String)
 signal archived_session_restore_requested(session_id: String)
 signal archived_session_delete_requested(session_id: String)
 signal mcp_server_add_requested(config: Dictionary)
@@ -65,12 +66,14 @@ const CONFIRM_ACTION_DELETE_ALL_ARCHIVED_SESSIONS: StringName = &"delete_all_arc
 const PROVIDER_IDS: PackedStringArray = [
 	"deepseek",
 	"moonshot",
-	"openai"
+	"openai",
+	"zhipu"
 ]
 const PROVIDER_NAMES: PackedStringArray = [
 	"DeepSeek",
 	"Moonshot",
-	"OpenAI"
+	"OpenAI",
+	"Zhipu AI"
 ]
 const TASK_MODEL_KEYS: PackedStringArray = [
 	"imageRecognition",
@@ -341,10 +344,10 @@ func _on_confirmed() -> void:
 	frontend_config_save_requested.emit(
 		backend_url_line_edit.text.strip_edges(),
 		backend_dev_dir_line_edit.text.strip_edges(),
-		custom_instructions_edit.text.strip_edges(),
 		next_step_hints_check_box.button_pressed,
 		check_for_updates_check_box.button_pressed
 	)
+	user_prompt_save_requested.emit(custom_instructions_edit.text.strip_edges())
 	provider_config_save_requested.emit(
 		_get_selected_provider_id(),
 		api_key,
@@ -831,15 +834,15 @@ func _on_custom_instructions_warning_button_pressed() -> void:
 	var custom_instructions_text: String = custom_instructions_edit.text.strip_edges()
 	var character_count: int = custom_instructions_text.length()
 	custom_instructions_warning_dialog = AcceptDialog.new()
-	custom_instructions_warning_dialog.title = "Custom instructions context"
+	custom_instructions_warning_dialog.title = "User prompt context"
 	var dialog_lines: PackedStringArray = [
-		"Custom instructions are active this turn and are sent with every chat request.",
+		"The user prompt is saved in the backend and applied to every chat request.",
 		"",
 		"Current size: %s",
 		"",
-		"Long instructions consume context before the conversation history is selected.",
+		"Long prompts consume context before the conversation history is selected.",
 		"",
-		"Priority: backend/system rules > tool safety > project instruction files such as AGENTS.md > current chat request > custom instructions."
+		"Priority: backend/system rules > tool safety > project instruction files such as AGENTS.md > current chat request > user prompt."
 	]
 	custom_instructions_warning_dialog.dialog_text = "\n".join(dialog_lines) % _format_character_count(character_count)
 	add_child(custom_instructions_warning_dialog)
@@ -884,7 +887,7 @@ func _update_custom_instructions_status() -> void:
 	var has_custom_instructions: bool = character_count > 0
 	var status_text: String = _format_custom_instructions_status(character_count)
 
-	custom_instructions_label.text = "Custom instructions (active this turn)" if has_custom_instructions else "Custom instructions"
+	custom_instructions_label.text = "User prompt"
 	custom_instructions_label.tooltip_text = status_text
 	custom_instructions_edit.tooltip_text = status_text
 	custom_instructions_warning_button.visible = character_count >= CUSTOM_INSTRUCTIONS_WARNING_CHARS
@@ -894,15 +897,15 @@ func _update_custom_instructions_status() -> void:
 
 func _format_custom_instructions_status(character_count: int) -> String:
 	if character_count <= 0:
-		return "No custom instructions will be sent this turn."
+		return "No backend user prompt is configured."
 
-	var status_text: String = "Custom instructions are active this turn: %s." % _format_character_count(character_count)
+	var status_text: String = "Backend user prompt: %s." % _format_character_count(character_count)
 	if character_count >= CUSTOM_INSTRUCTIONS_HEAVY_CHARS:
 		return status_text + " This is very long and will consume a noticeable amount of context every request."
 	if character_count >= CUSTOM_INSTRUCTIONS_WARNING_CHARS:
 		return status_text + " This is long enough to affect context usage every request."
 
-	return status_text + " Priority: backend/system rules > tool safety > project instruction files > current chat request > custom instructions."
+	return status_text + " Priority: backend/system rules > tool safety > project instruction files > current chat request > user prompt."
 
 
 func _format_character_count(character_count: int) -> String:

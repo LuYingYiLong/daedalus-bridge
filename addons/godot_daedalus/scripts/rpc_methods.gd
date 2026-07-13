@@ -8,6 +8,8 @@ const CLIENT_HELLO: String = "client.hello"
 const CLIENT_INFO: String = "client.info"
 const PROVIDER_CONFIGURE: String = "provider.configure"
 const PROVIDER_CONFIG_GET: String = "provider.config.get"
+const PROVIDER_CURRENT_GET: String = "provider.current.get"
+const PROVIDER_MODEL_SELECTION_GET: String = "provider.modelSelection.get"
 const PROVIDER_CONFIG_SET: String = "provider.config.set"
 const PROVIDER_CONFIG_CLEAR: String = "provider.config.clear"
 const PROVIDER_MODELS_LIST: String = "provider.models.list"
@@ -15,6 +17,8 @@ const AI_CHAT: String = "ai.chat"
 const AI_NEXT_STEP_HINTS: String = "ai.next_step_hints"
 const AI_CANCEL: String = "ai.cancel"
 const PROMPT_LIST: String = "prompt.list"
+const USER_PROMPT_GET: String = "userPrompt.get"
+const USER_PROMPT_SET: String = "userPrompt.set"
 const SKILL_LIST: String = "skill.list"
 const SKILL_GET: String = "skill.get"
 const SKILL_SET_ENABLED: String = "skill.set_enabled"
@@ -51,6 +55,8 @@ const MCP_CONFIG_ADD: String = "mcp.config.add"
 const MCP_CONFIG_UPDATE: String = "mcp.config.update"
 const MCP_CONFIG_REMOVE: String = "mcp.config.remove"
 const MCP_CONFIG_SET_ENABLED: String = "mcp.config.setEnabled"
+const TOOL_CATALOG_LIST: String = "tool.catalog.list"
+const TOOL_EXECUTE: String = "tool.execute"
 const FILE_CHANGE_CREATE: String = "fileChange.create"
 const FILE_CHANGE_OVERWRITE: String = "fileChange.overwrite"
 const FILE_CHANGE_DELETE: String = "fileChange.delete"
@@ -82,6 +88,8 @@ static func all() -> PackedStringArray:
 		CLIENT_INFO,
 		PROVIDER_CONFIGURE,
 		PROVIDER_CONFIG_GET,
+		PROVIDER_CURRENT_GET,
+		PROVIDER_MODEL_SELECTION_GET,
 		PROVIDER_CONFIG_SET,
 		PROVIDER_CONFIG_CLEAR,
 		PROVIDER_MODELS_LIST,
@@ -89,6 +97,8 @@ static func all() -> PackedStringArray:
 		AI_NEXT_STEP_HINTS,
 		AI_CANCEL,
 		PROMPT_LIST,
+		USER_PROMPT_GET,
+		USER_PROMPT_SET,
 		SKILL_LIST,
 		SKILL_GET,
 		SKILL_SET_ENABLED,
@@ -125,6 +135,8 @@ static func all() -> PackedStringArray:
 		MCP_CONFIG_UPDATE,
 		MCP_CONFIG_REMOVE,
 		MCP_CONFIG_SET_ENABLED,
+		TOOL_CATALOG_LIST,
+		TOOL_EXECUTE,
 		FILE_CHANGE_CREATE,
 		FILE_CHANGE_OVERWRITE,
 		FILE_CHANGE_DELETE,

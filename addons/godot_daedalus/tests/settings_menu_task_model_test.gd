@@ -37,12 +37,16 @@ func _run_tests() -> void:
 	_expect_equal(planner_option_button.get_item_text(0), "Use current model", "planner default option")
 	_expect_equal(title_option_button.get_item_text(0), "Use current model", "title default option")
 	_expect_equal(_has_option_metadata(image_option_button, "moonshot", "kimi-k2.6"), true, "image option has moonshot model")
+	_expect_equal(_has_option_metadata(image_option_button, "zhipu", "glm-5v-turbo"), true, "image option has zhipu visual model")
 	_expect_equal(base_url_line_edit.placeholder_text, "https://api.deepseek.com", "base url default placeholder")
 	_expect_equal(base_url_line_edit.text, "https://proxy.example/v1", "base url custom value")
 	_select_provider_option(provider_option_button, "moonshot")
 	dialog.call("_on_provider_option_button_item_selected", provider_option_button.selected)
 	_expect_equal(base_url_line_edit.placeholder_text, "https://api.moonshot.cn/v1", "moonshot base url default placeholder")
 	_expect_equal(base_url_line_edit.text, "", "null base url renders empty")
+	_select_provider_option(provider_option_button, "zhipu")
+	dialog.call("_on_provider_option_button_item_selected", provider_option_button.selected)
+	_expect_equal(base_url_line_edit.placeholder_text, "https://open.bigmodel.cn/api/paas/v4", "zhipu base url default placeholder")
 	_select_provider_option(provider_option_button, "deepseek")
 	dialog.call("_on_provider_option_button_item_selected", provider_option_button.selected)
 
@@ -105,6 +109,19 @@ func _create_provider_status() -> Dictionary:
 					{ "id": "gpt-5.5", "displayName": "GPT-5.5" }
 				],
 				"fallbackModels": []
+			},
+			{
+				"provider": "zhipu",
+				"displayName": "Zhipu AI",
+				"configured": true,
+				"model": "glm-5.2",
+				"baseUrl": null,
+				"defaultBaseUrl": "https://open.bigmodel.cn/api/paas/v4",
+				"modelsCache": [],
+				"fallbackModels": [
+					{ "id": "glm-5.2", "displayName": "GLM-5.2" },
+					{ "id": "glm-5v-turbo", "displayName": "GLM-5V Turbo", "capabilities": { "imageInput": true } }
+				]
 			}
 		]
 	}

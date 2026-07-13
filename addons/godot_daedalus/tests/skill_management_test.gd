@@ -39,7 +39,7 @@ func _run_tests() -> void:
 			"valid": true,
 			"editable": true,
 			"removable": true,
-			"displayPath": "%APPDATA%/.godot_daedalus/skills/personal-skill/SKILL.md"
+			"displayPath": "%USERPROFILE%/.daedalus/skills/personal-skill/SKILL.md"
 		}
 	], "revision-test", true)
 	await process_frame
