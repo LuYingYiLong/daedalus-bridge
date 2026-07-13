@@ -7,7 +7,10 @@ var failures: PackedStringArray
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -25,6 +28,7 @@ func _run_tests() -> void:
 	if typeof(payload_value) != TYPE_DICTIONARY:
 		failures.append("capture payload must be a dictionary")
 		controller.free()
+		_finish_tests()
 		return
 
 	var payload: Dictionary = payload_value as Dictionary
@@ -34,6 +38,7 @@ func _run_tests() -> void:
 	_expect_equal(str(payload.get("dataUrl", "")).begins_with("data:image/png;base64,"), true, "capture data URL")
 	_expect_equal(int(payload.get("byteSize", 0)) > 0, true, "capture byte size")
 	controller.free()
+	_finish_tests()
 
 
 func _expect_equal(actual_value: Variant, expected_value: Variant, label_text: String) -> void:

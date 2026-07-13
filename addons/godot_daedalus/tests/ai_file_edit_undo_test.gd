@@ -9,7 +9,10 @@ var captured_inline_diff_summary: Dictionary
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -31,6 +34,7 @@ func _run_tests() -> void:
 	_test_create_delete_restore(file_edit_controller)
 	file_edit_controller.free()
 	main_node.free()
+	_finish_tests()
 
 
 func _test_display_path(file_edit_controller: Node) -> void:

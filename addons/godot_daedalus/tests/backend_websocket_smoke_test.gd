@@ -9,6 +9,10 @@ var socket: WebSocketPeer = WebSocketPeer.new()
 
 
 func _init() -> void:
+	_run_tests.call_deferred()
+
+
+func _run_tests() -> void:
 	var backend_url: String = OS.get_environment("DAEDALUS_TEST_BACKEND_URL").strip_edges()
 	if backend_url.is_empty():
 		backend_url = DEFAULT_BACKEND_URL

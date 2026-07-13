@@ -8,7 +8,10 @@ var edit_server_id: String
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -61,6 +64,7 @@ func _run_tests() -> void:
 	_expect_equal(check_button.disabled, true, "pending check disabled")
 
 	item.queue_free()
+	_finish_tests()
 
 
 func _on_edit_requested(server_id: String) -> void:

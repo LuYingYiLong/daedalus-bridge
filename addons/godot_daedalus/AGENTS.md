@@ -60,6 +60,6 @@
 ## 禁止事项
 
 - 不手动编辑 `.godot/`、`.import` 和自动生成文件。
-- 不提交本机日志、会话、API key、MCP secret 或 `%APPDATA%\.godot_daedalus` 内容。
+- 不提交本机日志、会话、API key、MCP secret、`%USERPROFILE%\.daedalus` 或旧 `%APPDATA%\.godot_daedalus` 内容。
 - 不把后端工具 XML、MCP 原始函数名、secret、绝对隐私路径直接渲染给用户。
 - 不在前端实现会绕过后端审批、安全策略或工具幂等的快捷路径。

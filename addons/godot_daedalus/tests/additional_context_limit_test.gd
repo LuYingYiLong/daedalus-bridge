@@ -8,7 +8,10 @@ var failures: PackedStringArray
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -56,6 +59,7 @@ func _run_tests() -> void:
 	_expect_equal(_image_data_has_key(ui_clone, "thumbnailDataUrl"), true, "ui clone keeps image thumbnail")
 
 	controller.free()
+	_finish_tests()
 
 
 func _make_script_context(context_id: String, line_start: int, line_end: int) -> Dictionary:

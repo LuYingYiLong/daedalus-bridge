@@ -7,7 +7,10 @@ var failures: PackedStringArray
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -66,6 +69,7 @@ func _run_tests() -> void:
 	var plain_todos: Array[Dictionary] = MAIN_HELPERS.extract_todo_items("待办\n1. 拆分主脚本\n2. 补下载规则")
 	_expect_equal(plain_todos.size(), 2, "plain todo count")
 	_expect_equal(str(plain_todos[1].get("text", "")), "补下载规则", "plain todo text")
+	_finish_tests()
 
 
 func _expect_equal(actual_value: Variant, expected_value: Variant, label_text: String) -> void:

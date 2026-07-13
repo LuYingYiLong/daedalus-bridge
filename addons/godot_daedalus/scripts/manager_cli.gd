@@ -214,11 +214,31 @@ func _get_bin_path_for_prefix(prefix_path: String) -> String:
 
 
 func _get_backend_install_dir() -> String:
+	var backend_install_dir: String = _get_daedalus_app_dir().path_join("backend")
+	if DirAccess.dir_exists_absolute(backend_install_dir):
+		return backend_install_dir
+
+	var legacy_backend_install_dir: String = _get_legacy_daedalus_app_dir().path_join("backend")
+	if DirAccess.dir_exists_absolute(legacy_backend_install_dir):
+		return legacy_backend_install_dir
+
+	return backend_install_dir
+
+
+func _get_daedalus_app_dir() -> String:
+	var user_profile_path: String = OS.get_environment("USERPROFILE").strip_edges()
+	if not user_profile_path.is_empty():
+		return user_profile_path.path_join(".daedalus")
+
+	return OS.get_user_data_dir().path_join(".daedalus")
+
+
+func _get_legacy_daedalus_app_dir() -> String:
 	var appdata_path: String = OS.get_environment("APPDATA").strip_edges()
 	if appdata_path.is_empty():
-		appdata_path = OS.get_user_data_dir()
+		return OS.get_user_data_dir().path_join(".godot_daedalus")
 
-	return appdata_path.path_join(".godot_daedalus").path_join("backend")
+	return appdata_path.path_join(".godot_daedalus")
 
 
 func _execute_command(command_path: String, command_args: PackedStringArray, output_lines: Array) -> int:

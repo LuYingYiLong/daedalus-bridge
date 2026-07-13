@@ -11,7 +11,10 @@ var saved_model_routing: Dictionary
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -59,6 +62,7 @@ func _run_tests() -> void:
 	_expect_equal(str(image_routing.get("model", "")), "kimi-k2.6", "image routing model")
 	_expect_equal(saved_model_routing.get("workflowPlanner", "not-null") == null, true, "planner routing current")
 	dialog.queue_free()
+	_finish_tests()
 
 
 func _create_provider_status() -> Dictionary:

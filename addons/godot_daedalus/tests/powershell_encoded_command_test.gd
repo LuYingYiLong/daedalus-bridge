@@ -3,6 +3,10 @@ extends SceneTree
 
 
 func _init() -> void:
+	_run_tests.call_deferred()
+
+
+func _run_tests() -> void:
 	if OS.get_name() != "Windows":
 		quit(0)
 		return

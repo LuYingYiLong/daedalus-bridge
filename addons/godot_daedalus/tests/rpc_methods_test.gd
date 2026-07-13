@@ -7,7 +7,10 @@ var failures: PackedStringArray
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -52,7 +55,7 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 75, "rpc method count")
+	_expect_equal(methods.size(), 76, "rpc method count")
 	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.CLIENT_INFO), true, "client info listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_INSTANCES_LIST), true, "editor instances list listed")
@@ -62,6 +65,7 @@ func _run_tests() -> void:
 	_expect_equal(seen.has(RPC_METHODS.PLAN_APPROVE), true, "plan approve listed")
 	_expect_equal(seen.has(RPC_METHODS.TOOL_CATALOG_LIST), true, "tool catalog list listed")
 	_expect_equal(seen.has(RPC_METHODS.TOOL_EXECUTE), true, "tool execute listed")
+	_finish_tests()
 
 
 func _expect_equal(actual_value: Variant, expected_value: Variant, label_text: String) -> void:

@@ -7,7 +7,10 @@ var failures: PackedStringArray
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -31,6 +34,7 @@ func _run_tests() -> void:
 	_expect_equal(bool(controller.call("select_approval_mode", "read-only")), false, "read-only removed")
 
 	main_instance.free()
+	_finish_tests()
 
 
 func _expect_equal(actual_value: Variant, expected_value: Variant, label_text: String) -> void:

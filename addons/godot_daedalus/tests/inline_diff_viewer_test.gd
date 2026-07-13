@@ -8,7 +8,10 @@ var undo_requested_count: int
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -55,6 +58,7 @@ func _run_tests() -> void:
 	undo_button.emit_signal("pressed")
 	_expect_equal(undo_requested_count, 1, "undo signal emitted")
 	viewer.queue_free()
+	_finish_tests()
 
 
 func _on_undo_requested(_summary: Dictionary) -> void:

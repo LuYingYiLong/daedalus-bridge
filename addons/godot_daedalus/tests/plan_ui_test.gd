@@ -17,7 +17,10 @@ var details_markdown: String
 
 
 func _init() -> void:
-	_run_tests()
+	_run_tests.call_deferred()
+
+
+func _finish_tests() -> void:
 	if failures.is_empty():
 		quit(0)
 		return
@@ -33,6 +36,7 @@ func _run_tests() -> void:
 	_test_plan_preview_item()
 	_test_plan_events_merge_after_clarification()
 	_test_plan_clarify_request_events_merge_into_original_assistant()
+	_finish_tests()
 
 
 func _test_clarification_dialog() -> void:

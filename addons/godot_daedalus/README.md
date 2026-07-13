@@ -33,7 +33,7 @@ ws://localhost:38180
 
 You can change the backend URL from the plugin settings panel.
 
-Published backend versions are installed under `%APPDATA%/.godot_daedalus/backend/versions/` and are switched by the manager instead of updating a running `node_modules` directory in place.
+Published backend versions are installed under `%USERPROFILE%/.daedalus/backend/versions/` and are switched by the manager instead of updating a running `node_modules` directory in place. Older development installs under `%APPDATA%/.godot_daedalus/backend/` are only used as a fallback when present.
 
 ## API Key
 
@@ -42,6 +42,13 @@ Open the plugin settings panel and save the DeepSeek API key there. The backend 
 ## Validation
 
 Useful checks during development:
+
+```powershell
+& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --check-only --script "res://addons/godot_daedalus/scripts/main.gd"
+pwsh -NoProfile -ExecutionPolicy Bypass -File "D:/GodotProjects/example/addons/godot_daedalus/tools/run_plugin_tests.ps1"
+```
+
+Targeted checks:
 
 ```powershell
 & "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --check-only --script "res://addons/godot_daedalus/scripts/main.gd"
