@@ -3,6 +3,9 @@ extends RefCounted
 
 const PACKAGE_NAME: String = "daedalus-backend"
 const MANAGER_BIN_NAME: String = "godot-daedalus-manager"
+const LEGACY_MANAGER_BIN_SCRIPT_NAME: String = "godot-daedalus-manager.js"
+const MANAGER_BIN_SCRIPT_NAME: String = "daedalus-manager.js"
+const NPM_MANAGER_BRIDGE_SCRIPT: String = "const fs=require('fs');const path=require('path');const cp=require('child_process');const packageName='daedalus-backend';const binNames=['bin/godot-daedalus-manager.js','bin/daedalus-manager.js'];const parts=(process.env.PATH||'').split(path.delimiter);for(const part of parts){const normalized=part.replace(/\\\\/g,'/');if(!normalized.endsWith('/node_modules/.bin'))continue;const root=path.resolve(part,'..',packageName);for(const name of binNames){const candidate=path.join(root,name);if(fs.existsSync(candidate)){const result=cp.spawnSync(process.execPath,[candidate,...process.argv.slice(1)],{stdio:'inherit'});process.exit(result.status??1);}}}console.error('daedalus manager package bin not found');process.exit(127);"
 
 var backend_dev_dir: String
 
@@ -116,6 +119,16 @@ func _build_dev_manager_invocation(json_args: PackedStringArray) -> Dictionary:
 	if not FileAccess.file_exists(package_json_path):
 		return {}
 
+	var manager_script_path: String = _get_package_manager_script_path(backend_dev_dir)
+	if not manager_script_path.is_empty():
+		var node_args: PackedStringArray = PackedStringArray([manager_script_path])
+		node_args.append_array(json_args)
+		return {
+			"command_path": "node",
+			"command_args": node_args,
+			"summary": "node %s" % " ".join(node_args)
+		}
+
 	var npm_args: PackedStringArray = PackedStringArray(["exec", "--prefix", backend_dev_dir, "--", MANAGER_BIN_NAME])
 	npm_args.append_array(json_args)
 	return {
@@ -126,7 +139,17 @@ func _build_dev_manager_invocation(json_args: PackedStringArray) -> Dictionary:
 
 
 func _build_npm_latest_manager_invocation(json_args: PackedStringArray) -> Dictionary:
-	var npm_args: PackedStringArray = PackedStringArray(["exec", "--yes", "--package", "%s@latest" % PACKAGE_NAME, "--", MANAGER_BIN_NAME])
+	var npm_args: PackedStringArray = PackedStringArray([
+		"exec",
+		"--yes",
+		"--package",
+		"%s@latest" % PACKAGE_NAME,
+		"--",
+		"node",
+		"-e",
+		NPM_MANAGER_BRIDGE_SCRIPT,
+		"--"
+	])
 	npm_args.append_array(json_args)
 	return {
 		"command_path": "npm",
@@ -209,6 +232,19 @@ func _get_bin_path_for_prefix(prefix_path: String) -> String:
 
 	if FileAccess.file_exists(manager_path):
 		return manager_path
+
+	return ""
+
+
+func _get_package_manager_script_path(package_root_path: String) -> String:
+	var bin_dir: String = package_root_path.path_join("bin")
+	var manager_script_path: String = bin_dir.path_join(MANAGER_BIN_SCRIPT_NAME)
+	if FileAccess.file_exists(manager_script_path):
+		return manager_script_path
+
+	var legacy_manager_script_path: String = bin_dir.path_join(LEGACY_MANAGER_BIN_SCRIPT_NAME)
+	if FileAccess.file_exists(legacy_manager_script_path):
+		return legacy_manager_script_path
 
 	return ""
 

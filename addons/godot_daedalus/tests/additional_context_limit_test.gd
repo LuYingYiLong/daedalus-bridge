@@ -3,6 +3,7 @@ extends SceneTree
 
 const ADDITIONAL_CONTEXT_CONTROLLER_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/controllers/daedalus_additional_context_controller.gd")
 const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
+const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"
 
 var failures: PackedStringArray
 var changed_count: int
@@ -24,6 +25,7 @@ func _finish_tests() -> void:
 
 func _run_tests() -> void:
 	_test_render_reuses_context_nodes()
+	await _test_deferred_render_coalesces_changes()
 
 	var controller: Node = ADDITIONAL_CONTEXT_CONTROLLER_SCRIPT.new() as Node
 	controller.connect("changed", Callable(self, "_on_controller_changed"))
@@ -86,6 +88,27 @@ func _run_tests() -> void:
 	controller.call("upsert_live", LIVE_SCRIPT_SELECTION_CONTEXT_ID, _make_script_context(LIVE_SCRIPT_SELECTION_CONTEXT_ID, 20, 20))
 	_expect_equal(_context_count(controller), 10, "live append respects max context limit")
 
+	controller.call("replace_items", [])
+	var filesystem_context: Dictionary = _make_filesystem_context("res://addons/godot_daedalus/scenes/additional_context_item.tscn")
+	controller.call("upsert_live", LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, filesystem_context)
+	_expect_equal(_context_count(controller), 1, "filesystem live context appended")
+	var backend_snapshot: Array[Dictionary] = controller.call("get_backend_snapshot") as Array[Dictionary]
+	_expect_equal(backend_snapshot.size(), 0, "backend snapshot excludes filesystem live context")
+	var frozen_contexts: Array[Dictionary] = controller.call("freeze_contexts_for_message", [filesystem_context], true) as Array[Dictionary]
+	_expect_equal(frozen_contexts.size(), 1, "message freeze keeps filesystem context")
+	_expect_equal(str(frozen_contexts[0].get("id", "")) != LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, true, "message freeze detaches filesystem live id")
+	var filesystem_added_count: int = changed_count
+	controller.call("replace_items", [])
+	_expect_equal(_context_count(controller), 1, "empty backend snapshot preserves active filesystem live context")
+	_expect_equal(changed_count, filesystem_added_count, "preserved active filesystem live snapshot does not emit changed")
+	controller.call("upsert_live", LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, {})
+	_expect_equal(_context_count(controller), 1, "first empty filesystem selection is treated as transient")
+	_expect_equal(changed_count, filesystem_added_count, "transient empty filesystem selection does not emit changed")
+	controller.call("upsert_live", LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, {})
+	_expect_equal(_context_count(controller), 0, "repeated empty filesystem selection removes active live context")
+	controller.call("replace_items", [filesystem_context])
+	_expect_equal(_context_count(controller), 0, "backend live snapshot does not restore cleared filesystem selection")
+
 	var image_contexts: Array[Dictionary] = [_make_attachment_image_context()]
 	var request_clone: Array[Dictionary] = controller.call("clone_contexts", image_contexts) as Array[Dictionary]
 	var ui_clone: Array[Dictionary] = controller.call("clone_contexts", image_contexts, true) as Array[Dictionary]
@@ -96,6 +119,29 @@ func _run_tests() -> void:
 
 	controller.free()
 	_finish_tests()
+
+
+func _test_deferred_render_coalesces_changes() -> void:
+	var controller: Node = ADDITIONAL_CONTEXT_CONTROLLER_SCRIPT.new() as Node
+	var viewer: ScrollContainer = ScrollContainer.new()
+	var container: HBoxContainer = HBoxContainer.new()
+	viewer.add_child(container)
+	root.add_child(viewer)
+	controller.call("setup", viewer, container)
+	controller.call("set_deferred_render_enabled", true)
+
+	var local_changed_count: int = 0
+	controller.connect("changed", func() -> void: local_changed_count += 1)
+	controller.call("upsert_live", LIVE_SCRIPT_SELECTION_CONTEXT_ID, _make_script_context(LIVE_SCRIPT_SELECTION_CONTEXT_ID, 1, 1))
+	controller.call("upsert_live", LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, _make_filesystem_context("res://addons/godot_daedalus/scenes/main.tscn"))
+	_expect_equal(container.get_child_count(), 0, "deferred render waits until frame end")
+	await process_frame
+	_expect_equal(container.get_child_count(), 2, "deferred render applies queued contexts")
+	_expect_equal(local_changed_count, 1, "deferred render emits one changed signal")
+
+	root.remove_child(viewer)
+	controller.free()
+	viewer.queue_free()
 
 
 func _test_render_reuses_context_nodes() -> void:
@@ -187,6 +233,28 @@ func _make_editor_selection_context(title_text: String, child_count: int) -> Dic
 					"childCount": child_count
 				}
 			]
+		}
+	}
+
+
+func _make_filesystem_context(resource_path: String) -> Dictionary:
+	return {
+		"id": LIVE_FILESYSTEM_SELECTION_CONTEXT_ID,
+		"kind": "filesystem_selection",
+		"title": resource_path.get_file(),
+		"subtitle": resource_path,
+		"pinned": false,
+		"source": "editor",
+		"resourcePath": resource_path,
+		"summary": "FileSystem Dock 当前选中：%s" % resource_path.get_file(),
+		"data": {
+			"selectedPaths": [{
+				"resourcePath": resource_path,
+				"kind": "file",
+				"name": resource_path.get_file(),
+				"extension": resource_path.get_extension()
+			}],
+			"truncated": false
 		}
 	}
 

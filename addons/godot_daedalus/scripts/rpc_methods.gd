@@ -34,6 +34,7 @@ const SESSION_UNSUBSCRIBE: String = "session.unsubscribe"
 const SESSION_EDITOR_BIND: String = "session.editor.bind"
 const SESSION_TIMELINE: String = "session.timeline"
 const SESSION_LIST: String = "session.list"
+const SESSION_BROWSER_SNAPSHOT: String = "session.browser.snapshot"
 const SESSION_ARCHIVE: String = "session.archive"
 const SESSION_ARCHIVED_LIST: String = "session.archived.list"
 const SESSION_ARCHIVED_RESTORE: String = "session.archived.restore"
@@ -121,6 +122,7 @@ static func all() -> PackedStringArray:
 		SESSION_EDITOR_BIND,
 		SESSION_TIMELINE,
 		SESSION_LIST,
+		SESSION_BROWSER_SNAPSHOT,
 		SESSION_ARCHIVE,
 		SESSION_ARCHIVED_LIST,
 		SESSION_ARCHIVED_RESTORE,

@@ -53,7 +53,11 @@ func _run_tests() -> void:
 		var fold_body: VBoxContainer = fold_container.get_child(0) as VBoxContainer
 		_expect_equal(fold_body != null, true, "fold body exists")
 		if fold_body != null:
-			_expect_equal(fold_body.get_child_count(), 1, "pre-summary child moved into fold")
+			_expect_equal(fold_body.get_child_count(), 0, "pre-summary child is lazy before expand")
+			_set_folded(fold_container, false)
+			await process_frame
+			await process_frame
+			_expect_equal(fold_body.get_child_count(), 1, "pre-summary child loads after expand")
 	_expect_equal(body_container.get_child(1) is MarkdownLabel, true, "summary markdown remains visible")
 
 	item.call("begin_summary", {
@@ -80,3 +84,14 @@ func _expect_equal(actual_value: Variant, expected_value: Variant, label_text: S
 		return
 
 	failures.append("%s: expected %s, got %s" % [label_text, str(expected_value), str(actual_value)])
+
+
+func _set_folded(container: FoldableContainer, is_folded: bool) -> void:
+	for property: Dictionary in container.get_property_list():
+		var property_name: String = str(property.get("name", ""))
+		if property_name == "folded" or property_name == "collapsed":
+			container.set(property_name, is_folded)
+			return
+		if property_name == "expanded":
+			container.set(property_name, not is_folded)
+			return

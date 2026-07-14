@@ -12,13 +12,19 @@ const LIVE_EDITOR_SELECTION_CONTEXT_ID: String = "editor-selection-live"
 const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
 const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"
 const VIEWER_RESERVED_HEIGHT: float = 32.0
+const LIVE_CONTEXT_EMPTY_REMOVE_THRESHOLD: int = 2
 
 var _viewer: ScrollContainer
 var _container: HBoxContainer
 var _items: Array[Dictionary]
 var _next_id: int
+var _active_live_contexts: Dictionary[String, Dictionary]
+var _live_empty_counts: Dictionary[String, int]
 var _dismissed_live_signatures: Dictionary[String, String]
 var _dismissed_live_keys: Dictionary[String, String]
+var _deferred_render_enabled: bool
+var _render_queued: bool
+var _changed_pending: bool
 
 
 func setup(viewer: ScrollContainer, container: HBoxContainer) -> void:
@@ -26,6 +32,12 @@ func setup(viewer: ScrollContainer, container: HBoxContainer) -> void:
 	_container = container
 	_viewer.custom_minimum_size.y = maxf(_viewer.custom_minimum_size.y, VIEWER_RESERVED_HEIGHT)
 	render()
+
+
+func set_deferred_render_enabled(enabled: bool) -> void:
+	_deferred_render_enabled = enabled
+	if not _deferred_render_enabled and _render_queued:
+		_flush_render()
 
 
 func get_items() -> Array[Dictionary]:
@@ -38,8 +50,7 @@ func replace_items(contexts: Array) -> void:
 		return
 
 	_items = next_items
-	render()
-	changed.emit()
+	_commit_context_change()
 
 
 func add_or_replace(context: Dictionary) -> bool:
@@ -57,8 +68,7 @@ func add_or_replace(context: Dictionary) -> bool:
 				return true
 
 			_items[index] = replacement
-			render()
-			changed.emit()
+			_commit_context_change()
 			return true
 
 	if not can_append(true):
@@ -71,8 +81,7 @@ func add_or_replace(context: Dictionary) -> bool:
 			str(appended_context.get("nodePath", ""))
 		)
 	_items.append(appended_context)
-	render()
-	changed.emit()
+	_commit_context_change()
 	return true
 
 
@@ -82,17 +91,19 @@ func upsert_live(context_id: String, context: Dictionary) -> void:
 		return
 
 	if context.is_empty():
-		_dismissed_live_signatures.erase(context_id)
-		_dismissed_live_keys.erase(context_id)
+		if not _should_remove_empty_live_context(context_id, existing_index):
+			return
+
 		if existing_index >= 0:
 			_items.remove_at(existing_index)
-			render()
-			changed.emit()
+			_commit_context_change()
 		return
 
+	_live_empty_counts.erase(context_id)
 	var live_context: Dictionary = context.duplicate(true)
 	live_context["id"] = context_id
 	live_context["pinned"] = false
+	_active_live_contexts[context_id] = live_context.duplicate(true)
 	var next_signature: String = make_live_signature(context_id, live_context)
 	var next_live_key: String = make_live_dismiss_key(context_id, live_context)
 	if str(_dismissed_live_keys.get(context_id, "")) == next_live_key:
@@ -108,8 +119,7 @@ func upsert_live(context_id: String, context: Dictionary) -> void:
 	else:
 		return
 
-	render()
-	changed.emit()
+	_commit_context_change()
 
 
 func set_pinned(context_id: String, pinned: bool) -> void:
@@ -136,8 +146,7 @@ func set_pinned(context_id: String, pinned: bool) -> void:
 		context["pinned"] = pinned
 		_items[context_index] = context
 
-	render()
-	changed.emit()
+	_commit_context_change()
 
 
 func remove(context_id: String) -> void:
@@ -150,8 +159,7 @@ func remove(context_id: String) -> void:
 		_dismissed_live_signatures[context_id] = make_live_signature(context_id, context)
 		_dismissed_live_keys[context_id] = make_live_dismiss_key(context_id, context)
 	_items.remove_at(context_index)
-	render()
-	changed.emit()
+	_commit_context_change()
 
 
 func clear_unpinned() -> void:
@@ -170,8 +178,7 @@ func clear_unpinned() -> void:
 		return
 
 	_items = retained_contexts
-	render()
-	changed.emit()
+	_commit_context_change()
 
 
 func get_request_snapshot() -> Array[Dictionary]:
@@ -180,6 +187,29 @@ func get_request_snapshot() -> Array[Dictionary]:
 
 func get_timeline_snapshot() -> Array[Dictionary]:
 	return clone_contexts(_items, true)
+
+
+func get_backend_snapshot() -> Array[Dictionary]:
+	var backend_contexts: Array[Dictionary]
+	for context: Dictionary in _items:
+		if is_live_id(str(context.get("id", ""))):
+			continue
+		backend_contexts.append(context)
+	return clone_contexts(backend_contexts, true)
+
+
+func freeze_contexts_for_message(source_contexts: Array, include_thumbnail_data: bool = true) -> Array[Dictionary]:
+	var frozen_contexts: Array[Dictionary]
+	for context: Dictionary in clone_contexts(source_contexts, include_thumbnail_data):
+		var context_id: String = str(context.get("id", ""))
+		if is_live_id(context_id):
+			context["id"] = make_context_id(
+				str(context.get("kind", "context")),
+				str(context.get("resourcePath", "")),
+				make_context_key(context)
+			)
+		frozen_contexts.append(context)
+	return frozen_contexts
 
 
 func create_image_context(resource_path: String, existing_contexts: Array, context_source: String, is_pinned: bool) -> Dictionary:
@@ -337,14 +367,64 @@ func _clone_contexts_for_snapshot_replace(source_contexts: Array) -> Array[Dicti
 	for context: Dictionary in clone_contexts(source_contexts, true):
 		var context_id: String = str(context.get("id", ""))
 		if is_live_id(context_id):
-			var live_signature: String = make_live_signature(context_id, context)
-			var live_key: String = make_live_dismiss_key(context_id, context)
-			if str(_dismissed_live_keys.get(context_id, "")) == live_key:
-				continue
-			if str(_dismissed_live_signatures.get(context_id, "")) == live_signature:
-				continue
+			continue
 		cloned_contexts.append(context)
+	_append_active_live_contexts(cloned_contexts)
 	return cloned_contexts
+
+
+func _append_active_live_contexts(contexts: Array[Dictionary]) -> void:
+	for context_id: String in _get_live_context_ids():
+		if _context_array_has_id(contexts, context_id):
+			continue
+		if not _active_live_contexts.has(context_id):
+			continue
+
+		var context: Dictionary = _active_live_contexts[context_id].duplicate(true)
+		var live_signature: String = make_live_signature(context_id, context)
+		var live_key: String = make_live_dismiss_key(context_id, context)
+		if str(_dismissed_live_keys.get(context_id, "")) == live_key:
+			continue
+		if str(_dismissed_live_signatures.get(context_id, "")) == live_signature:
+			continue
+		if contexts.size() >= MAX_ITEMS:
+			continue
+
+		contexts.append(context)
+
+
+func _context_array_has_id(contexts: Array[Dictionary], context_id: String) -> bool:
+	for context: Dictionary in contexts:
+		if str(context.get("id", "")) == context_id:
+			return true
+	return false
+
+
+func _get_live_context_ids() -> PackedStringArray:
+	return PackedStringArray([
+		LIVE_EDITOR_SELECTION_CONTEXT_ID,
+		LIVE_SCRIPT_SELECTION_CONTEXT_ID,
+		LIVE_FILESYSTEM_SELECTION_CONTEXT_ID
+	])
+
+
+func _should_remove_empty_live_context(context_id: String, existing_index: int) -> bool:
+	if existing_index < 0 and not _active_live_contexts.has(context_id):
+		_live_empty_counts.erase(context_id)
+		_dismissed_live_signatures.erase(context_id)
+		_dismissed_live_keys.erase(context_id)
+		return false
+
+	var empty_count: int = int(_live_empty_counts.get(context_id, 0)) + 1
+	_live_empty_counts[context_id] = empty_count
+	if empty_count < LIVE_CONTEXT_EMPTY_REMOVE_THRESHOLD:
+		return false
+
+	_live_empty_counts.erase(context_id)
+	_active_live_contexts.erase(context_id)
+	_dismissed_live_signatures.erase(context_id)
+	_dismissed_live_keys.erase(context_id)
+	return true
 
 
 func can_append(show_warning: bool) -> bool:
@@ -359,11 +439,36 @@ func can_append(show_warning: bool) -> bool:
 	return false
 
 
+func _commit_context_change() -> void:
+	if not _deferred_render_enabled:
+		render()
+		changed.emit()
+		return
+
+	_changed_pending = true
+	if _render_queued:
+		return
+
+	_render_queued = true
+	_flush_render.call_deferred()
+
+
+func _flush_render() -> void:
+	if not _render_queued and not _changed_pending:
+		return
+
+	_render_queued = false
+	render()
+	if _changed_pending:
+		_changed_pending = false
+		changed.emit()
+
+
 func render() -> void:
 	if _viewer == null or _container == null:
 		return
 
-	_container.visible = not _items.is_empty()
+	_container.visible = true
 	if _items.is_empty():
 		for child: Node in _container.get_children():
 			child.queue_free()

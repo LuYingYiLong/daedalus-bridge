@@ -7,6 +7,7 @@ signal backend_update_finished(exit_code: int)
 const DOWNLOAD_DIALOG_SCENE: PackedScene = preload("uid://dg0dps48fpc7h")
 const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
 const PACKAGE_NAME: String = "daedalus-backend"
+const NPM_MANAGER_BRIDGE_SCRIPT: String = "const fs=require('fs');const path=require('path');const cp=require('child_process');const packageName='daedalus-backend';const binNames=['bin/godot-daedalus-manager.js','bin/daedalus-manager.js'];const parts=(process.env.PATH||'').split(path.delimiter);for(const part of parts){const normalized=part.replace(/\\\\/g,'/');if(!normalized.endsWith('/node_modules/.bin'))continue;const root=path.resolve(part,'..',packageName);for(const name of binNames){const candidate=path.join(root,name);if(fs.existsSync(candidate)){const result=cp.spawnSync(process.execPath,[candidate,...process.argv.slice(1)],{stdio:'inherit'});process.exit(result.status??1);}}}console.error('daedalus manager package bin not found');process.exit(127);"
 const BACKEND_BIN_FILES: PackedStringArray = [
 	"godot-daedalus-backend",
 	"godot-daedalus-backend.cmd",
@@ -797,9 +798,12 @@ func _build_frontend_installer_script() -> String:
 
 func _build_external_manager_command_parts() -> PackedStringArray:
 	if not backend_dev_dir.is_empty() and FileAccess.file_exists(backend_dev_dir.path_join("package.json")):
+		var dev_manager_path: String = backend_dev_dir.path_join("bin").path_join("daedalus-manager.js")
+		if FileAccess.file_exists(dev_manager_path):
+			return PackedStringArray(["node", dev_manager_path])
 		return PackedStringArray(["npm", "exec", "--prefix", backend_dev_dir, "--", "godot-daedalus-manager"])
 
-	return PackedStringArray(["npm", "exec", "--yes", "--package", "%s@latest" % PACKAGE_NAME, "--", "godot-daedalus-manager"])
+	return PackedStringArray(["npm", "exec", "--yes", "--package", "%s@latest" % PACKAGE_NAME, "--", "node", "-e", NPM_MANAGER_BRIDGE_SCRIPT, "--"])
 
 
 func _join_windows_command_parts(parts: PackedStringArray) -> String:

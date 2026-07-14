@@ -37,6 +37,7 @@ func _run_tests() -> void:
 	_expect_equal(RPC_METHODS.USER_PROMPT_SET, "userPrompt.set", "user prompt set method")
 	_expect_equal(RPC_METHODS.SESSION_OPEN, "session.open", "session open method")
 	_expect_equal(RPC_METHODS.SESSION_EDITOR_BIND, "session.editor.bind", "session editor bind method")
+	_expect_equal(RPC_METHODS.SESSION_BROWSER_SNAPSHOT, "session.browser.snapshot", "session browser snapshot method")
 	_expect_equal(RPC_METHODS.APPROVAL_APPROVE, "approval.approve", "approval approve method")
 	_expect_equal(RPC_METHODS.MCP_CONFIG_ADD, "mcp.config.add", "mcp config add method")
 	_expect_equal(RPC_METHODS.MCP_CONFIG_UPDATE, "mcp.config.update", "mcp config update method")
@@ -59,7 +60,7 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 83, "rpc method count")
+	_expect_equal(methods.size(), 84, "rpc method count")
 	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.CLIENT_INFO), true, "client info listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_INSTANCES_LIST), true, "editor instances list listed")
@@ -67,6 +68,7 @@ func _run_tests() -> void:
 	_expect_equal(seen.has(RPC_METHODS.WORKSPACE_INFO), true, "workspace info listed")
 	_expect_equal(seen.has(RPC_METHODS.ATTACHMENT_IMAGE_SAVE), true, "attachment image save listed")
 	_expect_equal(seen.has(RPC_METHODS.PLAN_APPROVE), true, "plan approve listed")
+	_expect_equal(seen.has(RPC_METHODS.SESSION_BROWSER_SNAPSHOT), true, "session browser snapshot listed")
 	_expect_equal(seen.has(RPC_METHODS.SESSION_WORKBENCH_GET), true, "session workbench get listed")
 	_expect_equal(seen.has(RPC_METHODS.SESSION_WORKBENCH_PATCH), true, "session workbench patch listed")
 	_expect_equal(seen.has(RPC_METHODS.MESSAGE_QUEUE_LIST), true, "message queue list listed")

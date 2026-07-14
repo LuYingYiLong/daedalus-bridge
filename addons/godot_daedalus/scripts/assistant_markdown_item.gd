@@ -31,6 +31,9 @@ var elapsed_update_accumulator: float
 var summary_started_current: bool
 var summary_fold_container: FoldableContainer
 var summary_fold_body_container: VBoxContainer
+var lazy_summary_parts: Array[Dictionary]
+var lazy_summary_loaded: bool
+var body_part_container_override: VBoxContainer
 
 
 func clear_message() -> void:
@@ -45,6 +48,9 @@ func clear_message() -> void:
 	summary_started_current = false
 	summary_fold_container = null
 	summary_fold_body_container = null
+	lazy_summary_parts.clear()
+	lazy_summary_loaded = false
+	body_part_container_override = null
 	_set_completion_times("", "")
 
 
@@ -91,7 +97,7 @@ func add_tool_event(event_data: Dictionary) -> Node:
 	_finish_current_markdown_label()
 	var tool_call_id: String = _get_tool_call_key(event_data)
 	var tool_item: Node = TOOL_CALL_ITEM_SCENE.instantiate()
-	body_container.add_child(tool_item)
+	_get_body_part_container().add_child(tool_item)
 	if tool_item.has_signal("content_height_changed"):
 		tool_item.connect("content_height_changed", Callable(self, "_on_body_child_content_height_changed"))
 	tool_item.call("setup_tool_event", event_data)
@@ -121,7 +127,7 @@ func add_thinking() -> Node:
 
 	thinking_item = TOOL_CALL_ITEM_SCENE.instantiate()
 	thinking_finished_current = false
-	body_container.add_child(thinking_item)
+	_get_body_part_container().add_child(thinking_item)
 	if thinking_item.has_signal("content_height_changed"):
 		thinking_item.connect("content_height_changed", Callable(self, "_on_body_child_content_height_changed"))
 	thinking_item.call("setup_thinking")
@@ -151,7 +157,7 @@ func get_thinking_item() -> Node:
 func add_status(status_data: Dictionary) -> Node:
 	_finish_current_markdown_label()
 	var status_item: Node = STATUS_ITEM_SCENE.instantiate()
-	body_container.add_child(status_item)
+	_get_body_part_container().add_child(status_item)
 	if status_item.has_signal("action_requested"):
 		status_item.connect("action_requested", Callable(self, "_on_status_item_action_requested"))
 	status_item.call(
@@ -169,7 +175,7 @@ func add_status(status_data: Dictionary) -> Node:
 func add_inline_diff_viewer(summary: Dictionary) -> Node:
 	_finish_current_markdown_label()
 	var inline_diff_viewer: Node = INLINE_DIFF_VIEWER_SCENE.instantiate()
-	body_container.add_child(inline_diff_viewer)
+	_get_body_part_container().add_child(inline_diff_viewer)
 	if inline_diff_viewer.has_signal("undo_requested"):
 		inline_diff_viewer.connect("undo_requested", Callable(self, "_on_inline_diff_undo_requested"))
 	inline_diff_viewer.call("setup", summary)
@@ -179,7 +185,7 @@ func add_inline_diff_viewer(summary: Dictionary) -> Node:
 func add_plan_preview(plan_data: Dictionary) -> Node:
 	_finish_current_markdown_label()
 	var plan_preview: Node = PLAN_PREVIEW_ITEM_SCENE.instantiate()
-	body_container.add_child(plan_preview)
+	_get_body_part_container().add_child(plan_preview)
 	if plan_preview.has_signal("details_requested"):
 		plan_preview.connect("details_requested", Callable(self, "_on_plan_details_requested"))
 	plan_preview.call("setup", plan_data)
@@ -222,6 +228,63 @@ func begin_summary(summary_data: Dictionary) -> void:
 	queue_sort()
 
 
+func _begin_lazy_summary(summary_data: Dictionary, pre_summary_parts: Array[Dictionary]) -> void:
+	if summary_started_current:
+		return
+
+	summary_started_current = true
+	if pre_summary_parts.is_empty():
+		return
+
+	var fold_title: String = str(summary_data.get("foldTitle", "总结前的过程")).strip_edges()
+	if fold_title.is_empty():
+		fold_title = "总结前的过程"
+
+	summary_fold_container = FoldableContainer.new()
+	summary_fold_container.title = fold_title
+	summary_fold_container.title_text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	summary_fold_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_set_foldable_container_folded(summary_fold_container, true)
+
+	summary_fold_body_container = VBoxContainer.new()
+	summary_fold_body_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary_fold_container.add_child(summary_fold_body_container)
+	body_container.add_child(summary_fold_container)
+
+	lazy_summary_parts.clear()
+	for part: Dictionary in pre_summary_parts:
+		lazy_summary_parts.append(part.duplicate(true))
+	lazy_summary_loaded = false
+	set_process(true)
+
+
+func _maybe_load_lazy_summary_on_expand() -> bool:
+	if lazy_summary_loaded or lazy_summary_parts.is_empty():
+		return false
+	if summary_fold_container == null or not is_instance_valid(summary_fold_container):
+		return false
+	if summary_fold_body_container == null or not is_instance_valid(summary_fold_body_container):
+		return false
+	if _is_foldable_container_folded(summary_fold_container):
+		return true
+
+	body_part_container_override = summary_fold_body_container
+	for part: Dictionary in lazy_summary_parts:
+		_setup_body_part(part)
+	body_part_container_override = null
+	lazy_summary_loaded = true
+	lazy_summary_parts.clear()
+	queue_sort()
+	return false
+
+
+func _get_body_part_container() -> VBoxContainer:
+	if body_part_container_override != null and is_instance_valid(body_part_container_override):
+		return body_part_container_override
+
+	return body_container
+
+
 func _on_mouse_entered() -> void:
 	footer_container.modulate.a = 1.0
 
@@ -235,7 +298,12 @@ func _on_copy_button_pressed() -> void:
 
 
 func _process(delta: float) -> void:
+	var has_pending_lazy_summary: bool = _maybe_load_lazy_summary_on_expand()
 	if started_at_utc_current.is_empty() or not completed_at_utc_current.is_empty():
+		if has_pending_lazy_summary:
+			set_process(true)
+			return
+
 		set_process(false)
 		return
 
@@ -248,52 +316,73 @@ func _process(delta: float) -> void:
 
 
 func _setup_body_parts(body_parts: Array) -> void:
+	var pre_summary_parts: Array[Dictionary] = []
+	var summary_seen: bool = false
+
 	for part_value: Variant in body_parts:
 		if typeof(part_value) != TYPE_DICTIONARY:
 			continue
 
 		var part: Dictionary = part_value as Dictionary
 		var part_type: String = str(part.get("type", ""))
-		if part_type == "markdown":
-			var text: String = str(part.get("text", ""))
-			if text.is_empty():
+		if not summary_seen:
+			if part_type == "summary_start":
+				_begin_lazy_summary(part, pre_summary_parts)
+				summary_seen = true
 				continue
 
-			append_delta(text)
-			_finish_current_markdown_label()
-		elif part_type == "tool":
-			var events_value: Variant = part.get("events", [])
-			if typeof(events_value) != TYPE_ARRAY:
+			pre_summary_parts.append(part.duplicate(true))
+			continue
+
+		_setup_body_part(part)
+
+	if not summary_seen:
+		for part: Dictionary in pre_summary_parts:
+			_setup_body_part(part)
+
+
+func _setup_body_part(part: Dictionary) -> void:
+	var part_type: String = str(part.get("type", ""))
+	if part_type == "markdown":
+		var text: String = str(part.get("text", ""))
+		if text.is_empty():
+			return
+
+		append_delta(text)
+		_finish_current_markdown_label()
+	elif part_type == "tool":
+		var events_value: Variant = part.get("events", [])
+		if typeof(events_value) != TYPE_ARRAY:
+			return
+
+		var events: Array = events_value as Array
+		var is_first_event: bool = true
+		for event_value: Variant in events:
+			if typeof(event_value) != TYPE_DICTIONARY:
 				continue
 
-			var events: Array = events_value as Array
-			var is_first_event: bool = true
-			for event_value: Variant in events:
-				if typeof(event_value) != TYPE_DICTIONARY:
-					continue
-
-				var event_data: Dictionary = event_value as Dictionary
-				if is_first_event:
-					add_tool_event(event_data)
-					is_first_event = false
-				else:
-					append_tool_event(event_data)
-		elif part_type == "thinking":
-			var text: String = str(part.get("text", ""))
-			if not text.is_empty():
-				append_thinking_delta(text)
+			var event_data: Dictionary = event_value as Dictionary
+			if is_first_event:
+				add_tool_event(event_data)
+				is_first_event = false
 			else:
-				add_thinking()
-			if bool(part.get("done", false)):
-				finish_thinking()
-		elif part_type == "status":
-			add_status(part)
-		elif part_type == "inline_diff":
-			add_inline_diff_viewer(part)
-		elif part_type == "plan":
-			add_plan_preview(part)
-		elif part_type == "summary_start":
-			begin_summary(part)
+				append_tool_event(event_data)
+	elif part_type == "thinking":
+		var text: String = str(part.get("text", ""))
+		if not text.is_empty():
+			append_thinking_delta(text)
+		else:
+			add_thinking()
+		if bool(part.get("done", false)):
+			finish_thinking()
+	elif part_type == "status":
+		add_status(part)
+	elif part_type == "inline_diff":
+		add_inline_diff_viewer(part)
+	elif part_type == "plan":
+		add_plan_preview(part)
+	elif part_type == "summary_start":
+		begin_summary(part)
 
 
 func _ensure_current_markdown_label() -> MarkdownLabel:
@@ -311,7 +400,7 @@ func _ensure_current_markdown_label() -> MarkdownLabel:
 	current_markdown_label.layout_flush_interval_msec = STREAM_MARKDOWN_LAYOUT_FLUSH_MSEC
 	current_markdown_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	current_markdown_label.theme = MARKDOWN_THEME
-	body_container.add_child(current_markdown_label)
+	_get_body_part_container().add_child(current_markdown_label)
 	current_markdown_label.clear()
 	markdown_segments.append("")
 	return current_markdown_label
@@ -335,6 +424,17 @@ func _set_foldable_container_folded(container: FoldableContainer, is_folded: boo
 		if property_name == "expanded":
 			container.set(property_name, not is_folded)
 			return
+
+
+func _is_foldable_container_folded(container: FoldableContainer) -> bool:
+	for property: Dictionary in container.get_property_list():
+		var property_name: String = str(property.get("name", ""))
+		if property_name == "folded" or property_name == "collapsed":
+			return bool(container.get(property_name))
+		if property_name == "expanded":
+			return not bool(container.get(property_name))
+
+	return true
 
 
 func _on_body_child_content_height_changed() -> void:

@@ -46,6 +46,9 @@ const MAX_MESSAGES_PER_FRAME: int = 24
 const MAX_MESSAGE_PROCESS_MSEC: int = 6
 const TIMELINE_BUFFER_ITEMS: int = 10
 const TIMELINE_PAGE_LOAD_THRESHOLD: int = 96
+const TIMELINE_NODE_POOL_LIMIT_PER_TYPE: int = 32
+const TIMELINE_RENDER_BUDGET_PER_FRAME: int = 8
+const TIMELINE_MAX_LOADED_BLOCKS: int = 240
 const TIMELINE_ESTIMATED_USER_HEIGHT: float = 88.0
 const TIMELINE_ESTIMATED_ASSISTANT_HEIGHT: float = 140.0
 const TIMELINE_ESTIMATED_TOOL_HEIGHT: float = 72.0
@@ -211,6 +214,8 @@ var timeline_entries: Array[Dictionary]
 var timeline_heights: Array[float]
 var timeline_prefix_heights: Array[float]
 var timeline_entry_ids: Dictionary[String, bool]
+var timeline_entry_indices_by_id: Dictionary[String, int]
+var timeline_node_pools_by_type: Dictionary[String, Array]
 var rendered_entry_nodes: Dictionary[String, Node]
 var rendered_entry_indices: Dictionary[String, int]
 var timeline_top_spacer: Control
@@ -223,9 +228,12 @@ var timeline_scroll_to_bottom_queued: bool
 var timeline_deferred_scroll_queued: bool
 var timeline_deferred_scroll_version: int
 var timeline_heights_dirty: bool
+var timeline_dirty_height_start_index: int = -1
 var timeline_block_offset: int
 var timeline_has_more_before: bool
+var timeline_has_more_after: bool
 var timeline_loading_before: bool
+var timeline_loading_after: bool
 var active_assistant_entry_id: String
 var active_thinking_entry_id: String
 var active_tool_entry_ids_by_call_id: Dictionary[String, String]
@@ -814,9 +822,10 @@ func _create_node_additional_context(target_node: Node, edited_root: Node) -> Di
 
 
 func _get_additional_context_snapshot() -> Array[Dictionary]:
-	return additional_context_controller.expand_filesystem_image_selections(
+	var expanded_contexts: Array[Dictionary] = additional_context_controller.expand_filesystem_image_selections(
 		additional_context_controller.get_timeline_snapshot()
 	)
+	return additional_context_controller.freeze_contexts_for_message(expanded_contexts, true)
 
 
 func _context_array_has_images(contexts: Array) -> bool:
@@ -1199,9 +1208,12 @@ func _on_timeline_scroll_value_changed(_value: float) -> void:
 	if timeline_follow_bottom and not should_follow_bottom:
 		timeline_deferred_scroll_version += 1
 	timeline_follow_bottom = should_follow_bottom
+	if scroll_container.scroll_vertical <= TIMELINE_PAGE_LOAD_THRESHOLD:
+		_request_previous_timeline_page()
+	elif should_follow_bottom:
+		_request_next_timeline_page()
 	_schedule_timeline_render(false)
 
-# --- backend_connection.gd ---
 
 func _setup_options() -> void:
 	workspace_filter_button.clear()
@@ -2225,9 +2237,9 @@ func _on_mode_button_id_pressed(menu_id: int) -> void:
 
 
 func _on_send_button_pressed() -> void:
-	_flush_workbench_composer_patch()
 	var message_text: String = text_edit.text.strip_edges()
 	if message_text.is_empty():
+		_flush_workbench_composer_patch()
 		_process_message_queue()
 		return
 
@@ -2239,24 +2251,28 @@ func _on_send_button_pressed() -> void:
 
 	if _should_queue_outgoing_message():
 		if _enqueue_message(message_text, additional_context_snapshot):
+			_discard_pending_workbench_composer_patch()
 			_clear_text_edit_after_submit()
 			additional_context_controller.clear_unpinned()
+			_sync_workbench_composer_after_submit()
 			_update_send_state()
 			_process_message_queue()
 		return
 
 	if _dispatch_message_text(message_text, additional_context_snapshot):
+		_discard_pending_workbench_composer_patch()
 		additional_context_controller.clear_unpinned()
 		if active_session_id.is_empty():
 			_clear_text_edit_after_submit()
-			_update_send_state()
+		_sync_workbench_composer_after_submit()
+		_update_send_state()
 
 
 func _on_user_message_resend_requested(request_id_to_retry: String, message_text: String, additional_contexts: Array = []) -> void:
 	if message_text.strip_edges().is_empty() or not active_stream_id.is_empty():
 		return
 
-	var retry_additional_contexts: Array[Dictionary] = additional_context_controller.clone_contexts(additional_contexts)
+	var retry_additional_contexts: Array[Dictionary] = additional_context_controller.freeze_contexts_for_message(additional_contexts, true)
 	if active_session_id.is_empty():
 		_send_chat_text(message_text, "", retry_additional_contexts)
 		return
@@ -2545,6 +2561,20 @@ func _flush_workbench_composer_patch() -> void:
 	_send_workbench_composer_patch(include_text, include_context)
 
 
+func _discard_pending_workbench_composer_patch() -> void:
+	workbench_composer_patch_debounce_pending = false
+	workbench_composer_patch_include_text = false
+	workbench_composer_patch_include_context = false
+
+
+func _sync_workbench_composer_after_submit() -> void:
+	_discard_pending_workbench_composer_patch()
+	if active_session_id.is_empty():
+		return
+
+	_send_workbench_composer_patch(true, true)
+
+
 func _send_workbench_composer_patch(include_text: bool = true, include_context: bool = false) -> void:
 	var composer: Dictionary[String, Variant] = {
 		"chatMode": _get_selected_chat_mode(),
@@ -2554,7 +2584,7 @@ func _send_workbench_composer_patch(include_text: bool = true, include_context: 
 	if include_text:
 		composer["text"] = text_edit.text
 	if include_context:
-		var context_snapshot: Array[Dictionary] = additional_context_controller.get_timeline_snapshot()
+		var context_snapshot: Array[Dictionary] = additional_context_controller.get_backend_snapshot()
 		composer["additionalContext"] = context_snapshot
 		workbench_context_patch_in_flight = true
 		workbench_context_patch_signature = JSON.stringify(context_snapshot)
@@ -2620,7 +2650,7 @@ func _should_apply_workbench_context_snapshot(incoming_contexts: Array) -> bool:
 
 	var expected_signature: String = workbench_context_patch_signature
 	if workbench_composer_patch_include_context or expected_signature.is_empty():
-		expected_signature = JSON.stringify(additional_context_controller.get_timeline_snapshot())
+		expected_signature = JSON.stringify(additional_context_controller.get_backend_snapshot())
 	var incoming_signature: String = JSON.stringify(incoming_contexts)
 	if incoming_signature != expected_signature:
 		return false
@@ -2652,7 +2682,7 @@ func _dispatch_message_text(message_text: String, additional_contexts: Array = [
 
 	if active_session_id.is_empty():
 		pending_chat_text = message_text
-		pending_chat_additional_context = additional_context_controller.clone_contexts(additional_contexts)
+		pending_chat_additional_context = additional_context_controller.freeze_contexts_for_message(additional_contexts, true)
 		_create_session(MAIN_HELPERS.make_session_title(message_text))
 		return true
 
@@ -2684,7 +2714,8 @@ func _create_chat_options_for_mode(chat_mode: String) -> Dictionary[String, Vari
 func _send_chat_text(message_text: String, retry_from_request_id: String = "", additional_contexts: Array = []) -> bool:
 	if not _is_socket_open():
 		return false
-	if _context_array_has_images(additional_contexts) and not _can_send_image_contexts():
+	var frozen_additional_contexts: Array[Dictionary] = additional_context_controller.freeze_contexts_for_message(additional_contexts, true)
+	if _context_array_has_images(frozen_additional_contexts) and not _can_send_image_contexts():
 		_show_image_model_warning()
 		_update_send_state()
 		return false
@@ -2704,8 +2735,8 @@ func _send_chat_text(message_text: String, retry_from_request_id: String = "", a
 	active_stream_request_id = active_stream_id
 	active_stream_started_at_utc = MAIN_HELPERS.get_utc_timestamp()
 	active_stream_status_code = ""
-	var timeline_additional_context_snapshot: Array[Dictionary] = additional_context_controller.clone_contexts(additional_contexts, true)
-	var request_additional_context_snapshot: Array[Dictionary] = additional_context_controller.clone_contexts(additional_contexts)
+	var timeline_additional_context_snapshot: Array[Dictionary] = additional_context_controller.clone_contexts(frozen_additional_contexts, true)
+	var request_additional_context_snapshot: Array[Dictionary] = additional_context_controller.clone_contexts(frozen_additional_contexts)
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_append_timeline_entry(
 		"user",
@@ -2796,9 +2827,10 @@ func _enqueue_message(message_text: String, additional_contexts: Array = []) -> 
 		return false
 
 	if _is_socket_open():
+		var frozen_additional_contexts: Array[Dictionary] = additional_context_controller.freeze_contexts_for_message(additional_contexts, true)
 		var backend_params: Dictionary = {
 			"text": message_text,
-			"additionalContext": additional_context_controller.clone_contexts(additional_contexts, true)
+			"additionalContext": additional_context_controller.clone_contexts(frozen_additional_contexts, true)
 		}
 		var add_request_id: String = _send_request(RPC_METHODS.MESSAGE_QUEUE_ADD, backend_params, "message-queue-add")
 		if not add_request_id.is_empty():
@@ -2810,11 +2842,12 @@ func _enqueue_message(message_text: String, additional_contexts: Array = []) -> 
 
 
 func _append_local_queue_message(message_text: String, additional_contexts: Array = []) -> bool:
+	var frozen_additional_contexts: Array[Dictionary] = additional_context_controller.freeze_contexts_for_message(additional_contexts, true)
 	message_queue_next_id += 1
 	var queued_message: Dictionary = {
 		"id": message_queue_next_id,
 		"text": message_text,
-		"additional_context": additional_context_controller.clone_contexts(additional_contexts, true),
+		"additional_context": additional_context_controller.clone_contexts(frozen_additional_contexts, true),
 		"status": MESSAGE_QUEUE_STATUS_PENDING,
 		"created_at_utc": MAIN_HELPERS.get_utc_timestamp()
 	}
@@ -3213,6 +3246,7 @@ func _handle_response(message: Dictionary) -> void:
 			context_popup_open_after_info = false
 		if str(message.get("id", "")).begins_with("session-timeline"):
 			timeline_loading_before = false
+			timeline_loading_after = false
 		if str(message.get("id", "")).begins_with("session-create") and active_queue_message_id > 0:
 			pending_chat_text = ""
 			_finish_active_queue_message(false, MESSAGE_QUEUE_STATUS_FAILED)
@@ -3305,7 +3339,10 @@ func _handle_response(message: Dictionary) -> void:
 	elif bool(result_dictionary.get("guideDeleted", false)):
 		_apply_guide_delete_response(result_dictionary)
 	elif result_dictionary.has("archivedSessions"):
-		_update_archived_session_list(result_dictionary)
+		if result_dictionary.has("sessions") and result_dictionary.has("workspaces"):
+			_apply_session_browser_snapshot(result_dictionary)
+		else:
+			_update_archived_session_list(result_dictionary)
 	elif result_dictionary.has("workspaces"):
 		_update_workspace_list(result_dictionary)
 	elif result_dictionary.has("sessions"):
@@ -3319,8 +3356,7 @@ func _handle_response(message: Dictionary) -> void:
 	elif result_dictionary.has("id") and result_dictionary.has("title") and result_dictionary.has("createdAt"):
 		_apply_session_metadata(result_dictionary)
 		_clear_chat_items()
-		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
-		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
+		_refresh_session_and_archive_lists()
 		if not pending_clipboard_image_payload.is_empty():
 			var next_clipboard_image_payload: Dictionary = pending_clipboard_image_payload.duplicate(true)
 			pending_clipboard_image_payload.clear()
@@ -3346,10 +3382,13 @@ func _handle_response(message: Dictionary) -> void:
 		_sync_pending_guides_from_result(result_dictionary)
 		_apply_message_queue_snapshot_from_result(result_dictionary)
 		_apply_latest_workflow_snapshot(result_dictionary)
-		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
+		_refresh_session_and_archive_lists()
 		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
 	elif bool(result_dictionary.get("timeline", false)):
-		_prepend_session_timeline(result_dictionary)
+		if response_id.begins_with("session-timeline-after"):
+			_append_next_session_timeline(result_dictionary)
+		else:
+			_prepend_session_timeline(result_dictionary)
 	elif bool(result_dictionary.get("paused", false)) and str(result_dictionary.get("approvalId", "")).length() > 0:
 		active_stream_id = ""
 		active_stream_request_id = ""
@@ -3388,7 +3427,7 @@ func _handle_response(message: Dictionary) -> void:
 		_apply_approval_mode_status(result_dictionary)
 		_show_first_pending_approval(result_dictionary)
 	elif bool(result_dictionary.get("saved", false)):
-		_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
+		_refresh_session_and_archive_lists()
 	elif bool(result_dictionary.get("archived", false)):
 		_apply_archived_session_response(result_dictionary)
 	elif bool(result_dictionary.get("restored", false)):
@@ -4164,6 +4203,12 @@ func _update_archived_session_list(result: Dictionary) -> void:
 	_sync_settings_archived_sessions()
 
 
+func _apply_session_browser_snapshot(result: Dictionary) -> void:
+	_apply_workspace_snapshot(result)
+	_update_session_list(result)
+	_update_archived_session_list(result)
+
+
 func _apply_mcp_config_response(result: Dictionary) -> void:
 	custom_mcp_servers.clear()
 	var servers_value: Variant = result.get("customMcpServers", [])
@@ -4193,7 +4238,7 @@ func _handle_mcp_config_error(message: Dictionary) -> void:
 	_show_response_error(message)
 
 
-func _update_workspace_list(result: Dictionary) -> void:
+func _apply_workspace_snapshot(result: Dictionary) -> void:
 	workspaces_by_id.clear()
 	workspace_filter_button.clear()
 	workspace_filter_button.add_item("All", 0)
@@ -4219,6 +4264,9 @@ func _update_workspace_list(result: Dictionary) -> void:
 			workspace_filter_button.add_item(filter_text)
 			workspace_filter_button.set_item_metadata(workspace_filter_button.get_item_count() - 1, workspace_id)
 
+
+func _update_workspace_list(result: Dictionary) -> void:
+	_apply_workspace_snapshot(result)
 	_render_session_list()
 	_sync_settings_archived_sessions()
 
@@ -4303,6 +4351,17 @@ func _format_workspace_group_text(workspace_id: String) -> String:
 
 	var workspace: Dictionary = workspaces_by_id.get(workspace_id, {}) as Dictionary
 	if workspace.is_empty():
+		var metadata: Dictionary = _find_workspace_metadata_from_sessions(workspace_id)
+		var workspace_name: String = str(metadata.get("workspaceName", "")).strip_edges()
+		if not workspace_name.is_empty():
+			return workspace_name
+
+		var workspace_root: String = str(metadata.get("workspaceRoot", "")).replace("\\", "/").trim_suffix("/")
+		if not workspace_root.is_empty():
+			var root_name: String = workspace_root.get_file()
+			if not root_name.is_empty():
+				return root_name
+
 		return "Unknown workspace: %s" % workspace_id
 
 	return workspace.get("name", "Workspace")
@@ -4314,9 +4373,28 @@ func _format_workspace_search_text(workspace_id: String) -> String:
 
 	var workspace: Dictionary = workspaces_by_id.get(workspace_id, {}) as Dictionary
 	if workspace.is_empty():
-		return workspace_id
+		var metadata: Dictionary = _find_workspace_metadata_from_sessions(workspace_id)
+		return "%s %s %s" % [
+			workspace_id,
+			str(metadata.get("workspaceName", "")),
+			str(metadata.get("workspaceRoot", ""))
+		]
 
 	return "%s %s" % [str(workspace.get("name", "")), str(workspace.get("rootPath", ""))]
+
+
+func _find_workspace_metadata_from_sessions(workspace_id: String) -> Dictionary:
+	for session_id: String in session_ids_in_order:
+		var metadata: Dictionary = sessions_by_id.get(session_id, {}) as Dictionary
+		if str(metadata.get("workspaceId", "")) == workspace_id:
+			return metadata
+
+	for session_id: String in archived_session_ids_in_order:
+		var metadata: Dictionary = archived_sessions_by_id.get(session_id, {}) as Dictionary
+		if str(metadata.get("workspaceId", "")) == workspace_id:
+			return metadata
+
+	return {}
 
 
 func _select_workspace_filter(workspace_id: String) -> void:
@@ -4389,8 +4467,7 @@ func _remove_archived_session(session_id: String) -> void:
 
 
 func _refresh_session_and_archive_lists() -> void:
-	_send_request(RPC_METHODS.SESSION_LIST, {}, "session-list")
-	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
+	_send_request(RPC_METHODS.SESSION_BROWSER_SNAPSHOT, {}, "session-browser-snapshot")
 
 
 func _apply_session_metadata(metadata: Dictionary) -> void:
@@ -4565,13 +4642,18 @@ func _clear_chat_items() -> void:
 	timeline_heights.clear()
 	timeline_prefix_heights.clear()
 	timeline_entry_ids.clear()
+	timeline_entry_indices_by_id.clear()
 	plan_assistant_entry_ids_by_plan_id.clear()
+	_clear_timeline_node_pools()
 	rendered_entry_nodes.clear()
 	rendered_entry_indices.clear()
 	timeline_heights_dirty = true
+	timeline_dirty_height_start_index = 0
 	timeline_block_offset = 0
 	timeline_has_more_before = false
+	timeline_has_more_after = false
 	timeline_loading_before = false
+	timeline_loading_after = false
 	_clear_todo_items()
 	_setup_timeline_containers()
 	for child: Node in timeline_visible_container.get_children():
@@ -4596,7 +4678,9 @@ func _clear_timeline_entry_completion_time(entry_id: String) -> void:
 func _render_timeline_blocks(blocks_value: Variant, page_info: Dictionary) -> void:
 	timeline_block_offset = int(page_info.get("blockOffset", 0))
 	timeline_has_more_before = bool(page_info.get("hasMoreBefore", false))
+	timeline_has_more_after = bool(page_info.get("hasMoreAfter", false))
 	timeline_loading_before = false
+	timeline_loading_after = false
 	_append_timeline_blocks(blocks_value)
 	active_thinking_item = null
 	active_thinking_entry_id = ""
@@ -4668,8 +4752,26 @@ func _request_previous_timeline_page() -> void:
 	_send_request(RPC_METHODS.SESSION_TIMELINE, params, "session-timeline")
 
 
+func _request_next_timeline_page() -> void:
+	if timeline_loading_after or not timeline_has_more_after:
+		return
+	if active_session_id.is_empty() or timeline_entries.is_empty():
+		return
+	if not _is_socket_open():
+		return
+
+	timeline_loading_after = true
+	var params: Dictionary[String, Variant] = {
+		"sessionId": active_session_id,
+		"afterOffset": timeline_block_offset + timeline_entries.size(),
+		"limit": SESSION_OPEN_MESSAGE_LIMIT
+	}
+	_send_request(RPC_METHODS.SESSION_TIMELINE, params, "session-timeline-after")
+
+
 func _prepend_session_timeline(page_info: Dictionary) -> void:
 	timeline_loading_before = false
+	timeline_loading_after = false
 
 	var blocks_value: Variant = page_info.get("timelineBlocks", [])
 	if typeof(blocks_value) != TYPE_ARRAY:
@@ -4681,6 +4783,7 @@ func _prepend_session_timeline(page_info: Dictionary) -> void:
 	if after_size <= before_size:
 		timeline_block_offset = int(page_info.get("blockOffset", timeline_block_offset))
 		timeline_has_more_before = bool(page_info.get("hasMoreBefore", false))
+		timeline_has_more_after = bool(page_info.get("hasMoreAfter", timeline_has_more_after))
 		return
 
 	var appended_entries: Array[Dictionary] = []
@@ -4703,14 +4806,74 @@ func _prepend_session_timeline(page_info: Dictionary) -> void:
 
 	timeline_block_offset = int(page_info.get("blockOffset", timeline_block_offset))
 	timeline_has_more_before = bool(page_info.get("hasMoreBefore", false))
+	timeline_has_more_after = bool(page_info.get("hasMoreAfter", timeline_has_more_after))
+	_trim_loaded_timeline_entries_from_bottom()
 	_rebuild_timeline_index_cache()
 	_rebuild_timeline_height_cache()
-	for child: Node in timeline_visible_container.get_children():
-		child.queue_free()
-	rendered_entry_nodes.clear()
-	rendered_entry_indices.clear()
+	_recycle_all_rendered_timeline_nodes()
 	_render_visible_timeline(false)
 	_restore_scroll_after_prepend(added_height)
+
+
+func _append_next_session_timeline(page_info: Dictionary) -> void:
+	timeline_loading_after = false
+	timeline_loading_before = false
+
+	var blocks_value: Variant = page_info.get("timelineBlocks", [])
+	if typeof(blocks_value) != TYPE_ARRAY:
+		return
+
+	var before_size: int = timeline_entries.size()
+	_append_timeline_blocks(blocks_value)
+	if timeline_entries.size() <= before_size:
+		timeline_has_more_after = bool(page_info.get("hasMoreAfter", false))
+		return
+
+	timeline_has_more_after = bool(page_info.get("hasMoreAfter", false))
+	_trim_loaded_timeline_entries_from_top()
+	_rebuild_timeline_index_cache()
+	_rebuild_timeline_height_cache()
+	_render_visible_timeline(false)
+
+
+func _trim_loaded_timeline_entries_from_bottom() -> void:
+	while timeline_entries.size() > TIMELINE_MAX_LOADED_BLOCKS:
+		var last_index: int = timeline_entries.size() - 1
+		var last_entry: Dictionary = timeline_entries[last_index]
+		var last_entry_id: String = str(last_entry.get("id", ""))
+		if _is_timeline_entry_protected_from_unload(last_entry_id):
+			break
+
+		_recycle_rendered_timeline_node(last_entry_id, last_entry)
+		timeline_entries.remove_at(last_index)
+		if last_index < timeline_heights.size():
+			timeline_heights.remove_at(last_index)
+		timeline_has_more_after = true
+		timeline_heights_dirty = true
+		timeline_dirty_height_start_index = mini(timeline_dirty_height_start_index, last_index) if timeline_dirty_height_start_index >= 0 else last_index
+
+
+func _trim_loaded_timeline_entries_from_top() -> void:
+	var removed_count: int = 0
+	while timeline_entries.size() > TIMELINE_MAX_LOADED_BLOCKS:
+		var first_entry: Dictionary = timeline_entries[0]
+		var first_entry_id: String = str(first_entry.get("id", ""))
+		if _is_timeline_entry_protected_from_unload(first_entry_id):
+			break
+
+		_recycle_rendered_timeline_node(first_entry_id, first_entry)
+		timeline_entries.remove_at(0)
+		if not timeline_heights.is_empty():
+			timeline_heights.remove_at(0)
+		removed_count += 1
+
+	if removed_count <= 0:
+		return
+
+	timeline_block_offset += removed_count
+	timeline_has_more_before = true
+	timeline_heights_dirty = true
+	timeline_dirty_height_start_index = 0
 
 
 func _restore_scroll_after_prepend(added_height: float) -> void:
@@ -4742,29 +4905,37 @@ func _append_timeline_blocks(blocks_value: Variant) -> void:
 		if block_type == "user":
 			var additional_contexts_value: Variant = block.get("additionalContext", [])
 			var additional_contexts: Array = additional_contexts_value as Array if typeof(additional_contexts_value) == TYPE_ARRAY else []
+			var user_metadata: Dictionary = {
+				"sent_at_utc": str(block.get("sentAtUtc", "")),
+				"additional_context": additional_context_controller.clone_contexts(additional_contexts)
+			}
+			var user_render_hint_height: float = _get_timeline_render_hint_height(block)
+			if user_render_hint_height > 0.0:
+				user_metadata["height_estimate"] = user_render_hint_height
 			_append_timeline_entry(
 				"user",
 				request_id,
 				str(block.get("content", "")),
 				entry_id,
-				{
-					"sent_at_utc": str(block.get("sentAtUtc", "")),
-					"additional_context": additional_context_controller.clone_contexts(additional_contexts)
-				}
+				user_metadata
 			)
 		elif block_type == "assistant":
 			var body_parts_value: Variant = block.get("bodyParts", [])
 			var body_parts: Array = body_parts_value as Array if typeof(body_parts_value) == TYPE_ARRAY else []
+			var assistant_metadata: Dictionary = {
+				"started_at_utc": str(block.get("startedAtUtc", "")),
+				"completed_at_utc": str(block.get("completedAtUtc", "")),
+				"body_parts": body_parts
+			}
+			var assistant_render_hint_height: float = _get_timeline_render_hint_height(block)
+			if assistant_render_hint_height > 0.0:
+				assistant_metadata["height_estimate"] = assistant_render_hint_height
 			var assistant_entry_id: String = _append_timeline_entry(
 				"assistant",
 				request_id,
 				str(block.get("content", "")),
 				entry_id,
-				{
-					"started_at_utc": str(block.get("startedAtUtc", "")),
-					"completed_at_utc": str(block.get("completedAtUtc", "")),
-					"body_parts": body_parts
-				}
+				assistant_metadata
 			)
 			_remember_plan_entry_from_body_parts(assistant_entry_id, body_parts)
 
@@ -5418,8 +5589,10 @@ func _append_timeline_entry(entry_type: String, request_id: String, content: Str
 		entry[str(metadata_key)] = metadata[metadata_key]
 	timeline_entries.append(entry)
 	timeline_entry_ids[entry_id] = true
+	timeline_entry_indices_by_id[entry_id] = timeline_entries.size() - 1
 	timeline_heights.append(_get_entry_cached_height(entry))
 	timeline_heights_dirty = true
+	timeline_dirty_height_start_index = timeline_entries.size() - 1 if timeline_dirty_height_start_index < 0 else mini(timeline_dirty_height_start_index, timeline_entries.size() - 1)
 	if entry_type == "assistant":
 		_remember_plan_entry_from_body_parts(entry_id, entry.get("body_parts", []))
 	return entry_id
@@ -5680,9 +5853,17 @@ func _find_timeline_entry_index(entry_id: String) -> int:
 	if entry_id.is_empty():
 		return -1
 
+	if timeline_entry_indices_by_id.has(entry_id):
+		var cached_index: int = int(timeline_entry_indices_by_id[entry_id])
+		if cached_index >= 0 and cached_index < timeline_entries.size():
+			var cached_entry: Dictionary = timeline_entries[cached_index]
+			if str(cached_entry.get("id", "")) == entry_id:
+				return cached_index
+
 	for index: int in range(timeline_entries.size()):
 		var entry: Dictionary = timeline_entries[index]
 		if str(entry.get("id", "")) == entry_id:
+			timeline_entry_indices_by_id[entry_id] = index
 			return index
 
 	return -1
@@ -5691,14 +5872,147 @@ func _find_timeline_entry_index(entry_id: String) -> int:
 
 func _rebuild_timeline_index_cache() -> void:
 	timeline_entry_ids.clear()
+	timeline_entry_indices_by_id.clear()
 	active_tool_entry_ids_by_call_id.clear()
-	tool_items_by_call_id.clear()
 	for index: int in range(timeline_entries.size()):
 		var entry: Dictionary = timeline_entries[index]
 		var entry_id: String = str(entry.get("id", ""))
-		if not entry_id.is_empty(): return
+		if entry_id.is_empty():
+			continue
+
+		timeline_entry_ids[entry_id] = true
+		timeline_entry_indices_by_id[entry_id] = index
+		var tool_call_id: String = str(entry.get("tool_call_id", ""))
+		if not tool_call_id.is_empty():
+			active_tool_entry_ids_by_call_id[tool_call_id] = entry_id
 
 # timeline_virtual_controller.gd
+
+func _get_timeline_render_hint_height(block: Dictionary) -> float:
+	var render_hints_value: Variant = block.get("renderHints", {})
+	if typeof(render_hints_value) != TYPE_DICTIONARY:
+		return 0.0
+
+	var render_hints: Dictionary = render_hints_value as Dictionary
+	var estimated_height: float = float(render_hints.get("estimatedHeight", 0.0))
+	return max(0.0, estimated_height)
+
+
+func _is_timeline_entry_protected_from_unload(entry_id: String) -> bool:
+	if entry_id.is_empty():
+		return false
+	if not active_stream_id.is_empty() and entry_id == active_assistant_entry_id:
+		return true
+	if not active_stream_id.is_empty() and entry_id == active_thinking_entry_id:
+		return true
+
+	return false
+
+
+func _get_timeline_entry_pool_type(entry_type: String) -> String:
+	if entry_type == "user" or entry_type == "assistant" or entry_type == "thinking" or entry_type == "tool" or entry_type == "status":
+		return entry_type
+
+	return "assistant"
+
+
+func _take_timeline_node_from_pool(entry_type: String) -> Node:
+	var pool_type: String = _get_timeline_entry_pool_type(entry_type)
+	if not timeline_node_pools_by_type.has(pool_type):
+		return null
+
+	var node_pool: Array = timeline_node_pools_by_type[pool_type]
+	while not node_pool.is_empty():
+		var node_value: Variant = node_pool.pop_back()
+		var node: Node = node_value as Node
+		if node != null and is_instance_valid(node):
+			node.visible = true
+			return node
+
+	return null
+
+
+func _recycle_rendered_timeline_node(entry_id: String, entry: Dictionary) -> void:
+	if entry_id.is_empty() or not rendered_entry_nodes.has(entry_id):
+		return
+
+	var node: Node = rendered_entry_nodes.get(entry_id, null) as Node
+	if node != null and is_instance_valid(node):
+		if node.get_parent() == timeline_visible_container:
+			timeline_visible_container.remove_child(node)
+
+		var entry_type: String = str(entry.get("type", ""))
+		var pool_type: String = _get_timeline_entry_pool_type(entry_type)
+		var node_pool: Array = timeline_node_pools_by_type.get(pool_type, []) as Array
+		if node_pool.size() < TIMELINE_NODE_POOL_LIMIT_PER_TYPE:
+			_disconnect_timeline_node_signals(node)
+			node.visible = false
+			node_pool.append(node)
+			timeline_node_pools_by_type[pool_type] = node_pool
+		else:
+			node.queue_free()
+
+	var tool_call_id: String = str(entry.get("tool_call_id", ""))
+	if not tool_call_id.is_empty() and tool_items_by_call_id.get(tool_call_id, null) == node:
+		tool_items_by_call_id.erase(tool_call_id)
+	if entry_id == active_assistant_entry_id:
+		active_assistant_item = null
+	if entry_id == active_thinking_entry_id:
+		active_thinking_item = null
+
+	rendered_entry_nodes.erase(entry_id)
+	rendered_entry_indices.erase(entry_id)
+
+
+func _recycle_all_rendered_timeline_nodes() -> void:
+	for entry_id: String in rendered_entry_nodes.keys():
+		var index: int = int(rendered_entry_indices.get(entry_id, _find_timeline_entry_index(entry_id)))
+		var entry: Dictionary = {}
+		if index >= 0 and index < timeline_entries.size():
+			entry = timeline_entries[index]
+		_recycle_rendered_timeline_node(entry_id, entry)
+
+
+func _clear_timeline_node_pools() -> void:
+	for node_pool_value: Variant in timeline_node_pools_by_type.values():
+		if typeof(node_pool_value) != TYPE_ARRAY:
+			continue
+
+		var node_pool: Array = node_pool_value as Array
+		for node_value: Variant in node_pool:
+			var node: Node = node_value as Node
+			if node != null and is_instance_valid(node):
+				node.queue_free()
+
+	timeline_node_pools_by_type.clear()
+
+
+func _disconnect_timeline_node_signals(node: Node) -> void:
+	var signal_names: PackedStringArray = [
+		"content_height_changed",
+		"resend_requested",
+		"action_requested",
+		"inline_diff_undo_requested",
+		"plan_details_requested"
+	]
+	for signal_name: String in signal_names:
+		if not node.has_signal(signal_name):
+			continue
+
+		var connections: Array = node.get_signal_connection_list(signal_name)
+		for connection_value: Variant in connections:
+			if typeof(connection_value) != TYPE_DICTIONARY:
+				continue
+
+			var connection: Dictionary = connection_value as Dictionary
+			var callable_value: Variant = connection.get("callable", Callable())
+			if typeof(callable_value) != TYPE_CALLABLE:
+				continue
+
+			var signal_callable: Callable = callable_value as Callable
+			if signal_callable.is_valid():
+				node.disconnect(signal_name, signal_callable)
+
 
 func _estimate_timeline_entry_height(entry_type: String, content: String) -> float:
 	var line_count: int = max(1, content.count("\n") + 1)
@@ -5729,22 +6043,38 @@ func _get_entry_cached_height(entry: Dictionary) -> float:
 func _mark_timeline_height_dirty(index: int = -1) -> void:
 	if index >= 0 and index < timeline_entries.size() and index < timeline_heights.size():
 		timeline_heights[index] = _get_entry_cached_height(timeline_entries[index])
+	if index >= 0:
+		timeline_dirty_height_start_index = index if timeline_dirty_height_start_index < 0 else mini(timeline_dirty_height_start_index, index)
+	else:
+		timeline_dirty_height_start_index = 0
 	timeline_heights_dirty = true
 
 
 func _rebuild_timeline_height_cache() -> void:
-	timeline_heights.clear()
-	timeline_prefix_heights.clear()
+	var needs_full_rebuild: bool = timeline_heights.size() != timeline_entries.size() or timeline_prefix_heights.size() != timeline_entries.size() + 1 or timeline_dirty_height_start_index <= 0
+	if needs_full_rebuild:
+		timeline_heights.clear()
+		timeline_prefix_heights.clear()
 
-	var running_height: float = 0.0
-	timeline_prefix_heights.append(0.0)
-	for entry: Dictionary in timeline_entries:
-		var entry_height: float = _get_entry_cached_height(entry)
-		timeline_heights.append(entry_height)
-		running_height += entry_height
-		timeline_prefix_heights.append(running_height)
+		var running_height: float = 0.0
+		timeline_prefix_heights.append(0.0)
+		for entry: Dictionary in timeline_entries:
+			var entry_height: float = _get_entry_cached_height(entry)
+			timeline_heights.append(entry_height)
+			running_height += entry_height
+			timeline_prefix_heights.append(running_height)
+	else:
+		var start_index: int = clampi(timeline_dirty_height_start_index, 0, timeline_entries.size() - 1)
+		var running_height: float = float(timeline_prefix_heights[start_index])
+		for index: int in range(start_index, timeline_entries.size()):
+			var entry: Dictionary = timeline_entries[index]
+			var entry_height: float = _get_entry_cached_height(entry)
+			timeline_heights[index] = entry_height
+			running_height += entry_height
+			timeline_prefix_heights[index + 1] = running_height
 
 	timeline_heights_dirty = false
+	timeline_dirty_height_start_index = -1
 
 
 func _ensure_timeline_height_cache() -> void:
@@ -5835,38 +6165,40 @@ func _find_timeline_index_at_offset(offset: float) -> int:
 
 func _sync_rendered_timeline_range(start_index: int, end_index: int) -> void:
 	var wanted_ids: Dictionary[String, bool] = {}
+	var created_count: int = 0
+	var render_incomplete: bool = false
 	for index: int in range(start_index, end_index + 1):
 		var entry: Dictionary = timeline_entries[index]
 		var entry_id: String = str(entry.get("id", ""))
 		wanted_ids[entry_id] = true
 		if not rendered_entry_nodes.has(entry_id):
+			if created_count >= TIMELINE_RENDER_BUDGET_PER_FRAME:
+				render_incomplete = true
+				continue
+
 			var node: Node = _instantiate_timeline_entry_node(entry, index)
 			rendered_entry_nodes[entry_id] = node
 			rendered_entry_indices[entry_id] = index
 			timeline_visible_container.add_child(node)
 			_configure_timeline_entry_node(node, entry, index)
+			created_count += 1
 		else:
 			rendered_entry_indices[entry_id] = index
+
+	if _is_timeline_entry_protected_from_unload(active_assistant_entry_id):
+		wanted_ids[active_assistant_entry_id] = true
+	if _is_timeline_entry_protected_from_unload(active_thinking_entry_id):
+		wanted_ids[active_thinking_entry_id] = true
 
 	for entry_id: String in rendered_entry_nodes.keys():
 		if wanted_ids.has(entry_id):
 			continue
 
-		var old_node: Node = rendered_entry_nodes.get(entry_id, null) as Node
-		if old_node != null:
-			old_node.queue_free()
 		var old_index: int = int(rendered_entry_indices.get(entry_id, -1))
+		var old_entry: Dictionary = {}
 		if old_index >= 0 and old_index < timeline_entries.size():
-			var old_entry: Dictionary = timeline_entries[old_index]
-			var old_tool_call_id: String = str(old_entry.get("tool_call_id", ""))
-			if not old_tool_call_id.is_empty() and tool_items_by_call_id.get(old_tool_call_id, null) == old_node:
-				tool_items_by_call_id.erase(old_tool_call_id)
-		if entry_id == active_assistant_entry_id:
-			active_assistant_item = null
-		if entry_id == active_thinking_entry_id:
-			active_thinking_item = null
-		rendered_entry_nodes.erase(entry_id)
-		rendered_entry_indices.erase(entry_id)
+			old_entry = timeline_entries[old_index]
+		_recycle_rendered_timeline_node(entry_id, old_entry)
 
 	var child_order: int = 0
 	for index: int in range(start_index, end_index + 1):
@@ -5877,23 +6209,27 @@ func _sync_rendered_timeline_range(start_index: int, end_index: int) -> void:
 			timeline_visible_container.move_child(node, child_order)
 			child_order += 1
 
+	if render_incomplete:
+		_schedule_timeline_render(false)
+
 
 func _instantiate_timeline_entry_node(entry: Dictionary, index: int) -> Node:
 	var entry_type: String = str(entry.get("type", ""))
-	var node: Node
+	var node: Node = _take_timeline_node_from_pool(entry_type)
 
-	if entry_type == "user":
-		node = USER_MESSAGE_ITEM_SCENE.instantiate()
-	elif entry_type == "assistant":
-		node = ASSISTANT_MARKDOWN_ITEM_SCENE.instantiate()
-	elif entry_type == "thinking":
-		node = TOOL_CALL_ITEM_SCENE.instantiate()
-	elif entry_type == "tool":
-		node = TOOL_CALL_ITEM_SCENE.instantiate()
-	elif entry_type == "status":
-		node = STATUS_ITEM_SCENE.instantiate()
-	else:
-		node = ASSISTANT_MARKDOWN_ITEM_SCENE.instantiate()
+	if node == null:
+		if entry_type == "user":
+			node = USER_MESSAGE_ITEM_SCENE.instantiate()
+		elif entry_type == "assistant":
+			node = ASSISTANT_MARKDOWN_ITEM_SCENE.instantiate()
+		elif entry_type == "thinking":
+			node = TOOL_CALL_ITEM_SCENE.instantiate()
+		elif entry_type == "tool":
+			node = TOOL_CALL_ITEM_SCENE.instantiate()
+		elif entry_type == "status":
+			node = STATUS_ITEM_SCENE.instantiate()
+		else:
+			node = ASSISTANT_MARKDOWN_ITEM_SCENE.instantiate()
 
 	if node is Control:
 		var control: Control = node as Control
@@ -5914,7 +6250,7 @@ func _configure_timeline_entry_node(node: Node, entry: Dictionary, _index: int) 
 
 	if entry_type == "user":
 		node.call("setup", str(entry.get("content", "")), str(entry.get("request_id", "")), str(entry.get("sent_at_utc", "")), entry.get("additional_context", []))
-		if node.has_signal("resend_requested"):
+		if node.has_signal("resend_requested") and not node.is_connected("resend_requested", Callable(self, "_on_user_message_resend_requested")):
 			node.connect("resend_requested", Callable(self, "_on_user_message_resend_requested"))
 	elif entry_type == "assistant":
 		node.call(
@@ -6897,7 +7233,7 @@ func _on_settings_button_pressed() -> void:
 	settings_menu.connect("skill_update_requested", Callable(self, "_on_settings_skill_update_requested"))
 	settings_menu.connect("skill_remove_requested", Callable(self, "_on_settings_skill_remove_requested"))
 	settings_menu.tree_exited.connect(_on_settings_menu_tree_exited.bind(settings_menu))
-	_send_request(RPC_METHODS.SESSION_ARCHIVED_LIST, {}, "session-archived-list")
+	_refresh_session_and_archive_lists()
 	_load_mcp_config()
 	_load_skills()
 
@@ -7173,13 +7509,12 @@ func _restart_backend_connection(recovery_mode: bool = false) -> void:
 	backend_connection_controller.shutdown()
 	_start_backend_connection_attempts(not recovery_mode, recovery_mode)
 
-# --- main.gd ---
 
-# --- lifecycle ---
 func _ready() -> void:
 	main_viewer.hide()
 	boot_splash.show()
 	additional_context_controller.setup(additional_context_viewer, additional_context_container)
+	additional_context_controller.set_deferred_render_enabled(true)
 	file_edit_controller.setup(editor_bridge_controller)
 	provider_navigation_controller.setup(approval_mode_button, mode_button, provider_option_button, model_button)
 	if pending_editor_bridge_plugin != null:
@@ -7203,6 +7538,11 @@ func _ready() -> void:
 
 
 func _on_additional_context_controller_changed() -> void:
+	var context_signature: String = JSON.stringify(additional_context_controller.get_backend_snapshot())
+	if workbench_context_patch_in_flight and context_signature == workbench_context_patch_signature:
+		_update_send_state()
+		return
+
 	_queue_workbench_composer_patch(false, true)
 	_update_send_state()
 
