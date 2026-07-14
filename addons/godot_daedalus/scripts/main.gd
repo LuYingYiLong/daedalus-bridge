@@ -57,6 +57,7 @@ const SESSION_OPEN_MESSAGE_LIMIT: int = 80
 const APPROVAL_ARGS_PREVIEW_LIMIT: int = 4000
 const DELTA_FLUSH_INTERVAL_MSEC: int = 45
 const TIMELINE_MEASURE_INTERVAL_MSEC: int = 240
+const WORKBENCH_PATCH_DEBOUNCE_SECONDS: float = 0.18
 const MAX_QUEUED_MESSAGES: int = 12
 const MESSAGE_QUEUE_STATUS_PENDING: StringName = &"pending"
 const MESSAGE_QUEUE_STATUS_SENDING: StringName = &"sending"
@@ -288,6 +289,14 @@ var pending_provider_config_save_after_connect: bool
 var queued_messages: Array[Dictionary]
 var message_queue_next_id: int
 var active_queue_message_id: int
+var workbench_revision: int
+var workbench_patch_sequence: int
+var applying_workbench_snapshot: bool
+var workbench_composer_patch_debounce_pending: bool
+var workbench_composer_patch_include_text: bool
+var workbench_composer_patch_include_context: bool
+var workbench_context_patch_in_flight: bool
+var workbench_context_patch_signature: String
 var manual_guides: Array[Dictionary]
 var manual_guide_next_id: int
 var editing_guide_local_id: String
@@ -295,6 +304,7 @@ var next_step_hint_request_id: String
 var next_step_hint_anchor_request_id: String
 var next_step_hint_entry_ids: PackedStringArray
 var next_step_hints_by_action_id: Dictionary[String, String]
+var next_step_hints_signature: String
 var pending_editor_bridge_plugin: EditorPlugin
 var pending_plan_detail_requests: Dictionary[String, Dictionary]
 var plan_assistant_entry_ids_by_plan_id: Dictionary[String, String]
@@ -960,6 +970,7 @@ func _on_text_edit_text_changed() -> void:
 	if text_edit.text.strip_edges().is_empty():
 		slash_command_completion_consumed = false
 	_update_slash_command_popup()
+	_queue_workbench_composer_patch(true, false)
 	_update_send_state()
 
 
@@ -1928,6 +1939,7 @@ func _on_status_item_action_requested(action_id: String) -> void:
 		if not hint_message.is_empty():
 			text_edit.text = hint_message
 			text_edit.grab_focus()
+			_send_workbench_patch({ "nextStepHintsAction": "clear" })
 			_update_send_state()
 
 
@@ -2136,6 +2148,7 @@ func _update_navigation_state() -> void:
 func _show_session_list_viewer() -> void:
 	session_list_viewer.show()
 	background_context_viewer.hide()
+	additional_context_viewer.hide()
 	workspace_filter_button.show()
 	search_session_line_edit.show()
 	session_option_button.hide()
@@ -2151,6 +2164,7 @@ func _show_background_context_viewer() -> void:
 
 	session_list_viewer.hide()
 	background_context_viewer.show()
+	additional_context_viewer.show()
 	workspace_filter_button.hide()
 	search_session_line_edit.hide()
 	session_option_button.show()
@@ -2180,6 +2194,7 @@ func _on_model_button_item_selected(index: int) -> void:
 
 	_update_model_button_tooltip()
 	_save_active_session_metadata()
+	_send_workbench_composer_patch(false, false)
 	_update_send_state()
 
 
@@ -2188,6 +2203,7 @@ func _on_provider_option_button_item_selected(index: int) -> void:
 		return
 
 	_switch_active_provider(_get_selected_provider_id(), true)
+	_send_workbench_composer_patch(false, false)
 
 
 func _on_approval_mode_button_item_selected(index: int) -> void:
@@ -2195,6 +2211,7 @@ func _on_approval_mode_button_item_selected(index: int) -> void:
 		return
 
 	_save_active_session_metadata()
+	_send_workbench_composer_patch(false, false)
 	_apply_approval_mode_to_backend()
 
 
@@ -2204,9 +2221,11 @@ func _on_mode_button_id_pressed(menu_id: int) -> void:
 		_select_chat_mode(CHAT_MODE_AGENT)
 
 	_save_active_session_metadata()
+	_send_workbench_composer_patch(false, false)
 
 
 func _on_send_button_pressed() -> void:
+	_flush_workbench_composer_patch()
 	var message_text: String = text_edit.text.strip_edges()
 	if message_text.is_empty():
 		_process_message_queue()
@@ -2233,16 +2252,17 @@ func _on_send_button_pressed() -> void:
 			_update_send_state()
 
 
-func _on_user_message_resend_requested(request_id_to_retry: String, message_text: String) -> void:
+func _on_user_message_resend_requested(request_id_to_retry: String, message_text: String, additional_contexts: Array = []) -> void:
 	if message_text.strip_edges().is_empty() or not active_stream_id.is_empty():
 		return
 
+	var retry_additional_contexts: Array[Dictionary] = additional_context_controller.clone_contexts(additional_contexts)
 	if active_session_id.is_empty():
-		_send_chat_text(message_text)
+		_send_chat_text(message_text, "", retry_additional_contexts)
 		return
 
 	_trim_timeline_from_request(request_id_to_retry)
-	_send_chat_text(message_text, request_id_to_retry)
+	_send_chat_text(message_text, request_id_to_retry, retry_additional_contexts)
 
 
 func _trim_timeline_from_request(request_id_to_retry: String) -> void:
@@ -2358,6 +2378,7 @@ func _on_approve_button_pressed() -> void:
 	if pending_approval_id.is_empty():
 		return
 
+	_flush_workbench_composer_patch()
 	if active_queue_message_id > 0:
 		_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_SENDING)
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
@@ -2377,6 +2398,7 @@ func _on_reject_button_pressed() -> void:
 	if pending_approval_id.is_empty():
 		return
 
+	_flush_workbench_composer_patch()
 	var reject_request_id: String = _send_request(RPC_METHODS.APPROVAL_REJECT, { "approvalId": pending_approval_id }, "approval-reject")
 	if reject_request_id.is_empty():
 		_show_response_error({ "error": { "message": "发送审批拒绝请求失败。" } })
@@ -2419,9 +2441,209 @@ func _open_session(session_id: String) -> void:
 
 func _clear_message_queue() -> void:
 	queued_messages.clear()
+	message_queue_next_id = 0
 	active_queue_message_id = 0
 	_render_message_panel()
 	_update_send_state()
+
+
+func _apply_message_queue_snapshot_from_result(result_dictionary: Dictionary) -> bool:
+	if not result_dictionary.has("messageQueue"):
+		return false
+
+	_apply_message_queue_snapshot(result_dictionary.get("messageQueue", []))
+	return true
+
+
+func _apply_message_queue_snapshot(queue_value: Variant) -> void:
+	if typeof(queue_value) != TYPE_ARRAY:
+		return
+
+	queued_messages.clear()
+	var queue_array: Array = queue_value as Array
+	for item_value: Variant in queue_array:
+		if typeof(item_value) != TYPE_DICTIONARY:
+			continue
+
+		var item: Dictionary = item_value as Dictionary
+		var queue_message_id: int = int(item.get("id", 0))
+		if queue_message_id <= 0:
+			continue
+
+		if queue_message_id > message_queue_next_id:
+			message_queue_next_id = queue_message_id
+
+		var contexts: Array[Dictionary] = []
+		var contexts_value: Variant = item.get("additionalContext", item.get("additional_context", []))
+		if typeof(contexts_value) == TYPE_ARRAY:
+			var context_array: Array = contexts_value as Array
+			for context_value: Variant in context_array:
+				if typeof(context_value) == TYPE_DICTIONARY:
+					contexts.append((context_value as Dictionary).duplicate(true))
+
+		var queued_message: Dictionary = {
+			"id": queue_message_id,
+			"text": str(item.get("text", "")),
+			"additional_context": contexts,
+			"status": str(item.get("status", MESSAGE_QUEUE_STATUS_PENDING)),
+			"created_at_utc": str(item.get("createdAt", item.get("created_at_utc", ""))),
+			"updated_at_utc": str(item.get("updatedAt", item.get("updated_at_utc", "")))
+		}
+		queued_messages.append(queued_message)
+
+	if active_queue_message_id > 0 and _find_queue_message_index(active_queue_message_id) < 0:
+		active_queue_message_id = 0
+
+	_render_message_panel()
+	_update_send_state()
+
+
+func _send_workbench_patch(params: Dictionary) -> void:
+	if applying_workbench_snapshot:
+		return
+	if not _is_socket_open():
+		return
+
+	workbench_patch_sequence += 1
+	var request_params: Dictionary = params.duplicate(true)
+	request_params["clientSequence"] = workbench_patch_sequence
+	_send_request(RPC_METHODS.SESSION_WORKBENCH_PATCH, request_params, "session-workbench-patch")
+
+
+func _queue_workbench_composer_patch(include_text: bool = true, include_context: bool = false) -> void:
+	if applying_workbench_snapshot:
+		return
+
+	workbench_composer_patch_include_text = workbench_composer_patch_include_text or include_text
+	workbench_composer_patch_include_context = workbench_composer_patch_include_context or include_context
+	if workbench_composer_patch_debounce_pending:
+		return
+
+	workbench_composer_patch_debounce_pending = true
+	var scene_tree: SceneTree = get_tree()
+	if scene_tree == null:
+		_flush_workbench_composer_patch()
+		return
+
+	var timer: SceneTreeTimer = scene_tree.create_timer(WORKBENCH_PATCH_DEBOUNCE_SECONDS)
+	timer.timeout.connect(Callable(self, "_on_workbench_composer_patch_debounce_timeout"))
+
+
+func _on_workbench_composer_patch_debounce_timeout() -> void:
+	_flush_workbench_composer_patch()
+
+
+func _flush_workbench_composer_patch() -> void:
+	if not workbench_composer_patch_debounce_pending:
+		return
+
+	var include_text: bool = workbench_composer_patch_include_text
+	var include_context: bool = workbench_composer_patch_include_context
+	workbench_composer_patch_debounce_pending = false
+	workbench_composer_patch_include_text = false
+	workbench_composer_patch_include_context = false
+	_send_workbench_composer_patch(include_text, include_context)
+
+
+func _send_workbench_composer_patch(include_text: bool = true, include_context: bool = false) -> void:
+	var composer: Dictionary[String, Variant] = {
+		"chatMode": _get_selected_chat_mode(),
+		"provider": active_provider_id,
+		"model": _get_selected_model_id()
+	}
+	if include_text:
+		composer["text"] = text_edit.text
+	if include_context:
+		var context_snapshot: Array[Dictionary] = additional_context_controller.get_timeline_snapshot()
+		composer["additionalContext"] = context_snapshot
+		workbench_context_patch_in_flight = true
+		workbench_context_patch_signature = JSON.stringify(context_snapshot)
+	_send_workbench_patch({ "composer": composer })
+
+
+func _apply_workbench_from_result(result_dictionary: Dictionary) -> bool:
+	var workbench_value: Variant = result_dictionary.get("workbench", {})
+	if typeof(workbench_value) != TYPE_DICTIONARY:
+		return false
+
+	_apply_workbench_snapshot(workbench_value as Dictionary)
+	return true
+
+
+func _apply_workbench_snapshot(workbench: Dictionary) -> void:
+	var revision_value: int = int(workbench.get("revision", workbench_revision))
+	if revision_value < workbench_revision:
+		return
+
+	workbench_revision = revision_value
+	applying_workbench_snapshot = true
+	var composer_value: Variant = workbench.get("composer", {})
+	if typeof(composer_value) == TYPE_DICTIONARY:
+		_apply_workbench_composer(composer_value as Dictionary)
+
+	_apply_message_queue_snapshot_from_result(workbench)
+	_sync_pending_guides_from_result(workbench)
+	_apply_workbench_next_step_hints(workbench)
+	applying_workbench_snapshot = false
+	_update_send_state()
+
+
+func _apply_workbench_composer(composer: Dictionary) -> void:
+	var text_value: Variant = composer.get("text", null)
+	if typeof(text_value) == TYPE_STRING and active_stream_id.is_empty() and not workbench_composer_patch_include_text:
+		var composer_text: String = str(text_value)
+		if text_edit.text != composer_text:
+			text_edit.text = composer_text
+
+	var chat_mode_value: String = str(composer.get("chatMode", "")).strip_edges()
+	if not chat_mode_value.is_empty():
+		_select_chat_mode(chat_mode_value)
+
+	var provider_value: String = str(composer.get("provider", "")).strip_edges()
+	if _is_known_provider_id(provider_value) and provider_value != active_provider_id:
+		_switch_active_provider(provider_value, false)
+
+	var model_value: String = str(composer.get("model", "")).strip_edges()
+	if not model_value.is_empty():
+		_select_or_add_model_id(model_value)
+
+	var contexts_value: Variant = composer.get("additionalContext", [])
+	if typeof(contexts_value) == TYPE_ARRAY:
+		var incoming_contexts: Array = contexts_value as Array
+		if _should_apply_workbench_context_snapshot(incoming_contexts):
+			additional_context_controller.replace_items(incoming_contexts)
+
+
+func _should_apply_workbench_context_snapshot(incoming_contexts: Array) -> bool:
+	if not workbench_composer_patch_include_context and not workbench_context_patch_in_flight:
+		return true
+
+	var expected_signature: String = workbench_context_patch_signature
+	if workbench_composer_patch_include_context or expected_signature.is_empty():
+		expected_signature = JSON.stringify(additional_context_controller.get_timeline_snapshot())
+	var incoming_signature: String = JSON.stringify(incoming_contexts)
+	if incoming_signature != expected_signature:
+		return false
+
+	if not workbench_composer_patch_include_context:
+		workbench_context_patch_in_flight = false
+		workbench_context_patch_signature = ""
+	return true
+
+
+func _apply_workbench_next_step_hints(workbench: Dictionary) -> void:
+	var hints_state_value: Variant = workbench.get("nextStepHints", {})
+	if typeof(hints_state_value) != TYPE_DICTIONARY:
+		return
+
+	var hints_state: Dictionary = hints_state_value as Dictionary
+	var hints_value: Variant = hints_state.get("hints", [])
+	var signature: String = JSON.stringify(hints_state)
+	if signature == next_step_hints_signature:
+		return
+
+	next_step_hints_signature = signature
+	_apply_next_step_hints_state(hints_value)
 
 
 func _dispatch_message_text(message_text: String, additional_contexts: Array = []) -> bool:
@@ -2573,6 +2795,21 @@ func _enqueue_message(message_text: String, additional_contexts: Array = []) -> 
 		)
 		return false
 
+	if _is_socket_open():
+		var backend_params: Dictionary = {
+			"text": message_text,
+			"additionalContext": additional_context_controller.clone_contexts(additional_contexts, true)
+		}
+		var add_request_id: String = _send_request(RPC_METHODS.MESSAGE_QUEUE_ADD, backend_params, "message-queue-add")
+		if not add_request_id.is_empty():
+			_show_background_context_viewer()
+			_update_send_state()
+			return true
+
+	return _append_local_queue_message(message_text, additional_contexts)
+
+
+func _append_local_queue_message(message_text: String, additional_contexts: Array = []) -> bool:
 	message_queue_next_id += 1
 	var queued_message: Dictionary = {
 		"id": message_queue_next_id,
@@ -2600,8 +2837,10 @@ func _process_message_queue() -> void:
 
 	var queued_message: Dictionary = queued_messages[queued_index]
 	active_queue_message_id = int(queued_message.get("id", 0))
-	queued_message["status"] = MESSAGE_QUEUE_STATUS_SENDING
-	queued_messages[queued_index] = queued_message
+	_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_SENDING)
+	var refreshed_index: int = _find_queue_message_index(active_queue_message_id)
+	if refreshed_index >= 0:
+		queued_message = queued_messages[refreshed_index]
 	_render_message_panel()
 
 	var queued_text: String = str(queued_message.get("text", ""))
@@ -2634,6 +2873,15 @@ func _find_next_pending_queue_index() -> int:
 	return -1
 
 
+func _find_queue_message_index(queue_message_id: int) -> int:
+	for index: int in range(queued_messages.size()):
+		var queued_message: Dictionary = queued_messages[index]
+		if int(queued_message.get("id", 0)) == queue_message_id:
+			return index
+
+	return -1
+
+
 func _get_open_queue_count() -> int:
 	var open_count: int = 0
 	for queued_message: Dictionary in queued_messages:
@@ -2645,15 +2893,23 @@ func _get_open_queue_count() -> int:
 
 
 func _set_queue_message_status(queue_message_id: int, status: StringName) -> void:
-	for index: int in range(queued_messages.size()):
-		var queued_message: Dictionary = queued_messages[index]
-		if int(queued_message.get("id", 0)) != queue_message_id:
-			continue
-
-		queued_message["status"] = status
-		queued_messages[index] = queued_message
-		_render_message_panel()
+	var queue_index: int = _find_queue_message_index(queue_message_id)
+	if queue_index < 0:
 		return
+
+	var queued_message: Dictionary = queued_messages[queue_index]
+	queued_message["status"] = status
+	queued_messages[queue_index] = queued_message
+	if _is_socket_open():
+		_send_request(
+			RPC_METHODS.MESSAGE_QUEUE_STATUS,
+			{
+				"queueId": queue_message_id,
+				"status": str(status)
+			},
+			"message-queue-status"
+		)
+	_render_message_panel()
 
 
 func _finish_active_queue_message(remove_message: bool, final_status: StringName = &"failed") -> void:
@@ -2670,11 +2926,13 @@ func _finish_active_queue_message(remove_message: bool, final_status: StringName
 
 
 func _remove_queue_message(queue_message_id: int) -> void:
-	for index: int in range(queued_messages.size()):
-		var queued_message: Dictionary = queued_messages[index]
-		if int(queued_message.get("id", 0)) == queue_message_id:
-			queued_messages.remove_at(index)
-			return
+	var queue_index: int = _find_queue_message_index(queue_message_id)
+	if queue_index < 0:
+		return
+
+	queued_messages.remove_at(queue_index)
+	if _is_socket_open():
+		_send_request(RPC_METHODS.MESSAGE_QUEUE_REMOVE, { "queueId": queue_message_id }, "message-queue-remove")
 
 # --- guide_controller.gd ---
 
@@ -2999,6 +3257,13 @@ func _handle_response(message: Dictionary) -> void:
 
 	var result_dictionary: Dictionary = result as Dictionary
 	var response_id: String = str(message.get("id", ""))
+	var applied_workbench_snapshot: bool = _apply_workbench_from_result(result_dictionary)
+	if response_id.begins_with("session-workbench") and applied_workbench_snapshot:
+		return
+	var applied_message_queue_snapshot: bool = _apply_message_queue_snapshot_from_result(result_dictionary)
+	if response_id.begins_with("message-queue") and applied_message_queue_snapshot:
+		_process_message_queue()
+		return
 	if response_id.begins_with("client-hello"):
 		var connection_value: Variant = result_dictionary.get("connection", {})
 		if typeof(connection_value) == TYPE_DICTIONARY:
@@ -3013,6 +3278,8 @@ func _handle_response(message: Dictionary) -> void:
 	if file_edit_controller.handle_batch_response(str(message.get("id", "")), true, result_dictionary):
 		return
 	if _handle_plan_response(response_id, result_dictionary):
+		return
+	if _handle_active_chat_response_completion(response_id, result_dictionary):
 		return
 	if result_dictionary.has("commands"):
 		_apply_slash_command_list_response(result_dictionary)
@@ -3077,6 +3344,7 @@ func _handle_response(message: Dictionary) -> void:
 		_show_background_context_viewer()
 		_render_timeline_blocks(result_dictionary.get("timelineBlocks", []), result_dictionary)
 		_sync_pending_guides_from_result(result_dictionary)
+		_apply_message_queue_snapshot_from_result(result_dictionary)
 		_apply_latest_workflow_snapshot(result_dictionary)
 		_send_request(RPC_METHODS.WORKSPACE_LIST, {}, "workspace-list")
 		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
@@ -3148,6 +3416,14 @@ func _handle_event(message: Dictionary) -> void:
 		return
 
 	var data_dictionary: Dictionary = data as Dictionary
+	if event_name == "session.workbench.updated":
+		_apply_workbench_from_result(data_dictionary)
+		return
+	if event_name == "message.queue.updated":
+		_apply_message_queue_snapshot_from_result(data_dictionary)
+		if active_stream_id.is_empty():
+			_process_message_queue()
+		return
 	if _is_plan_message_event(event_name, data_dictionary) and active_stream_id.is_empty() and not event_id.is_empty():
 		_begin_plan_followup_stream(event_id, "")
 	if event_name == "agent.message.delta" or event_name == "ai.delta":
@@ -3158,36 +3434,12 @@ func _handle_event(message: Dictionary) -> void:
 		if active_workflow_id.is_empty():
 			_update_todo_list_from_text(active_assistant_text)
 		_schedule_assistant_delta_flush()
+	elif event_name == "agent.summary.started":
+		_begin_active_assistant_summary(data_dictionary)
 	elif event_name == "ai.status":
 		_append_assistant_status_event(data_dictionary)
 	elif event_name == "agent.message.done" or event_name == "ai.done":
-		var should_follow_bottom: bool = _should_follow_timeline_updates()
-		var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
-		var completed_request_id: String = active_stream_request_id
-		var completed_status_code: String = active_stream_status_code
-		_flush_pending_assistant_delta()
-		if not active_assistant_entry_id.is_empty():
-			_set_timeline_entry_times(active_assistant_entry_id, active_stream_started_at_utc, completed_at_utc)
-		if active_assistant_item != null:
-			active_assistant_item.call("finish_message", active_stream_started_at_utc, completed_at_utc)
-		file_edit_controller.set_active_session_id(active_session_id)
-		file_edit_controller.complete_stream(active_assistant_entry_id)
-		_schedule_timeline_render(should_follow_bottom)
-		active_assistant_item = null
-		active_assistant_entry_id = ""
-		active_stream_id = ""
-		active_stream_request_id = ""
-		active_stream_started_at_utc = ""
-		active_stream_status_code = ""
-		active_assistant_text = ""
-		_clear_paused_stream_context()
-		_set_streaming_state(false)
-		_send_request(RPC_METHODS.SESSION_SAVE, {}, "session-save")
-		_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
-		_finish_active_queue_message(true)
-		if completed_status_code != "plan" and not _has_pending_queued_messages():
-			_request_next_step_hints(completed_request_id, "done")
-		_process_message_queue()
+		_complete_active_chat_stream()
 	elif event_name == "agent.run.paused" or event_name == "ai.paused":
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		var paused_request_id: String = active_stream_request_id
@@ -3278,7 +3530,7 @@ func _handle_event(message: Dictionary) -> void:
 # --- next_step_controller.gd ---
 
 func _is_global_event(event_name: String) -> bool:
-	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("skill.") or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("agent.") or event_name.begins_with("plan.")
+	return event_name == "tool.approved" or event_name == "tool.rejected" or event_name == "tool.approval_required" or event_name == "ai.paused" or event_name == "ai.cancelled" or event_name == "session.renamed" or event_name == "editor.tool.requested" or event_name == "mcp.config.updated" or event_name.begins_with("skill.") or event_name.begins_with("workflow.") or event_name.begins_with("guide.") or event_name.begins_with("message.queue.") or event_name.begins_with("session.workbench.") or event_name.begins_with("agent.") or event_name.begins_with("plan.")
 
 
 func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary) -> Dictionary:
@@ -3288,6 +3540,53 @@ func _normalize_agent_tool_event_data(event_name: String, event_data: Dictionary
 	var normalized_data: Dictionary = event_data.duplicate(true)
 	normalized_data["type"] = event_name.replace("agent.tool.", "tool.")
 	return normalized_data
+
+
+func _handle_active_chat_response_completion(response_id: String, result_dictionary: Dictionary) -> bool:
+	if response_id != active_stream_id:
+		return false
+	if not _is_final_active_chat_response(result_dictionary):
+		return false
+
+	_complete_active_chat_stream()
+	return true
+
+
+func _is_final_active_chat_response(result_dictionary: Dictionary) -> bool:
+	return result_dictionary.has("planId") or result_dictionary.has("text") or result_dictionary.has("context")
+
+
+func _complete_active_chat_stream() -> void:
+	if active_stream_id.is_empty() and active_stream_request_id.is_empty() and active_assistant_entry_id.is_empty():
+		return
+
+	var should_follow_bottom: bool = _should_follow_timeline_updates()
+	var completed_at_utc: String = MAIN_HELPERS.get_utc_timestamp()
+	var completed_request_id: String = active_stream_request_id
+	var completed_status_code: String = active_stream_status_code
+	_flush_pending_assistant_delta()
+	if not active_assistant_entry_id.is_empty():
+		_set_timeline_entry_times(active_assistant_entry_id, active_stream_started_at_utc, completed_at_utc)
+	if active_assistant_item != null:
+		active_assistant_item.call("finish_message", active_stream_started_at_utc, completed_at_utc)
+	file_edit_controller.set_active_session_id(active_session_id)
+	file_edit_controller.complete_stream(active_assistant_entry_id)
+	_schedule_timeline_render(should_follow_bottom)
+	active_assistant_item = null
+	active_assistant_entry_id = ""
+	active_stream_id = ""
+	active_stream_request_id = ""
+	active_stream_started_at_utc = ""
+	active_stream_status_code = ""
+	active_assistant_text = ""
+	_clear_paused_stream_context()
+	_set_streaming_state(false)
+	_send_request(RPC_METHODS.SESSION_SAVE, {}, "session-save")
+	_send_request(RPC_METHODS.SESSION_INFO, {}, "session-info")
+	_finish_active_queue_message(true)
+	if completed_status_code != "plan" and not _has_pending_queued_messages():
+		_request_next_step_hints(completed_request_id, "done")
+	_process_message_queue()
 
 
 func _handle_plan_response(response_id: String, result_dictionary: Dictionary) -> bool:
@@ -3626,9 +3925,11 @@ func _apply_next_step_hints_response(response_id: String, result_dictionary: Dic
 
 	next_step_hint_request_id = ""
 	next_step_hint_anchor_request_id = ""
-	_clear_next_step_hint_entries()
+	_apply_next_step_hints_state(result_dictionary.get("hints", []))
 
-	var hints_value: Variant = result_dictionary.get("hints", [])
+
+func _apply_next_step_hints_state(hints_value: Variant) -> void:
+	_clear_next_step_hint_entries()
 	if typeof(hints_value) != TYPE_ARRAY:
 		text_edit.placeholder_text = ""
 		return
@@ -3676,6 +3977,8 @@ func _apply_next_step_hints_response(response_id: String, result_dictionary: Dic
 func _clear_next_step_hint_entries() -> void:
 	text_edit.placeholder_text = ""
 	next_step_hints_by_action_id.clear()
+	if not applying_workbench_snapshot:
+		next_step_hints_signature = ""
 	for entry_id: String in next_step_hint_entry_ids:
 		var entry_index: int = _find_timeline_entry_index(entry_id)
 		if entry_index >= 0:
@@ -4788,6 +5091,8 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 			continue
 		if event_name == "ai.status":
 			continue
+		if event_name == "agent.summary.started":
+			continue
 		if _is_run_error_event(event_name):
 			continue
 		if event_name.begins_with("plan."):
@@ -4831,6 +5136,8 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 			var normalized_tool_event: Dictionary = _normalize_agent_tool_event_data(event_name, event_data)
 			_append_tool_event_to_body_parts(body_parts, normalized_tool_event, request_id)
 			file_edit_controller.append_batch_from_event(file_edit_batches, normalized_tool_event)
+		elif event_name == "agent.summary.started":
+			_append_summary_start_to_body_parts(body_parts, event_data)
 		elif event_name == "ai.thinking.delta" or event_name == "agent.thinking.delta":
 			_append_thinking_event_to_body_parts(body_parts, str(event_data.get("text", "")), false)
 		elif event_name == "ai.thinking.done" or event_name == "agent.thinking.done":
@@ -5026,6 +5333,29 @@ func _append_status_event_to_body_parts(body_parts: Array, status_data: Dictiona
 		"planId": str(status_data.get("planId", ""))
 	}
 	body_parts.append(part)
+
+
+func _append_summary_start_to_body_parts(body_parts: Array, summary_data: Dictionary) -> void:
+	var step_run_id: String = str(summary_data.get("stepRunId", ""))
+	if step_run_id.is_empty():
+		return
+
+	for part_value: Variant in body_parts:
+		if typeof(part_value) != TYPE_DICTIONARY:
+			continue
+
+		var existing_part: Dictionary = part_value as Dictionary
+		if str(existing_part.get("type", "")) == "summary_start" and str(existing_part.get("stepRunId", "")) == step_run_id:
+			return
+
+	body_parts.append({
+		"type": "summary_start",
+		"runId": str(summary_data.get("runId", "")),
+		"stepId": str(summary_data.get("stepId", "")),
+		"stepRunId": step_run_id,
+		"title": str(summary_data.get("title", "")),
+		"foldTitle": str(summary_data.get("foldTitle", "总结前的过程"))
+	})
 
 
 func _on_file_edit_request_ready(params: Dictionary, group_id: String) -> void:
@@ -6044,6 +6374,39 @@ func _append_assistant_status_to_timeline(entry_id: String, status_data: Diction
 	_mark_timeline_height_dirty(index)
 
 
+func _append_assistant_summary_start_to_timeline(entry_id: String, summary_data: Dictionary) -> void:
+	var index: int = _find_timeline_entry_index(entry_id)
+	if index < 0:
+		return
+
+	var entry: Dictionary = timeline_entries[index]
+	var body_parts: Array = entry.get("body_parts", []) as Array
+	_append_summary_start_to_body_parts(body_parts, summary_data)
+	entry["body_parts"] = body_parts
+	entry["height_actual"] = 0.0
+	timeline_entries[index] = entry
+	_mark_timeline_height_dirty(index)
+
+
+func _begin_active_assistant_summary(summary_data: Dictionary) -> void:
+	var should_follow_bottom: bool = _should_follow_timeline_updates()
+	_flush_pending_assistant_delta()
+	_flush_pending_thinking_delta()
+	_ensure_active_assistant_item()
+	if active_assistant_entry_id.is_empty():
+		return
+
+	_append_assistant_summary_start_to_timeline(active_assistant_entry_id, summary_data)
+	active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
+	if active_assistant_item != null:
+		active_assistant_item.call("begin_summary", summary_data)
+		_schedule_timeline_measure()
+		_scroll_to_bottom_if_following(should_follow_bottom)
+		return
+
+	_schedule_timeline_render(should_follow_bottom)
+
+
 func _append_assistant_status_event(status_data: Dictionary) -> void:
 	var should_follow_bottom: bool = _should_follow_timeline_updates()
 	_flush_pending_assistant_delta()
@@ -6840,6 +7203,7 @@ func _ready() -> void:
 
 
 func _on_additional_context_controller_changed() -> void:
+	_queue_workbench_composer_patch(false, true)
 	_update_send_state()
 
 

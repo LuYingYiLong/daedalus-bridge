@@ -1,7 +1,7 @@
 @tool
 extends MarginContainer
 
-signal resend_requested(request_id: String, message_text: String)
+signal resend_requested(request_id: String, message_text: String, additional_contexts: Array)
 
 const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
 
@@ -14,13 +14,15 @@ const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
 @onready var send_button: Button = %SendButton
 
 var request_id: String
+var message_additional_contexts: Array[Dictionary]
 
 
 func setup(message_text: String, message_request_id: String = "", sent_at_utc: String = "", additional_contexts: Array = []) -> void:
 	request_id = message_request_id
+	message_additional_contexts = _clone_contexts(additional_contexts)
 	user_message_label.text = message_text
 	_set_send_time(sent_at_utc)
-	_render_additional_contexts(additional_contexts)
+	_render_additional_contexts(message_additional_contexts)
 	text_edit.hide()
 	text_edit.clear()
 	send_button.hide()
@@ -54,7 +56,7 @@ func _on_send_button_pressed() -> void:
 	text_edit.hide()
 	text_edit.clear()
 	user_message_label.show()
-	resend_requested.emit(request_id, message_text)
+	resend_requested.emit(request_id, message_text, _clone_contexts(message_additional_contexts))
 
 
 func _set_send_time(sent_at_utc: String) -> void:
@@ -99,3 +101,14 @@ func _render_additional_contexts(additional_contexts: Array) -> void:
 		context_item.call("setup", context_dictionary)
 		if context_item.has_method("set_interactive"):
 			context_item.call("set_interactive", false)
+
+
+func _clone_contexts(additional_contexts: Array) -> Array[Dictionary]:
+	var cloned_contexts: Array[Dictionary] = []
+	for context_value: Variant in additional_contexts:
+		if typeof(context_value) != TYPE_DICTIONARY:
+			continue
+
+		var context_dictionary: Dictionary = context_value as Dictionary
+		cloned_contexts.append(context_dictionary.duplicate(true))
+	return cloned_contexts

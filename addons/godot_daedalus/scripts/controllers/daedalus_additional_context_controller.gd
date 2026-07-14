@@ -11,17 +11,20 @@ const MAX_ITEMS: int = 10
 const LIVE_EDITOR_SELECTION_CONTEXT_ID: String = "editor-selection-live"
 const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
 const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"
+const VIEWER_RESERVED_HEIGHT: float = 32.0
 
 var _viewer: ScrollContainer
 var _container: HBoxContainer
 var _items: Array[Dictionary]
 var _next_id: int
 var _dismissed_live_signatures: Dictionary[String, String]
+var _dismissed_live_keys: Dictionary[String, String]
 
 
 func setup(viewer: ScrollContainer, container: HBoxContainer) -> void:
 	_viewer = viewer
 	_container = container
+	_viewer.custom_minimum_size.y = maxf(_viewer.custom_minimum_size.y, VIEWER_RESERVED_HEIGHT)
 	render()
 
 
@@ -30,7 +33,11 @@ func get_items() -> Array[Dictionary]:
 
 
 func replace_items(contexts: Array) -> void:
-	_items = clone_contexts(contexts, true)
+	var next_items: Array[Dictionary] = _clone_contexts_for_snapshot_replace(contexts)
+	if _context_arrays_equal(_items, next_items):
+		return
+
+	_items = next_items
 	render()
 	changed.emit()
 
@@ -46,6 +53,9 @@ func add_or_replace(context: Dictionary) -> bool:
 			var replacement: Dictionary = context.duplicate(true)
 			replacement["id"] = str(existing_context.get("id", replacement.get("id", "")))
 			replacement["pinned"] = bool(existing_context.get("pinned", false))
+			if _contexts_equal(existing_context, replacement):
+				return true
+
 			_items[index] = replacement
 			render()
 			changed.emit()
@@ -73,6 +83,7 @@ func upsert_live(context_id: String, context: Dictionary) -> void:
 
 	if context.is_empty():
 		_dismissed_live_signatures.erase(context_id)
+		_dismissed_live_keys.erase(context_id)
 		if existing_index >= 0:
 			_items.remove_at(existing_index)
 			render()
@@ -83,6 +94,9 @@ func upsert_live(context_id: String, context: Dictionary) -> void:
 	live_context["id"] = context_id
 	live_context["pinned"] = false
 	var next_signature: String = make_live_signature(context_id, live_context)
+	var next_live_key: String = make_live_dismiss_key(context_id, live_context)
+	if str(_dismissed_live_keys.get(context_id, "")) == next_live_key:
+		return
 	if str(_dismissed_live_signatures.get(context_id, "")) == next_signature:
 		return
 	if existing_index >= 0:
@@ -104,8 +118,12 @@ func set_pinned(context_id: String, pinned: bool) -> void:
 		return
 
 	var context: Dictionary = _items[context_index]
+	if not (pinned and is_live_id(context_id)) and bool(context.get("pinned", false)) == pinned:
+		return
+
 	if pinned and is_live_id(context_id):
 		_dismissed_live_signatures[context_id] = make_live_signature(context_id, context)
+		_dismissed_live_keys[context_id] = make_live_dismiss_key(context_id, context)
 		var detached_context: Dictionary = context.duplicate(true)
 		detached_context["id"] = make_context_id(
 			str(detached_context.get("kind", "context")),
@@ -130,6 +148,7 @@ func remove(context_id: String) -> void:
 	var context: Dictionary = _items[context_index]
 	if is_live_id(context_id):
 		_dismissed_live_signatures[context_id] = make_live_signature(context_id, context)
+		_dismissed_live_keys[context_id] = make_live_dismiss_key(context_id, context)
 	_items.remove_at(context_index)
 	render()
 	changed.emit()
@@ -137,13 +156,19 @@ func remove(context_id: String) -> void:
 
 func clear_unpinned() -> void:
 	var retained_contexts: Array[Dictionary]
+	var changed_contexts: bool = false
 	for context: Dictionary in _items:
 		if bool(context.get("pinned", false)):
 			retained_contexts.append(context)
 		else:
+			changed_contexts = true
 			var context_id: String = str(context.get("id", ""))
 			if is_live_id(context_id):
 				_dismissed_live_signatures[context_id] = make_live_signature(context_id, context)
+				_dismissed_live_keys[context_id] = make_live_dismiss_key(context_id, context)
+	if not changed_contexts:
+		return
+
 	_items = retained_contexts
 	render()
 	changed.emit()
@@ -307,6 +332,21 @@ func clone_contexts(source_contexts: Array, include_thumbnail_data: bool = false
 	return cloned_contexts
 
 
+func _clone_contexts_for_snapshot_replace(source_contexts: Array) -> Array[Dictionary]:
+	var cloned_contexts: Array[Dictionary]
+	for context: Dictionary in clone_contexts(source_contexts, true):
+		var context_id: String = str(context.get("id", ""))
+		if is_live_id(context_id):
+			var live_signature: String = make_live_signature(context_id, context)
+			var live_key: String = make_live_dismiss_key(context_id, context)
+			if str(_dismissed_live_keys.get(context_id, "")) == live_key:
+				continue
+			if str(_dismissed_live_signatures.get(context_id, "")) == live_signature:
+				continue
+		cloned_contexts.append(context)
+	return cloned_contexts
+
+
 func can_append(show_warning: bool) -> bool:
 	if _items.size() < MAX_ITEMS:
 		return true
@@ -322,18 +362,44 @@ func can_append(show_warning: bool) -> bool:
 func render() -> void:
 	if _viewer == null or _container == null:
 		return
-	for child: Node in _container.get_children():
-		child.queue_free()
-	_viewer.visible = not _items.is_empty()
+
+	_container.visible = not _items.is_empty()
 	if _items.is_empty():
+		for child: Node in _container.get_children():
+			child.queue_free()
 		return
 
-	for context: Dictionary in _items:
-		var item: Node = ADDITIONAL_CONTEXT_ITEM_SCENE.instantiate()
-		_container.add_child(item)
+	var existing_items_by_id: Dictionary[String, Node]
+	for child: Node in _container.get_children():
+		var child_context_id: String = str(child.get("context_id"))
+		if child_context_id.is_empty() or existing_items_by_id.has(child_context_id):
+			child.queue_free()
+			continue
+		existing_items_by_id[child_context_id] = child
+
+	var retained_ids: Dictionary[String, bool]
+	for index: int in range(_items.size()):
+		var context: Dictionary = _items[index]
+		var context_id: String = str(context.get("id", ""))
+		if context_id.is_empty():
+			continue
+
+		var item: Node = existing_items_by_id.get(context_id, null) as Node
+		if item == null:
+			item = ADDITIONAL_CONTEXT_ITEM_SCENE.instantiate()
+			_container.add_child(item)
+			item.connect("pin_toggled", set_pinned)
+			item.connect("remove_requested", remove)
 		item.call("setup", context)
-		item.connect("pin_toggled", set_pinned)
-		item.connect("remove_requested", remove)
+		if item.get_index() != index:
+			_container.move_child(item, index)
+		retained_ids[context_id] = true
+
+	for context_id: String in existing_items_by_id.keys():
+		if retained_ids.has(context_id):
+			continue
+		var stale_item: Node = existing_items_by_id[context_id]
+		stale_item.queue_free()
 
 
 func make_context_id(context_kind: String, resource_path: String, node_path: String) -> String:
@@ -386,6 +452,32 @@ func make_filesystem_selection_key(context: Dictionary) -> String:
 	return "\n".join(path_parts)
 
 
+func make_live_dismiss_key(context_id: String, context: Dictionary) -> String:
+	var context_kind: String = str(context.get("kind", ""))
+	if context_kind == "editor_selection":
+		return "%s\n%s\n%s" % [
+			context_id,
+			str(context.get("resourcePath", "")),
+			_make_editor_selection_paths_key(context)
+		]
+	return "%s\n%s" % [context_id, make_context_key(context)]
+
+
+func _make_editor_selection_paths_key(context: Dictionary) -> String:
+	var data: Dictionary = get_context_data(context)
+	var selected_nodes_value: Variant = data.get("selectedNodes", [])
+	if typeof(selected_nodes_value) != TYPE_ARRAY:
+		return ""
+
+	var node_paths: PackedStringArray
+	for selected_node_value: Variant in selected_nodes_value as Array:
+		if typeof(selected_node_value) != TYPE_DICTIONARY:
+			continue
+		var selected_node: Dictionary = selected_node_value as Dictionary
+		node_paths.append(str(selected_node.get("path", "")))
+	return "\n".join(node_paths)
+
+
 func get_context_data(context: Dictionary) -> Dictionary:
 	var data_value: Variant = context.get("data", {})
 	if typeof(data_value) != TYPE_DICTIONARY:
@@ -398,6 +490,21 @@ func find_index(context_id: String) -> int:
 		if str(_items[index].get("id", "")) == context_id:
 			return index
 	return -1
+
+
+func _context_arrays_equal(left_contexts: Array[Dictionary], right_contexts: Array[Dictionary]) -> bool:
+	if left_contexts.size() != right_contexts.size():
+		return false
+
+	for index: int in range(left_contexts.size()):
+		if not _contexts_equal(left_contexts[index], right_contexts[index]):
+			return false
+
+	return true
+
+
+func _contexts_equal(left_context: Dictionary, right_context: Dictionary) -> bool:
+	return left_context == right_context
 
 
 func is_live_id(context_id: String) -> bool:

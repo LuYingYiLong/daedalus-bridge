@@ -43,9 +43,16 @@ const SESSION_DELETE: String = "session.delete"
 const SESSION_RENAME: String = "session.rename"
 const SESSION_COMPRESS: String = "session.compress"
 const SESSION_SUMMARY: String = "session.summary"
+const SESSION_WORKBENCH_GET: String = "session.workbench.get"
+const SESSION_WORKBENCH_PATCH: String = "session.workbench.patch"
 const SESSION_GUIDE_ADD: String = "session.guide.add"
 const SESSION_GUIDE_UPDATE: String = "session.guide.update"
 const SESSION_GUIDE_DELETE: String = "session.guide.delete"
+const MESSAGE_QUEUE_LIST: String = "message.queue.list"
+const MESSAGE_QUEUE_ADD: String = "message.queue.add"
+const MESSAGE_QUEUE_UPDATE: String = "message.queue.update"
+const MESSAGE_QUEUE_REMOVE: String = "message.queue.remove"
+const MESSAGE_QUEUE_STATUS: String = "message.queue.status"
 const MCP_LIST_TOOLS: String = "mcp.listTools"
 const MCP_CALL_TOOL: String = "mcp.callTool"
 const MCP_LIST_RESOURCES: String = "mcp.listResources"
@@ -123,9 +130,16 @@ static func all() -> PackedStringArray:
 		SESSION_RENAME,
 		SESSION_COMPRESS,
 		SESSION_SUMMARY,
+		SESSION_WORKBENCH_GET,
+		SESSION_WORKBENCH_PATCH,
 		SESSION_GUIDE_ADD,
 		SESSION_GUIDE_UPDATE,
 		SESSION_GUIDE_DELETE,
+		MESSAGE_QUEUE_LIST,
+		MESSAGE_QUEUE_ADD,
+		MESSAGE_QUEUE_UPDATE,
+		MESSAGE_QUEUE_REMOVE,
+		MESSAGE_QUEUE_STATUS,
 		MCP_LIST_TOOLS,
 		MCP_CALL_TOOL,
 		MCP_LIST_RESOURCES,

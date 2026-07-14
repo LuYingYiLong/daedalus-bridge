@@ -28,6 +28,9 @@ var thinking_finished_current: bool
 var started_at_utc_current: String
 var completed_at_utc_current: String
 var elapsed_update_accumulator: float
+var summary_started_current: bool
+var summary_fold_container: FoldableContainer
+var summary_fold_body_container: VBoxContainer
 
 
 func clear_message() -> void:
@@ -39,6 +42,9 @@ func clear_message() -> void:
 	tool_items_by_call_id.clear()
 	thinking_item = null
 	thinking_finished_current = false
+	summary_started_current = false
+	summary_fold_container = null
+	summary_fold_body_container = null
 	_set_completion_times("", "")
 
 
@@ -180,6 +186,42 @@ func add_plan_preview(plan_data: Dictionary) -> Node:
 	return plan_preview
 
 
+func begin_summary(summary_data: Dictionary) -> void:
+	_finish_current_markdown_label()
+	if summary_started_current:
+		return
+
+	summary_started_current = true
+	var fold_children: Array[Node] = []
+	for child: Node in body_container.get_children():
+		fold_children.append(child)
+
+	if fold_children.is_empty():
+		return
+
+	var fold_title: String = str(summary_data.get("foldTitle", "总结前的过程")).strip_edges()
+	if fold_title.is_empty():
+		fold_title = "总结前的过程"
+
+	summary_fold_container = FoldableContainer.new()
+	summary_fold_container.title = fold_title
+	summary_fold_container.title_text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	summary_fold_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_set_foldable_container_folded(summary_fold_container, true)
+
+	summary_fold_body_container = VBoxContainer.new()
+	summary_fold_body_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	summary_fold_container.add_child(summary_fold_body_container)
+
+	body_container.add_child(summary_fold_container)
+	body_container.move_child(summary_fold_container, 0)
+	for child: Node in fold_children:
+		body_container.remove_child(child)
+		summary_fold_body_container.add_child(child)
+
+	queue_sort()
+
+
 func _on_mouse_entered() -> void:
 	footer_container.modulate.a = 1.0
 
@@ -250,6 +292,8 @@ func _setup_body_parts(body_parts: Array) -> void:
 			add_inline_diff_viewer(part)
 		elif part_type == "plan":
 			add_plan_preview(part)
+		elif part_type == "summary_start":
+			begin_summary(part)
 
 
 func _ensure_current_markdown_label() -> MarkdownLabel:
@@ -280,6 +324,17 @@ func _finish_current_markdown_label() -> void:
 
 	current_markdown_label.finish_stream()
 	current_markdown_label = null
+
+
+func _set_foldable_container_folded(container: FoldableContainer, is_folded: bool) -> void:
+	for property: Dictionary in container.get_property_list():
+		var property_name: String = str(property.get("name", ""))
+		if property_name == "folded" or property_name == "collapsed":
+			container.set(property_name, is_folded)
+			return
+		if property_name == "expanded":
+			container.set(property_name, not is_folded)
+			return
 
 
 func _on_body_child_content_height_changed() -> void:

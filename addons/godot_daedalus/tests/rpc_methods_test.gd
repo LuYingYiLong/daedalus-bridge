@@ -47,6 +47,10 @@ func _run_tests() -> void:
 	_expect_equal(RPC_METHODS.PLAN_CLARIFY, "plan.clarify", "plan clarify method")
 	_expect_equal(RPC_METHODS.PLAN_REVISE, "plan.revise", "plan revise method")
 	_expect_equal(RPC_METHODS.PLAN_APPROVE, "plan.approve", "plan approve method")
+	_expect_equal(RPC_METHODS.SESSION_WORKBENCH_GET, "session.workbench.get", "session workbench get method")
+	_expect_equal(RPC_METHODS.SESSION_WORKBENCH_PATCH, "session.workbench.patch", "session workbench patch method")
+	_expect_equal(RPC_METHODS.MESSAGE_QUEUE_ADD, "message.queue.add", "message queue add method")
+	_expect_equal(RPC_METHODS.MESSAGE_QUEUE_STATUS, "message.queue.status", "message queue status method")
 
 	var methods: PackedStringArray = RPC_METHODS.all()
 	var seen: Dictionary[String, bool]
@@ -55,7 +59,7 @@ func _run_tests() -> void:
 			failures.append("duplicate RPC method: %s" % method_name)
 		seen[method_name] = true
 
-	_expect_equal(methods.size(), 76, "rpc method count")
+	_expect_equal(methods.size(), 83, "rpc method count")
 	_expect_equal(seen.has(RPC_METHODS.COMMAND_LIST), true, "command list listed")
 	_expect_equal(seen.has(RPC_METHODS.CLIENT_INFO), true, "client info listed")
 	_expect_equal(seen.has(RPC_METHODS.EDITOR_INSTANCES_LIST), true, "editor instances list listed")
@@ -63,6 +67,10 @@ func _run_tests() -> void:
 	_expect_equal(seen.has(RPC_METHODS.WORKSPACE_INFO), true, "workspace info listed")
 	_expect_equal(seen.has(RPC_METHODS.ATTACHMENT_IMAGE_SAVE), true, "attachment image save listed")
 	_expect_equal(seen.has(RPC_METHODS.PLAN_APPROVE), true, "plan approve listed")
+	_expect_equal(seen.has(RPC_METHODS.SESSION_WORKBENCH_GET), true, "session workbench get listed")
+	_expect_equal(seen.has(RPC_METHODS.SESSION_WORKBENCH_PATCH), true, "session workbench patch listed")
+	_expect_equal(seen.has(RPC_METHODS.MESSAGE_QUEUE_LIST), true, "message queue list listed")
+	_expect_equal(seen.has(RPC_METHODS.MESSAGE_QUEUE_REMOVE), true, "message queue remove listed")
 	_expect_equal(seen.has(RPC_METHODS.TOOL_CATALOG_LIST), true, "tool catalog list listed")
 	_expect_equal(seen.has(RPC_METHODS.TOOL_EXECUTE), true, "tool execute listed")
 	_finish_tests()
