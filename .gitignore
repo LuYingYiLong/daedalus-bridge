@@ -1,43 +1,29 @@
-# Godot 4+ specific ignores
-.godot/
+# 默认只把这个仓库当作插件承载项目提交。
+# 根目录除必要 Godot 项目配置和 addons 外全部忽略。
+*
+
+# Git / 编辑器仓库配置
+!/.editorconfig
+!/.gitattributes
+!/.gitignore
+
+# 必要 Godot 项目配置
+!/project.godot
+!/icon.png
+!/icon.png.import
+
+# 插件目录
+!/addons/
+!/addons/**
+
+# Godot 生成目录和本机配置
+/.godot/
 /android/
-/.vscode
-/.claude
-addons/termdot/~shell.dll
-addons/title_bar_modifier/bin/~libgdexample.windows.template_debug.x86_64.dll
-addons/godot-git-plugin/windows/~libgit_plugin.windows.editor.x86_64.dll
-addons/godot-git-plugin/windows/~libgit_plugin.windows.editor.x86_64.dll
-termdot_error.log
-/addons/toolkit/.vs
-/addons/lteapi/.vs
-addons/toolkit/demo/bin/~toolkit.windows.template_debug.x86_64.dll
+/.vscode/
+/.claude/
+/.vs/
 
-# C++
-*.obj
-*.o
-*.os
-*.obj
-*.exe
-*.dll
-*.so
-*.dylib
-*.lib
-*.a
-*.pdb
-*.ilk
-!addons/lteapi/bin/*.dll
-
-# Godot 特定
-*.gen.h
-*.gen.cpp
-
-# 其他临时文件
-*.log
-*.tmp
-
-addons/toolkit/src/kiss_fft/**/*.obj
-addons/toolkit/src/kiss_fft/**/*.obj.import
-/addons/fmod_player/CSharpWrappers
-/.vs
-*.dblite
-addons/lteapi/bin/~lteapi.windows.template_debug.x86_64.dll
+# 插件内本机/锁定/热重载产物
+addons/**/.vs/
+addons/**/~*
+addons/**/CSharpWrappers/
