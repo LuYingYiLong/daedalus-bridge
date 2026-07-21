@@ -19,11 +19,16 @@ const AI_CANCEL: String = "ai.cancel"
 const PROMPT_LIST: String = "prompt.list"
 const USER_PROMPT_GET: String = "userPrompt.get"
 const USER_PROMPT_SET: String = "userPrompt.set"
+const GENERAL_SETTINGS_GET: String = "generalSettings.get"
+const GENERAL_SETTINGS_UPDATE: String = "generalSettings.update"
+const WEB_SEARCH_SETTINGS_GET: String = "webSearchSettings.get"
+const WEB_SEARCH_SETTINGS_UPDATE: String = "webSearchSettings.update"
 const SKILL_LIST: String = "skill.list"
 const SKILL_GET: String = "skill.get"
 const SKILL_SET_ENABLED: String = "skill.set_enabled"
 const SKILL_UPDATE: String = "skill.update"
 const SKILL_REMOVE: String = "skill.remove"
+const SKILL_INSTALL: String = "skill.install"
 const SKILL_RELOAD: String = "skill.reload"
 const SESSION_RESET: String = "session.reset"
 const SESSION_INFO: String = "session.info"
@@ -33,6 +38,7 @@ const SESSION_SUBSCRIBE: String = "session.subscribe"
 const SESSION_UNSUBSCRIBE: String = "session.unsubscribe"
 const SESSION_EDITOR_BIND: String = "session.editor.bind"
 const SESSION_TIMELINE: String = "session.timeline"
+const SESSION_INTEGRITY_CHECK: String = "session.integrity.check"
 const SESSION_LIST: String = "session.list"
 const SESSION_BROWSER_SNAPSHOT: String = "session.browser.snapshot"
 const SESSION_ARCHIVE: String = "session.archive"
@@ -40,10 +46,14 @@ const SESSION_ARCHIVED_LIST: String = "session.archived.list"
 const SESSION_ARCHIVED_RESTORE: String = "session.archived.restore"
 const SESSION_ARCHIVED_DELETE: String = "session.archived.delete"
 const SESSION_SAVE: String = "session.save"
+const SESSION_MODEL_SET: String = "session.model.set"
 const SESSION_DELETE: String = "session.delete"
 const SESSION_RENAME: String = "session.rename"
 const SESSION_COMPRESS: String = "session.compress"
 const SESSION_SUMMARY: String = "session.summary"
+const SESSION_OVERVIEW_GET: String = "session.overview.get"
+const SESSION_CONTEXT_ESTIMATE: String = "session.context.estimate"
+const SESSION_WORKFLOW_TODO_DISMISS: String = "session.workflow.todo.dismiss"
 const SESSION_WORKBENCH_GET: String = "session.workbench.get"
 const SESSION_WORKBENCH_PATCH: String = "session.workbench.patch"
 const SESSION_GUIDE_ADD: String = "session.guide.add"
@@ -70,6 +80,7 @@ const FILE_CHANGE_OVERWRITE: String = "fileChange.overwrite"
 const FILE_CHANGE_DELETE: String = "fileChange.delete"
 const FILE_EDIT_BATCH_GET: String = "fileEdit.batch.get"
 const ATTACHMENT_IMAGE_SAVE: String = "attachment.image.save"
+const ATTACHMENT_IMAGE_GENERATED_GET: String = "attachment.image.generated.get"
 const PLAN_GET: String = "plan.get"
 const PLAN_CLARIFY: String = "plan.clarify"
 const PLAN_REVISE: String = "plan.revise"
@@ -84,6 +95,7 @@ const EDITOR_INSTANCES_LIST: String = "editor.instances.list"
 const EDITOR_TOOL_RESULT: String = "editor.tool.result"
 const WORKSPACE_LIST: String = "workspace.list"
 const WORKSPACE_SELECT: String = "workspace.select"
+const WORKSPACE_DELETE: String = "workspace.delete"
 const WORKSPACE_INFO: String = "workspace.info"
 
 
@@ -107,11 +119,16 @@ static func all() -> PackedStringArray:
 		PROMPT_LIST,
 		USER_PROMPT_GET,
 		USER_PROMPT_SET,
+		GENERAL_SETTINGS_GET,
+		GENERAL_SETTINGS_UPDATE,
+		WEB_SEARCH_SETTINGS_GET,
+		WEB_SEARCH_SETTINGS_UPDATE,
 		SKILL_LIST,
 		SKILL_GET,
 		SKILL_SET_ENABLED,
 		SKILL_UPDATE,
 		SKILL_REMOVE,
+		SKILL_INSTALL,
 		SKILL_RELOAD,
 		SESSION_RESET,
 		SESSION_INFO,
@@ -121,6 +138,7 @@ static func all() -> PackedStringArray:
 		SESSION_UNSUBSCRIBE,
 		SESSION_EDITOR_BIND,
 		SESSION_TIMELINE,
+		SESSION_INTEGRITY_CHECK,
 		SESSION_LIST,
 		SESSION_BROWSER_SNAPSHOT,
 		SESSION_ARCHIVE,
@@ -128,10 +146,14 @@ static func all() -> PackedStringArray:
 		SESSION_ARCHIVED_RESTORE,
 		SESSION_ARCHIVED_DELETE,
 		SESSION_SAVE,
+		SESSION_MODEL_SET,
 		SESSION_DELETE,
 		SESSION_RENAME,
 		SESSION_COMPRESS,
 		SESSION_SUMMARY,
+		SESSION_OVERVIEW_GET,
+		SESSION_CONTEXT_ESTIMATE,
+		SESSION_WORKFLOW_TODO_DISMISS,
 		SESSION_WORKBENCH_GET,
 		SESSION_WORKBENCH_PATCH,
 		SESSION_GUIDE_ADD,
@@ -158,6 +180,7 @@ static func all() -> PackedStringArray:
 		FILE_CHANGE_DELETE,
 		FILE_EDIT_BATCH_GET,
 		ATTACHMENT_IMAGE_SAVE,
+		ATTACHMENT_IMAGE_GENERATED_GET,
 		PLAN_GET,
 		PLAN_CLARIFY,
 		PLAN_REVISE,
@@ -172,5 +195,6 @@ static func all() -> PackedStringArray:
 		EDITOR_TOOL_RESULT,
 		WORKSPACE_LIST,
 		WORKSPACE_SELECT,
+		WORKSPACE_DELETE,
 		WORKSPACE_INFO
 	]
