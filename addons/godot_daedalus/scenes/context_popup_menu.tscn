@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://brjsrkaconcvu"]
 
-[ext_resource type="Script" uid="uid://bx3pkvk1o25lw" path="res://addons/godot_daedalus/scripts/context_popup_menu.gd" id="1_x3pnh"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/context_popup_menu.gd" id="1_x3pnh"]
 
 [node name="ContextPopupMenu" type="PopupPanel" unique_id=1258078028]
 oversampling_override = 1.0

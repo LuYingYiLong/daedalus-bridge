@@ -3,18 +3,18 @@ extends VBoxContainer
 
 const DEFAULT_BACKEND_URL: String = "ws://localhost:38180"
 const DEVELOPMENT_BACKEND_URL: String = "ws://localhost:38181"
-const MAIN_HELPERS: GDScript = preload("uid://7sc7qjaju14c")
-const RPC_METHODS: GDScript = preload("uid://cw3bx3nfldt78")
-const USER_MESSAGE_ITEM_SCENE: PackedScene = preload("uid://c0qgg77075lmq")
-const ASSISTANT_MARKDOWN_ITEM_SCENE: PackedScene = preload("uid://c3s4jlxtm21ci")
-const TOOL_CALL_ITEM_SCENE: PackedScene = preload("uid://c2a5o7qi58fus")
-const STATUS_ITEM_SCENE: PackedScene = preload("uid://cljnln76ye4o5")
-const SESSION_ITEM_SCENE: PackedScene = preload("uid://bic1etsxo1epd")
-const TODO_ITEM_SCENE: PackedScene = preload("uid://d3i7c6i2shbyl")
-const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
-const PLAN_VIEWER_SCENE: PackedScene = preload("uid://yobf80iaqi7l")
-const PLAN_CLARIFICATION_ICON_UID: String = "uid://d1nq6i1hauij0"
-const CONTEXT_POPUP_MENU_UID: String = "uid://brjsrkaconcvu"
+const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
+const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
+const USER_MESSAGE_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/user_message_item.tscn")
+const ASSISTANT_MARKDOWN_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/assistant_markdown_item.tscn")
+const TOOL_CALL_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_call_item.tscn")
+const STATUS_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/status_item.tscn")
+const SESSION_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/session_item.tscn")
+const TODO_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/todo_item.tscn")
+const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/additional_context_item.tscn")
+const PLAN_VIEWER_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/plan_viewer.tscn")
+const PLAN_CLARIFICATION_ICON_UID: String = "res://addons/godot_daedalus/assets/icons/ask.svg"
+const CONTEXT_POPUP_MENU_UID: String = "res://addons/godot_daedalus/scenes/context_popup_menu.tscn"
 const CONTEXT_ICON_DIR: String = "res://addons/godot_daedalus/assets/icons"
 const FRONTEND_CONFIG_PATH: String = "user://godot_daedalus_frontend.cfg"
 const FRONTEND_CONFIG_SECTION: String = "frontend"
@@ -24,22 +24,22 @@ const CONFIG_BACKEND_DEV_DIR_KEY: String = "backend_dev_dir"
 const CONFIG_NEXT_STEP_HINTS_KEY: String = "next_step_hints_enabled"
 const CONFIG_CHECK_FOR_UPDATES_KEY: String = "check_for_updates_enabled"
 
-const CONNECTED_ICON: Texture2D = preload("uid://1eh7wxaewfje")
-const CONNECT_FAILED_ICON: Texture2D = preload("uid://chihcwe7t0f2g")
-const DISCONNECTED_ICON: Texture2D = preload("uid://cq15q550jtb21")
-const STAUTS_WARNING: Texture2D = preload("uid://gytxgaev43it")
-const GUIDE_NOW_ICON: Texture2D = preload("uid://3dsfgra6pd2m")
-const EDIT_ICON: Texture2D = preload("uid://pj7m0o4eos6a")
-const DELETE_ICON: Texture2D = preload("uid://qpmvpq6q2q60")
-const SETTINGS_MENU_UID: String = "uid://dp3tsanvojx2k"
-const BACKEND_LAUNCHER_SCRIPT: GDScript = preload("uid://dkjoxjxvj7kbn")
-const SLASH_COMMAND_OVERLAY_SCRIPT: GDScript = preload("uid://d04hwmn0clo71")
+const CONNECTED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/connected.svg")
+const CONNECT_FAILED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/connect_failed.svg")
+const DISCONNECTED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/disconnected.svg")
+const STAUTS_WARNING: Texture2D = preload("res://addons/godot_daedalus/assets/icons/status_warning.svg")
+const GUIDE_NOW_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/guide.svg")
+const EDIT_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/edit.svg")
+const DELETE_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/remove.svg")
+const SETTINGS_MENU_UID: String = "res://addons/godot_daedalus/scenes/settings_menu/settings_menu.tscn"
+const BACKEND_LAUNCHER_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/backend_launcher.gd")
+const SLASH_COMMAND_OVERLAY_SCRIPT: GDScript = preload("res://addons/godot_daedalus/scripts/slash_command_overlay.gd")
 const TEXT_COMPLETION_ACCEPT_ACTION: StringName = &"ui_text_completion_accept"
 const MAX_CONNECT_ATTEMPTS: int = 20
 const CONNECT_RETRY_SECONDS: float = 0.5
 const BACKEND_START_TIMEOUT_MSEC: int = 10000
 const BACKEND_HEALTH_TIMEOUT_MSEC: int = 2500
-const PLUGIN_VERSION: String = "1.1.0"
+const PLUGIN_VERSION: String = "1.1.2"
 const PLUGIN_PROTOCOL_VERSION: int = 1
 const STUDIO_BINDING_VERSION: String = "1.0.3"
 const WEBSOCKET_BUFFER_SIZE: int = 4194304
@@ -1491,6 +1491,11 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 		main_viewer.hide()
 		boot_splash.show()
 		boot_splash.call("show_status", "Checking backend")
+	if _uses_managed_shared_runtime():
+		# Shared runtimes require a fresh lease token before the first WebSocket handshake.
+		backend_auth_protocol = ""
+		if not _try_start_backend_process():
+			return
 	_connect_to_backend()
 
 
@@ -1605,6 +1610,12 @@ func _try_start_backend_process() -> bool:
 		backend_auth_protocol = acquired_auth_protocol
 
 	return true
+
+
+func _uses_managed_shared_runtime() -> bool:
+	return backend_launcher != null \
+		and backend_dev_dir.strip_edges().is_empty() \
+		and bool(backend_launcher.call("is_local_backend_url"))
 
 
 func _get_backend_launcher_details() -> String:
@@ -4595,52 +4606,26 @@ func _render_timeline_blocks(blocks_value: Variant, page_info: Dictionary) -> vo
 	_rebuild_timeline_index_cache()
 	_rebuild_timeline_height_cache()
 	_render_visible_timeline(true)
-	_restore_pending_plan_dialogs_from_blocks(blocks_value)
+	_restore_pending_plan_dialogs_from_snapshot(page_info)
 
 
-func _restore_pending_plan_dialogs_from_blocks(blocks_value: Variant) -> void:
-	if typeof(blocks_value) != TYPE_ARRAY:
+func _restore_pending_plan_dialogs_from_snapshot(page_info: Dictionary) -> void:
+	# Timeline pages are partial history. Only the backend's global pending snapshot can
+	# decide whether a plan still needs input; otherwise old plan previews reopen dialogs.
+	clarification_dialog.hide()
+	plan_approval_dialog.hide()
+
+	var clarification_value: Variant = page_info.get("latestPlanClarification", null)
+	if typeof(clarification_value) == TYPE_DICTIONARY:
+		_show_clarification_dialog(clarification_value as Dictionary)
 		return
 
-	var latest_plan_parts: Dictionary[String, Dictionary] = {}
-	var blocks: Array = blocks_value as Array
-	for block_value: Variant in blocks:
-		if typeof(block_value) != TYPE_DICTIONARY:
-			continue
+	var approval_value: Variant = page_info.get("latestPlanApproval", null)
+	if typeof(approval_value) == TYPE_DICTIONARY:
+		_show_plan_approval_dialog(approval_value as Dictionary)
+		return
 
-		var block: Dictionary = block_value as Dictionary
-		var body_parts_value: Variant = block.get("bodyParts", block.get("body_parts", []))
-		if typeof(body_parts_value) != TYPE_ARRAY:
-			continue
-
-		for part_value: Variant in body_parts_value as Array:
-			if typeof(part_value) != TYPE_DICTIONARY:
-				continue
-
-			var part: Dictionary = part_value as Dictionary
-			var plan_id: String = str(part.get("planId", "")).strip_edges()
-			if plan_id.is_empty():
-				continue
-
-			latest_plan_parts[plan_id] = part.duplicate(true)
-
-	for plan_id: String in latest_plan_parts.keys():
-		var latest_part: Dictionary = latest_plan_parts[plan_id]
-		var part_type: String = str(latest_part.get("type", ""))
-		var status_code: String = str(latest_part.get("code", ""))
-		var plan_status: String = str(latest_part.get("status", ""))
-		if status_code == "plan.approved" or plan_status == "approved" or plan_status == "executing":
-			continue
-		if part_type == "status" and status_code == "plan":
-			_show_clarification_dialog({
-				"planId": plan_id,
-				"question": str(latest_part.get("details", "")),
-				"recommendedReplies": latest_part.get("recommendedReplies", [])
-			})
-			return
-		if part_type == "plan":
-			_show_plan_approval_dialog(latest_part)
-			return
+	_sync_plan_overlay_input_visibility()
 
 
 func _request_previous_timeline_page() -> void:

@@ -1,9 +1,9 @@
 [gd_scene format=3 uid="uid://cs2l8rbjvetsi"]
 
-[ext_resource type="Texture2D" uid="uid://d1k8gg5h7wvvv" path="res://addons/godot_daedalus/assets/icons/copy.svg" id="1_2vcfn"]
-[ext_resource type="Script" uid="uid://5er3kt7xmxmd" path="res://addons/godot_daedalus/scripts/plan_preview_item.gd" id="1_syx6f"]
-[ext_resource type="Texture2D" uid="uid://b6prnx1u75upi" path="res://addons/godot_daedalus/assets/icons/distraction_free.svg" id="2_syx6f"]
-[ext_resource type="Theme" uid="uid://dhartxld7pqyb" path="res://addons/godot_daedalus/assets/markdown_theme.tres" id="3_audv3"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/copy.svg" id="1_2vcfn"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/plan_preview_item.gd" id="1_syx6f"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/distraction_free.svg" id="2_syx6f"]
+[ext_resource type="Theme" path="res://addons/godot_daedalus/assets/markdown_theme.tres" id="3_audv3"]
 
 [node name="PlanPreviewItem" type="PanelContainer" unique_id=2079799701]
 theme_type_variation = &"PanelContainerTabbarInner"

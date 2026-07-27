@@ -1,8 +1,8 @@
 @tool
 extends EditorPlugin
 
-const DOCK_ICON: Texture2D = preload("uid://cyodif1e2iey7")
-const MAIN_SCENE: PackedScene = preload("uid://qf05xb4jnata")
+const DOCK_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/icon.svg")
+const MAIN_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/main.tscn")
 
 var dock: EditorDock
 

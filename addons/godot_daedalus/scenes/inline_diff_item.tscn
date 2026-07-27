@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cbhse7gk2bsof"]
 
-[ext_resource type="Script" uid="uid://du5kpqkknftxo" path="res://addons/godot_daedalus/scripts/inline_diff_item.gd" id="1_70nro"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/inline_diff_item.gd" id="1_70nro"]
 
 [node name="InlineDiffItem" type="MarginContainer" unique_id=74162402]
 script = ExtResource("1_70nro")

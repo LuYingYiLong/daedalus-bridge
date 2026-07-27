@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c1ougymen6yqh"]
 
-[ext_resource type="Texture2D" uid="uid://cv7s802xl5p3h" path="res://addons/godot_daedalus/assets/icons/terminal.svg" id="1_p4a3w"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/terminal.svg" id="1_p4a3w"]
 
 [node name="ToolTerminalItem" type="HBoxContainer" unique_id=1720226529]
 

@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c2a5o7qi58fus"]
 
-[ext_resource type="Script" uid="uid://d02kn1dqtxr5r" path="res://addons/godot_daedalus/scripts/tool_call_item/tool_call_item.gd" id="1_ujkjy"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/tool_call_item/tool_call_item.gd" id="1_ujkjy"]
 
 [node name="FoldableContainer" type="FoldableContainer" unique_id=1442751881]
 offset_right = 666.0

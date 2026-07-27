@@ -3,7 +3,7 @@ extends MarginContainer
 
 signal resend_requested(request_id: String, message_text: String, additional_contexts: Array)
 
-const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
+const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/additional_context_item.tscn")
 
 @onready var additional_context_viewer: ScrollContainer = %AdditionalContextViewer
 @onready var additional_context_container: HBoxContainer = %AdditionalContextContainer

@@ -5,11 +5,11 @@ signal action_requested(action_id: String)
 signal inline_diff_undo_requested(summary: Dictionary)
 signal plan_details_requested(plan_id: String, fallback_markdown: String)
 
-const TOOL_CALL_ITEM_SCENE: PackedScene = preload("uid://c2a5o7qi58fus")
-const STATUS_ITEM_SCENE: PackedScene = preload("uid://cljnln76ye4o5")
-const INLINE_DIFF_VIEWER_SCENE: PackedScene = preload("uid://s13mo8fn3boc")
-const PLAN_PREVIEW_ITEM_SCENE: PackedScene = preload("uid://cs2l8rbjvetsi")
-const MARKDOWN_THEME: Theme = preload("uid://dhartxld7pqyb")
+const TOOL_CALL_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_call_item.tscn")
+const STATUS_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/status_item.tscn")
+const INLINE_DIFF_VIEWER_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/inline_diff_viewer.tscn")
+const PLAN_PREVIEW_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/plan_preview_item.tscn")
+const MARKDOWN_THEME: Theme = preload("res://addons/godot_daedalus/assets/markdown_theme.tres")
 const ELAPSED_UPDATE_INTERVAL_SECONDS: float = 1.0
 const STREAM_MARKDOWN_LAYOUT_FLUSH_MSEC: int = 96
 const STREAM_MARKDOWN_MAX_UNSTABLE_LINES: int = 12

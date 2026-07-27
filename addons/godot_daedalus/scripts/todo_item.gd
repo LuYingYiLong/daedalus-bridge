@@ -1,10 +1,10 @@
 @tool
 extends HBoxContainer
 
-const TODO_UNCHECKED_ICON: Texture2D = preload("uid://6mfyj4c6motv")
-const TODO_RUNNING_ICON: Texture2D = preload("uid://p6usuyfrlohx")
-const TODO_CHECKED_ICON: Texture2D = preload("uid://cxkgwdaoj5cq2")
-const TODO_FAILED_ICON: Texture2D = preload("uid://b3wroldinq1e2")
+const TODO_UNCHECKED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/todo_unchecked.svg")
+const TODO_RUNNING_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/loader.svg")
+const TODO_CHECKED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/todo_checked.svg")
+const TODO_FAILED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/todo_failed.svg")
 
 @onready var icon: TextureRect = %Icon
 @onready var todo_label: Label = %TodoLabel

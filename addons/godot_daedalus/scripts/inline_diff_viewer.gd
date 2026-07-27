@@ -4,7 +4,7 @@ extends PanelContainer
 signal undo_requested(summary: Dictionary)
 signal review_requested(summary: Dictionary)
 
-const INLINE_DIFF_ITEM_SCENE: PackedScene = preload("uid://cbhse7gk2bsof")
+const INLINE_DIFF_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/inline_diff_item.tscn")
 
 @onready var edited_files_label: Label = %EditedFilesLabel
 @onready var foldable_container: FoldableContainer = %FoldableContainer

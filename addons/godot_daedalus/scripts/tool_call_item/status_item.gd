@@ -3,11 +3,11 @@ extends PanelContainer
 
 signal action_requested(action_id: String)
 
-const CONNECTED_ICON: Texture2D = preload("uid://1eh7wxaewfje")
-const CONNECT_FAILED_ICON: Texture2D = preload("uid://chihcwe7t0f2g")
-const DISCONNECTED_ICON: Texture2D = preload("uid://cq15q550jtb21")
-const RELOAD_ICON: Texture2D = preload("uid://d2wspeualsu1d")
-const STATUS_WARNING_ICON: Texture2D = preload("uid://gytxgaev43it")
+const CONNECTED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/connected.svg")
+const CONNECT_FAILED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/connect_failed.svg")
+const DISCONNECTED_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/disconnected.svg")
+const RELOAD_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/reload.svg")
+const STATUS_WARNING_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/status_warning.svg")
 
 const STATUS_MESSAGE: String = "message"
 const STATUS_WARNING: String = "warning"

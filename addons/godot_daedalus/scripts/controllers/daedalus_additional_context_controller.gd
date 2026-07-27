@@ -5,8 +5,8 @@ extends Node
 signal changed
 signal status_requested(level: String, title: String, message: String)
 
-const MAIN_HELPERS: GDScript = preload("uid://7sc7qjaju14c")
-const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("uid://rfwvgjocqqva")
+const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
+const ADDITIONAL_CONTEXT_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/additional_context_item.tscn")
 const MAX_ITEMS: int = 10
 const LIVE_EDITOR_SELECTION_CONTEXT_ID: String = "editor-selection-live"
 const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"

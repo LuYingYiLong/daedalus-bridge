@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://bh21xppsf6yrh"]
 
-[ext_resource type="Texture2D" uid="uid://bdxjmg64dahx3" path="res://addons/godot_daedalus/assets/icons/send.svg" id="1_na5mw"]
-[ext_resource type="Script" uid="uid://d2b4k40vql1cb" path="res://addons/godot_daedalus/scripts/plan_approval_dialog.gd" id="1_oaj1v"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/send.svg" id="1_na5mw"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/plan_approval_dialog.gd" id="1_oaj1v"]
 
 [node name="PlanApprovalDialog" type="PanelContainer" unique_id=1039473956]
 theme_type_variation = &"PanelContainerTabbarInner"

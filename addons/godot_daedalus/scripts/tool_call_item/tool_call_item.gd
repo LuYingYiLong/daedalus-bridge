@@ -3,14 +3,14 @@ extends FoldableContainer
 
 signal content_height_changed
 
-const READ_ITEM_SCENE: PackedScene = preload("uid://dwi5h81jkortw")
-const WRITE_ITEM_SCENE: PackedScene = preload("uid://c0all82wnhv1l")
-const TERMINAL_ITEM_SCENE: PackedScene = preload("uid://c1ougymen6yqh")
-const SCENE_EDIT_ITEM_SCENE: PackedScene = preload("uid://b2qcnd4eg8gwd")
-const APPROVAL_ITEM_SCENE: PackedScene = preload("uid://c0fteh4alx02y")
-const THINKING_ITEM_SCENE: PackedScene = preload("uid://bc6odrlupcfyr")
-const UNKNOWN_ITEM_SCENE: PackedScene = preload("uid://b5esov6oww3y3")
-const SEARCH_ITEM_SCENE: PackedScene = preload("uid://dxmloi863owr8")
+const READ_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_read_file_item.tscn")
+const WRITE_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_write_file_item.tscn")
+const TERMINAL_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_terminal_item.tscn")
+const SCENE_EDIT_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_scene_edit_item.tscn")
+const APPROVAL_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_approval_item.tscn")
+const THINKING_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/thinking_item.tscn")
+const UNKNOWN_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_unknown_item.tscn")
+const SEARCH_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/tool_call_item/tool_search_item.tscn")
 
 @onready var item_container: VBoxContainer = %ItemContainer
 

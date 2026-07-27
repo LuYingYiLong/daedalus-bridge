@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://rfwvgjocqqva"]
 
-[ext_resource type="Texture2D" uid="uid://djumrslufw1q8" path="res://addons/godot_daedalus/assets/icons/pin.svg" id="1_endou"]
-[ext_resource type="Texture2D" uid="uid://cg37rrr8iihlh" path="res://addons/godot_daedalus/assets/icons/node.svg" id="2_endou"]
-[ext_resource type="Script" uid="uid://c3x60bumb11fx" path="res://addons/godot_daedalus/scripts/additional_context_item.gd" id="2_xmvc4"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/pin.svg" id="1_endou"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/node.svg" id="2_endou"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/additional_context_item.gd" id="2_xmvc4"]
 
 [node name="AdditionalContextItem" type="Button" unique_id=993830815]
 custom_minimum_size = Vector2(128, 28)

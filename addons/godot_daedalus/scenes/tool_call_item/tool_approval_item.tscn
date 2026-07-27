@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://c0fteh4alx02y"]
 
-[ext_resource type="Texture2D" uid="uid://ccw4n4twpde11" path="res://addons/godot_daedalus/assets/icons/shield.svg" id="1_pduhm"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/shield.svg" id="1_pduhm"]
 
 [node name="ToolApprovalItem" type="HBoxContainer" unique_id=1721123898]
 

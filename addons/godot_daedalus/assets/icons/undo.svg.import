@@ -2,10 +2,9 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b3iulyy701bq8"
+uid="uid://bgcrt8idso83d"
 path="res://.godot/imported/undo.svg-a44ebfa2d4c9e1d91eb80579e204c5a5.ctex"
 metadata={
-"has_editor_variant": true,
 "vram_texture": false
 }
 
@@ -40,5 +39,5 @@ process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
 svg/scale=1.0
-editor/scale_with_editor_scale=true
-editor/convert_colors_with_editor_theme=true
+editor/scale_with_editor_scale=false
+editor/convert_colors_with_editor_theme=false

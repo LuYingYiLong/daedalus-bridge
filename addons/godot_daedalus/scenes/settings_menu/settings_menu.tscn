@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://dp3tsanvojx2k"]
 
-[ext_resource type="Script" uid="uid://be4xxflyjlo3e" path="res://addons/godot_daedalus/scripts/settings_menu/settings_menu.gd" id="1_smwku"]
-[ext_resource type="Texture2D" uid="uid://kesqy88rofwn" path="res://addons/godot_daedalus/assets/icons/folder_browse.svg" id="2_mcffq"]
-[ext_resource type="Texture2D" uid="uid://cwfwhi42kpukr" path="res://addons/godot_daedalus/assets/icons/clear.svg" id="2_y8kc5"]
-[ext_resource type="Texture2D" uid="uid://cjjnoxgoriwwi" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="3_pcvmy"]
-[ext_resource type="Texture2D" uid="uid://d2wspeualsu1d" path="res://addons/godot_daedalus/assets/icons/reload.svg" id="4_skill_reload"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/settings_menu/settings_menu.gd" id="1_smwku"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/folder_browse.svg" id="2_mcffq"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/clear.svg" id="2_y8kc5"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="3_pcvmy"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/reload.svg" id="4_skill_reload"]
 
 [node name="SettingsMenu" type="AcceptDialog" unique_id=740368191]
 oversampling_override = 1.0

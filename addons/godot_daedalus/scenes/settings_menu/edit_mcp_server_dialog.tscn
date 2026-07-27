@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://c7vbtknay2b0y"]
 
-[ext_resource type="Script" uid="uid://b1clp00mj8t2q" path="res://addons/godot_daedalus/scripts/settings_menu/edit_mcp_server_dialog.gd" id="1_2h8ps"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/settings_menu/edit_mcp_server_dialog.gd" id="1_2h8ps"]
 
 [node name="EditMCPServerDialog" type="ConfirmationDialog" unique_id=890601286]
 oversampling_override = 1.0

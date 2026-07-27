@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://s13mo8fn3boc"]
 
-[ext_resource type="Texture2D" uid="uid://b3iulyy701bq8" path="res://addons/godot_daedalus/assets/icons/undo.svg" id="1_8eq2q"]
-[ext_resource type="Script" uid="uid://qu5lp5npr1cf" path="res://addons/godot_daedalus/scripts/inline_diff_viewer.gd" id="1_mxyiy"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/undo.svg" id="1_8eq2q"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/inline_diff_viewer.gd" id="1_mxyiy"]
 
 [node name="InlineDiffViewer" type="PanelContainer" unique_id=876539993]
 theme_type_variation = &"PanelContainerTabbarInner"

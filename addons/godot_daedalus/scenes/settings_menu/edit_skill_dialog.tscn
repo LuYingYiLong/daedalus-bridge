@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://mm43il6ailq"]
 
-[ext_resource type="Script" uid="uid://by452tujjxr85" path="res://addons/godot_daedalus/scripts/settings_menu/edit_skill_dialog.gd" id="1_sprkt"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/settings_menu/edit_skill_dialog.gd" id="1_sprkt"]
 
 [node name="EditSkillDialog" type="ConfirmationDialog" unique_id=736864283]
 oversampling_override = 1.0

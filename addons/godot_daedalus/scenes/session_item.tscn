@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://bic1etsxo1epd"]
 
-[ext_resource type="Script" uid="uid://l14ydi5m02t2" path="res://addons/godot_daedalus/scripts/session_item.gd" id="1_wpb2w"]
-[ext_resource type="Texture2D" uid="uid://p6usuyfrlohx" path="res://addons/godot_daedalus/assets/icons/loader.svg" id="2_qgtoa"]
-[ext_resource type="Texture2D" uid="uid://bkkiygwsbbrd7" path="res://addons/godot_daedalus/assets/icons/archive.svg" id="3_d08cg"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/session_item.gd" id="1_wpb2w"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/loader.svg" id="2_qgtoa"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/archive.svg" id="3_d08cg"]
 
 [sub_resource type="Animation" id="Animation_d08cg"]
 length = 0.001

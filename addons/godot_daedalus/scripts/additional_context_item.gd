@@ -6,11 +6,11 @@ signal remove_requested(context_id: String)
 signal activated(context_id: String)
 
 const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
-const PIN_ICON: Texture2D = preload("uid://djumrslufw1q8")
-const UNPIN_ICON: Texture2D = preload("uid://xd7ejyjkvr20")
-const NODE_ICON: Texture2D = preload("uid://cg37rrr8iihlh")
-const FILE_ICON: Texture2D = preload("uid://bolghxe3kbp2r")
-const SCRIPT_ICON: Texture2D = preload("uid://dqw3f23j6ipt8")
+const PIN_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/pin.svg")
+const UNPIN_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/pin.svg")
+const NODE_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/node.svg")
+const FILE_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/file.svg")
+const SCRIPT_ICON: Texture2D = preload("res://addons/godot_daedalus/assets/icons/script.svg")
 const SCRIPT_EXTENSIONS: PackedStringArray = ["gd", "cs", "shader", "gdshader", "glsl", "hlsl"]
 
 @onready var context_icon: TextureRect = %Icon

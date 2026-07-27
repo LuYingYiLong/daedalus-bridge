@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://dwi5h81jkortw"]
 
-[ext_resource type="Texture2D" uid="uid://7tyqcprrpdxk" path="res://addons/godot_daedalus/assets/icons/read.svg" id="1_4plog"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/read.svg" id="1_4plog"]
 
 [node name="ToolReadFileItem" type="HBoxContainer" unique_id=1014137983]
 

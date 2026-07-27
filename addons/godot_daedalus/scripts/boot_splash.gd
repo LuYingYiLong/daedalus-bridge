@@ -4,7 +4,7 @@ extends CenterContainer
 signal reconnect_requested
 signal backend_check_requested
 
-const SHINE_SHADER: Shader = preload("uid://it7onvcel3up")
+const SHINE_SHADER: Shader = preload("res://addons/godot_daedalus/scripts/shaders/shine.gdshader")
 
 @onready var icon: TextureRect = %Icon
 @onready var status_label: Label = %StatusLabel

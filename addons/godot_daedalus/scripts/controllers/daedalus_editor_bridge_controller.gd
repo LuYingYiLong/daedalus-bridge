@@ -5,8 +5,8 @@ extends Node
 signal request_ready(method: String, params: Dictionary, request_prefix: String)
 signal live_context_changed(context_id: String, context: Dictionary)
 
-const MAIN_HELPERS: GDScript = preload("uid://7sc7qjaju14c")
-const RPC_METHODS: GDScript = preload("uid://cw3bx3nfldt78")
+const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
+const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
 const LIVE_EDITOR_SELECTION_CONTEXT_ID: String = "editor-selection-live"
 const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
 const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"

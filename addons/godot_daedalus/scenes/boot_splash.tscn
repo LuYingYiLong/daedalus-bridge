@@ -1,8 +1,8 @@
 [gd_scene format=3 uid="uid://dftctpgnf7byb"]
 
-[ext_resource type="Script" uid="uid://chxkymtnb8y4u" path="res://addons/godot_daedalus/scripts/boot_splash.gd" id="1_deckn"]
-[ext_resource type="Texture2D" uid="uid://b1hw1vbs53jy6" path="res://addons/godot_daedalus/assets/icons/icon_large.svg" id="1_ribfp"]
-[ext_resource type="Shader" uid="uid://it7onvcel3up" path="res://addons/godot_daedalus/scripts/shaders/shine.gdshader" id="2_xouee"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/boot_splash.gd" id="1_deckn"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/icon_large.svg" id="1_ribfp"]
+[ext_resource type="Shader" path="res://addons/godot_daedalus/scripts/shaders/shine.gdshader" id="2_xouee"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_117gx"]
 shader = ExtResource("2_xouee")

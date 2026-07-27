@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://c3s4jlxtm21ci"]
 
-[ext_resource type="Script" uid="uid://ddqwn6jrvpdnp" path="res://addons/godot_daedalus/scripts/assistant_markdown_item.gd" id="1_assistant"]
-[ext_resource type="Texture2D" uid="uid://d1k8gg5h7wvvv" path="res://addons/godot_daedalus/assets/icons/copy.svg" id="3_rhu02"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/assistant_markdown_item.gd" id="1_assistant"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/copy.svg" id="3_rhu02"]
 
 [node name="AssistantMarkdownItem" type="MarginContainer" unique_id=6800614]
 anchors_preset = 15

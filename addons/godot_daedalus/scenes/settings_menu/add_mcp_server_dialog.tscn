@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cb7acb4w7s4xl"]
 
-[ext_resource type="Script" uid="uid://j1fq1u805tgf" path="res://addons/godot_daedalus/scripts/settings_menu/add_mcp_server_dialog.gd" id="1_loefn"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/settings_menu/add_mcp_server_dialog.gd" id="1_loefn"]
 
 [node name="AddMCPServerDialog" type="ConfirmationDialog" unique_id=1657443825]
 oversampling_override = 1.0

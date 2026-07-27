@@ -1,10 +1,10 @@
 [gd_scene format=3 uid="uid://c0qgg77075lmq"]
 
-[ext_resource type="Script" uid="uid://d35rn4f73pi5v" path="res://addons/godot_daedalus/scripts/user_message_item.gd" id="1_user"]
-[ext_resource type="Theme" uid="uid://dhartxld7pqyb" path="res://addons/godot_daedalus/assets/markdown_theme.tres" id="2_cop0j"]
-[ext_resource type="Texture2D" uid="uid://d1k8gg5h7wvvv" path="res://addons/godot_daedalus/assets/icons/copy.svg" id="3_sdysb"]
-[ext_resource type="Texture2D" uid="uid://pj7m0o4eos6a" path="res://addons/godot_daedalus/assets/icons/edit.svg" id="4_5ojoj"]
-[ext_resource type="Texture2D" uid="uid://bdxjmg64dahx3" path="res://addons/godot_daedalus/assets/icons/send.svg" id="5_4n5ck"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/user_message_item.gd" id="1_user"]
+[ext_resource type="Theme" path="res://addons/godot_daedalus/assets/markdown_theme.tres" id="2_cop0j"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/copy.svg" id="3_sdysb"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/edit.svg" id="4_5ojoj"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/send.svg" id="5_4n5ck"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_vp1j8"]
 bg_color = Color(0.3735, 0.6321833, 0.83, 0.49019608)

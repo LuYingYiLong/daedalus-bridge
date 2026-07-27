@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://d3i7c6i2shbyl"]
 
-[ext_resource type="Texture2D" uid="uid://cxkgwdaoj5cq2" path="res://addons/godot_daedalus/assets/icons/todo_checked.svg" id="1_q8ptp"]
-[ext_resource type="Script" uid="uid://3l788kme6v8x" path="res://addons/godot_daedalus/scripts/todo_item.gd" id="1_xir6q"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/todo_checked.svg" id="1_q8ptp"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/todo_item.gd" id="1_xir6q"]
 
 [sub_resource type="Animation" id="Animation_xir6q"]
 length = 0.001

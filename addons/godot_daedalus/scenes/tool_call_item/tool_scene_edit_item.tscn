@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://b2qcnd4eg8gwd"]
 
-[ext_resource type="Texture2D" uid="uid://cp04co2ky0ahy" path="res://addons/godot_daedalus/assets/icons/scene_edit.svg" id="1_ke7a8"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/scene_edit.svg" id="1_ke7a8"]
 
 [node name="ToolSceneEditItem" type="HBoxContainer" unique_id=940508112]
 
