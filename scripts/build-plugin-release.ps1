@@ -30,7 +30,8 @@ if ($pluginMetadata.schemaVersion -ne 1) {
 if ($pluginMetadata.pluginVersion -ne $version) {
     throw "plugin.cfg version $version does not match daedalus-plugin.json pluginVersion $($pluginMetadata.pluginVersion)."
 }
-if ($pluginMetadata.pluginProtocolVersion -isnot [int] -or $pluginMetadata.pluginProtocolVersion -lt 1) {
+$pluginProtocolVersion = 0
+if (-not [int]::TryParse([string]$pluginMetadata.pluginProtocolVersion, [ref]$pluginProtocolVersion) -or $pluginProtocolVersion -lt 1) {
     throw "daedalus-plugin.json must contain a positive integer pluginProtocolVersion."
 }
 if ([string]::IsNullOrWhiteSpace($pluginMetadata.studioVersion) -or [string]::IsNullOrWhiteSpace($pluginMetadata.minGodotVersion)) {
@@ -175,7 +176,7 @@ $fileManifest = Get-ReleaseFileManifest $stagedPluginRoot
 $integrityManifest = [ordered]@{
     schemaVersion = 1
     pluginVersion = $version
-    pluginProtocolVersion = $pluginMetadata.pluginProtocolVersion
+    pluginProtocolVersion = $pluginProtocolVersion
     files = $fileManifest
 }
 $integrityPath = Join-Path $stagedPluginRoot "daedalus-integrity.json"
@@ -191,7 +192,7 @@ $sourceCommit = (git -c "safe.directory=$($repositoryRoot.Replace('\', '/'))" -C
 $manifest = [ordered]@{
     schemaVersion = 1
     pluginVersion = $version
-    pluginProtocolVersion = $pluginMetadata.pluginProtocolVersion
+    pluginProtocolVersion = $pluginProtocolVersion
     compatibleStudioVersion = $pluginMetadata.studioVersion
     studioVersion = $pluginMetadata.studioVersion
     minGodotVersion = $pluginMetadata.minGodotVersion
