@@ -2,6 +2,7 @@
 extends RefCounted
 
 const DEFAULT_BACKEND_PORT: int = 38180
+const PLUGIN_PROTOCOL_VERSION: int = 1
 
 var backend_url: String
 var backend_dev_dir: String
@@ -54,9 +55,14 @@ func start_backend() -> Dictionary:
 		last_error = "The shared Daedalus runtime is currently available on Windows only."
 		return _failure_result()
 
-	var executable_path: String = _read_managed_backend_executable()
+	var managed_backend: Dictionary = _read_managed_backend()
+	var executable_path: String = str(managed_backend.get("executablePath", "")).strip_edges()
 	if executable_path.is_empty():
 		last_error = "Daedalus Studio has not deployed a managed backend. Open Daedalus Studio once, then reconnect."
+		return _failure_result()
+	launch_mode = "shared-runtime"
+	command_summary = "%s runtime acquire --client godot --project <project> --json" % executable_path
+	if not _supports_shared_runtime(managed_backend):
 		return _failure_result()
 
 	var project_path: String = ProjectSettings.globalize_path("res://").trim_suffix("/")
@@ -69,8 +75,6 @@ func start_backend() -> Dictionary:
 		project_path,
 		"--json"
 	])
-	command_summary = "%s runtime acquire --client godot --project <project> --json" % executable_path
-	launch_mode = "shared-runtime"
 	var output_lines: Array = []
 	var exit_code: int = OS.execute(executable_path, command_args, output_lines, true)
 	recent_log_lines = _stringify_output_lines(output_lines)
@@ -129,15 +133,33 @@ func build_diagnostic_details() -> String:
 	return "\n".join(lines)
 
 
-func _read_managed_backend_executable() -> String:
+func _read_managed_backend() -> Dictionary:
 	var current_path: String = _get_daedalus_app_dir().path_join("backend").path_join("current.json")
 	if not FileAccess.file_exists(current_path):
-		return ""
+		return {}
 	var current: Dictionary = _parse_json_dictionary(FileAccess.get_file_as_string(current_path))
 	var executable_path: String = str(current.get("executablePath", "")).strip_edges()
 	if executable_path.is_empty() or not FileAccess.file_exists(executable_path):
-		return ""
-	return executable_path
+		return {}
+	return current
+
+
+func _supports_shared_runtime(managed_backend: Dictionary) -> bool:
+	var manifest_path: String = str(managed_backend.get("manifestPath", "")).strip_edges()
+	var backend_version: String = str(managed_backend.get("version", "unknown")).strip_edges()
+	if manifest_path.is_empty() or not FileAccess.file_exists(manifest_path):
+		last_error = "Managed backend %s has no verified shared-runtime manifest. Open the current Daedalus Studio once so it can repair the backend, or configure Backend dev directory for development mode." % backend_version
+		return false
+	var manifest: Dictionary = _parse_json_dictionary(FileAccess.get_file_as_string(manifest_path))
+	var minimum_protocol: int = int(manifest.get("minPluginProtocolVersion", 0))
+	var maximum_protocol: int = int(manifest.get("maxPluginProtocolVersion", 0))
+	if minimum_protocol <= 0 or maximum_protocol < minimum_protocol:
+		last_error = "Managed backend %s predates shared runtime support. Open Daedalus Studio 1.0.3 or later once to install backend 1.1.4 or later. For a source backend, set Backend dev directory and run it at ws://localhost:38181." % backend_version
+		return false
+	if PLUGIN_PROTOCOL_VERSION < minimum_protocol or PLUGIN_PROTOCOL_VERSION > maximum_protocol:
+		last_error = "Managed backend %s supports plugin protocol %d-%d, but this plugin requires protocol %d. Update Daedalus Studio and the Godot Daedalus plugin together." % [backend_version, minimum_protocol, maximum_protocol, PLUGIN_PROTOCOL_VERSION]
+		return false
+	return true
 
 
 func _get_daedalus_app_dir() -> String:

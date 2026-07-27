@@ -17,3 +17,7 @@ config/icon="uid://cpmar7h7if38b"
 [audio]
 
 buses/default_bus_layout="uid://s0wfcy3fr01v"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_daedalus/plugin.cfg")
