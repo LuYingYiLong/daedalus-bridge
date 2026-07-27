@@ -417,7 +417,7 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_vertical = 4
 tooltip_text = "Daedalus is up to date. Backend: <null>. Plugin: 1.0.1."
-text = "Backend manager"
+text = "Runtime diagnostics"
 underline = 1
 
 [node name="BootSplash" parent="." unique_id=1741691643 instance=ExtResource("5_boot")]

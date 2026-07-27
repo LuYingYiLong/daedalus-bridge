@@ -15,12 +15,13 @@ var _request_id: int
 var _was_open: bool
 
 
-func connect_to_backend(url: String, buffer_size: int) -> Error:
+func connect_to_backend(url: String, buffer_size: int, auth_protocol: String = "") -> Error:
 	if _socket.get_ready_state() != WebSocketPeer.STATE_CLOSED:
 		_socket.close()
 	_socket = WebSocketPeer.new()
 	_socket.inbound_buffer_size = buffer_size
 	_socket.outbound_buffer_size = buffer_size
+	_socket.supported_protocols = PackedStringArray([auth_protocol]) if not auth_protocol.is_empty() else PackedStringArray()
 	_was_open = false
 	return _socket.connect_to_url(url)
 

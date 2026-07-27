@@ -6,6 +6,11 @@
 !/.editorconfig
 !/.gitattributes
 !/.gitignore
+!/.github/
+!/.github/workflows/
+!/.github/workflows/build-release.yml
+!/scripts/
+!/scripts/build-plugin-release.ps1
 
 # 必要 Godot 项目配置
 !/project.godot

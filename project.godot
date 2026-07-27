@@ -12,8 +12,7 @@ config_version=5
 
 config/name="Daedalus"
 config/features=PackedStringArray("4.7", "Forward Plus")
-config/icon="uid://bncn7hlb3xcwf"
-run/main_scene="res://scenes/tic_tac_toe_game.tscn"
+config/icon="uid://cpmar7h7if38b"
 
 [audio]
 

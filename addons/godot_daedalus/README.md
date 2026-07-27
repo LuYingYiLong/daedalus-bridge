@@ -18,7 +18,7 @@ Project > Project Settings > Plugins > GodotDaedalus
 
 ## Backend
 
-The plugin uses `godot-daedalus-manager` for published backend install, update, launch, rollback, and diagnostics. For local backend development, configure the backend source directory in settings and run from the backend repository:
+Production installations use the backend executable deployed by Daedalus Studio. The plugin acquires the authenticated shared runtime on demand, so Godot can remain connected after Studio closes. For local backend development, configure the development backend URL and run from the backend repository:
 
 ```powershell
 npm install

@@ -66,7 +66,7 @@ text = "Reconnect"
 
 [node name="BackendManagerButton" type="Button" parent="VBoxContainer/ErrorContainer" unique_id=1442225959]
 layout_mode = 2
-text = "Backend Manager"
+text = "Runtime diagnostics"
 
 [node name="CopyDetailsButton" type="Button" parent="VBoxContainer/ErrorContainer" unique_id=625645196]
 layout_mode = 2

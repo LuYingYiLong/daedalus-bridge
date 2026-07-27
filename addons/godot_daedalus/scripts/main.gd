@@ -32,15 +32,16 @@ const GUIDE_NOW_ICON: Texture2D = preload("uid://3dsfgra6pd2m")
 const EDIT_ICON: Texture2D = preload("uid://pj7m0o4eos6a")
 const DELETE_ICON: Texture2D = preload("uid://qpmvpq6q2q60")
 const SETTINGS_MENU_UID: String = "uid://dp3tsanvojx2k"
-const BACKEND_MANAGER_UID: String = "uid://c08tpkgdjw6id"
 const BACKEND_LAUNCHER_SCRIPT: GDScript = preload("uid://dkjoxjxvj7kbn")
-const MANAGER_CLI_SCRIPT: GDScript = preload("uid://b6g8wsqm5d4et")
 const SLASH_COMMAND_OVERLAY_SCRIPT: GDScript = preload("uid://d04hwmn0clo71")
 const TEXT_COMPLETION_ACCEPT_ACTION: StringName = &"ui_text_completion_accept"
 const MAX_CONNECT_ATTEMPTS: int = 20
 const CONNECT_RETRY_SECONDS: float = 0.5
 const BACKEND_START_TIMEOUT_MSEC: int = 10000
 const BACKEND_HEALTH_TIMEOUT_MSEC: int = 2500
+const PLUGIN_VERSION: String = "1.1.0"
+const PLUGIN_PROTOCOL_VERSION: int = 1
+const STUDIO_BINDING_VERSION: String = "1.0.3"
 const WEBSOCKET_BUFFER_SIZE: int = 4194304
 const MAX_MESSAGES_PER_FRAME: int = 24
 const MAX_MESSAGE_PROCESS_MSEC: int = 6
@@ -258,6 +259,7 @@ var context_popup_menu: PopupPanel
 var context_popup_open_after_info: bool
 var active_settings_menu: Node
 var backend_url: String = DEFAULT_BACKEND_URL
+var backend_auth_protocol: String
 var backend_dev_dir: String
 var backend_launcher: RefCounted
 var backend_launch_started: bool
@@ -265,14 +267,11 @@ var backend_launch_deadline_msec: int
 var backend_health_request_id: String
 var backend_health_pending: bool
 var backend_health_deadline_msec: int
-var backend_update_in_progress: bool
 var pending_socket_open_was_recovering: bool
 var pending_socket_open_session_id: String
 var pending_workspace_ready_was_recovering: bool
 var pending_workspace_ready_session_id: String
 var connected_backend_version: String
-var latest_backend_version_check_started: bool
-var latest_backend_version_check_thread: Thread
 var slash_command_overlay: Control
 var slash_commands: Array[Dictionary]
 var slash_command_items: Array
@@ -1497,7 +1496,11 @@ func _start_backend_connection_attempts(show_boot_screen: bool = true, recovery_
 
 func _connect_to_backend() -> void:
 	connection_attempts += 1
-	var connect_error: Error = backend_connection_controller.connect_to_backend(backend_url, WEBSOCKET_BUFFER_SIZE)
+	var connect_error: Error = backend_connection_controller.connect_to_backend(
+		backend_url,
+		WEBSOCKET_BUFFER_SIZE,
+		backend_auth_protocol
+	)
 	if connect_error != OK:
 		status_button.icon = CONNECT_FAILED_ICON
 		status_button.tooltip_text = "Connect failed: %d. Click to reconnect." % connect_error
@@ -1594,6 +1597,12 @@ func _try_start_backend_process() -> bool:
 			str(start_result.get("details", _get_backend_launcher_details()))
 		)
 		return false
+
+	var acquired_url: String = str(start_result.get("url", "")).strip_edges()
+	var acquired_auth_protocol: String = str(start_result.get("authProtocol", "")).strip_edges()
+	if not acquired_url.is_empty():
+		backend_url = acquired_url
+		backend_auth_protocol = acquired_auth_protocol
 
 	return true
 
@@ -1692,123 +1701,8 @@ func _handle_backend_health_failed(message_text: String) -> void:
 
 
 func _check_latest_backend_version_once() -> void:
-	if not check_for_updates_enabled:
-		backend_manager_button.text = "Backend manager"
-		backend_manager_button.tooltip_text = "Update checks are disabled in Daedalus Settings."
-		return
-
-	if latest_backend_version_check_started:
-		return
-
-	latest_backend_version_check_started = true
-	latest_backend_version_check_thread = Thread.new()
-	latest_backend_version_check_thread.start(Callable(self, "_run_latest_backend_version_check"))
-
-
-func _run_latest_backend_version_check() -> void:
-	var update_status: Dictionary = _read_update_status_from_manager()
-	call_deferred("_finish_latest_backend_version_check", update_status)
-
-
-func _read_update_status_from_manager() -> Dictionary:
-	var manager_cli: RefCounted = MANAGER_CLI_SCRIPT.new()
-	var manager_result: Dictionary = manager_cli.call("run_json", PackedStringArray(["status", "--project", ProjectSettings.globalize_path("res://")])) as Dictionary
-	if not bool(manager_result.get("ok", false)):
-		return {}
-
-	var status_value: Variant = manager_result.get("status", {})
-	if typeof(status_value) != TYPE_DICTIONARY:
-		return {}
-
-	var status_dictionary: Dictionary = status_value as Dictionary
-	var backend_value: Variant = status_dictionary.get("backend", {})
-	var frontend_value: Variant = status_dictionary.get("frontend", {})
-	var backend_status: Dictionary = {}
-	var frontend_status: Dictionary = {}
-	if typeof(backend_value) == TYPE_DICTIONARY:
-		backend_status = backend_value as Dictionary
-	if typeof(frontend_value) == TYPE_DICTIONARY:
-		frontend_status = frontend_value as Dictionary
-
-	var backend_current_version: String = str(backend_status.get("installedVersion", "")).strip_edges()
-	if backend_current_version.is_empty():
-		backend_current_version = str(backend_status.get("runningVersion", "")).strip_edges()
-	if backend_current_version.is_empty():
-		backend_current_version = connected_backend_version
-	var backend_latest_version: String = str(backend_status.get("latestVersion", "")).strip_edges()
-	var frontend_current_version: String = str(frontend_status.get("installedVersion", "")).strip_edges()
-	var frontend_latest_version: String = str(frontend_status.get("latestVersion", "")).strip_edges()
-	var has_backend_update: bool = _is_semver_newer(backend_latest_version, backend_current_version)
-	var has_frontend_update: bool = _is_semver_newer(frontend_latest_version, frontend_current_version)
-	return {
-		"hasNewVersion": has_backend_update or has_frontend_update,
-		"backendCurrentVersion": backend_current_version,
-		"backendLatestVersion": backend_latest_version,
-		"frontendCurrentVersion": frontend_current_version,
-		"frontendLatestVersion": frontend_latest_version
-	}
-
-
-func _finish_latest_backend_version_check(update_status: Dictionary) -> void:
-	if latest_backend_version_check_thread != null:
-		latest_backend_version_check_thread.wait_to_finish()
-		latest_backend_version_check_thread = null
-
-	if update_status.is_empty():
-		return
-
-	if bool(update_status.get("hasNewVersion", false)):
-		backend_manager_button.text = "Has new version"
-		backend_manager_button.tooltip_text = "Open Backend Manager to update Daedalus backend or plugin."
-	else:
-		backend_manager_button.text = "Backend manager"
-		var backend_version: String = str(update_status.get("backendCurrentVersion", "")).strip_edges()
-		var frontend_version: String = str(update_status.get("frontendCurrentVersion", "")).strip_edges()
-		backend_manager_button.tooltip_text = "Daedalus is up to date. Backend: %s. Plugin: %s." % [
-			_format_version_for_tooltip(backend_version),
-			_format_version_for_tooltip(frontend_version)
-		]
-
-
-func _format_version_for_tooltip(version_text: String) -> String:
-	if version_text.is_empty():
-		return "unknown"
-
-	return version_text
-
-
-func _is_semver_newer(candidate_version: String, current_version: String) -> bool:
-	var candidate_parts: Array[int] = _parse_semver_numbers(candidate_version)
-	var current_parts: Array[int] = _parse_semver_numbers(current_version)
-	if candidate_parts.is_empty() or current_parts.is_empty():
-		return false
-
-	for index: int in range(3):
-		if candidate_parts[index] > current_parts[index]:
-			return true
-		if candidate_parts[index] < current_parts[index]:
-			return false
-
-	return false
-
-
-func _parse_semver_numbers(version_text: String) -> Array[int]:
-	var version_parts: PackedStringArray = version_text.strip_edges().split(".")
-	if version_parts.size() < 3:
-		return []
-
-	var numbers: Array[int] = []
-	for index: int in range(3):
-		var part_text: String = version_parts[index]
-		var dash_index: int = part_text.find("-")
-		if dash_index >= 0:
-			part_text = part_text.substr(0, dash_index)
-		if not part_text.is_valid_int():
-			return []
-
-		numbers.append(part_text.to_int())
-
-	return numbers
+	backend_manager_button.text = "Runtime diagnostics"
+	backend_manager_button.tooltip_text = "View shared runtime and plugin compatibility details."
 
 
 func _finalize_socket_opened(was_recovering: bool, session_id_to_restore: String) -> void:
@@ -1890,11 +1784,6 @@ func _on_status_button_pressed() -> void:
 
 
 func _handle_socket_closed_after_ready() -> void:
-	if backend_update_in_progress:
-		socket_ready = false
-		workspace_ready = false
-		return
-
 	var close_detail: String = _format_socket_close_tooltip("Disconnected")
 	var session_id_to_restore: String = active_session_id
 	var was_streaming: bool = not active_stream_id.is_empty()
@@ -2005,6 +1894,9 @@ func _send_client_hello() -> void:
 		"protocolVersion": 2,
 		"clientType": "godot_plugin",
 		"clientName": "Godot Daedalus Plugin",
+		"pluginVersion": PLUGIN_VERSION,
+		"pluginProtocolVersion": PLUGIN_PROTOCOL_VERSION,
+		"studioBindingVersion": STUDIO_BINDING_VERSION,
 		"workspaceRoot": ProjectSettings.globalize_path("res://"),
 		"editorInstanceId": _ensure_editor_instance_id(),
 		"capabilities": {
@@ -3299,6 +3191,22 @@ func _handle_response(message: Dictionary) -> void:
 		_process_message_queue()
 		return
 	if response_id.begins_with("client-hello"):
+		var compatibility_value: Variant = result_dictionary.get("pluginCompatibility", {})
+		if typeof(compatibility_value) == TYPE_DICTIONARY:
+			var compatibility: Dictionary = compatibility_value as Dictionary
+			if not bool(compatibility.get("accepted", true)):
+				var minimum_protocol: int = int(compatibility.get("minProtocolVersion", 0))
+				var maximum_protocol: int = int(compatibility.get("maxProtocolVersion", 0))
+				backend_connection_controller.shutdown()
+				_show_backend_startup_error(
+					"Incompatible Daedalus plugin",
+					"Plugin protocol %d is not supported by this backend (supported: %d-%d). Upgrade Daedalus Studio to install the matching plugin and backend." % [
+						PLUGIN_PROTOCOL_VERSION,
+						minimum_protocol,
+						maximum_protocol
+					]
+				)
+				return
 		var connection_value: Variant = result_dictionary.get("connection", {})
 		if typeof(connection_value) == TYPE_DICTIONARY:
 			var connection_dictionary: Dictionary = connection_value as Dictionary
@@ -7255,49 +7163,31 @@ func _on_settings_skill_remove_requested(skill_ref: String) -> void:
 
 
 func _open_backend_manager() -> void:
-	var packed_scene: PackedScene = load(BACKEND_MANAGER_UID)
-	if packed_scene == null:
-		return
-
-	var backend_manager: AcceptDialog = packed_scene.instantiate()
-	backend_manager.call("setup_frontend_config", _get_frontend_config_snapshot())
-	add_child(backend_manager)
-	backend_manager.connect("backend_update_started", Callable(self, "_on_backend_manager_backend_update_started"))
-	backend_manager.connect("backend_update_finished", Callable(self, "_on_backend_manager_backend_update_finished"))
-	backend_manager.popup_centered()
+	var runtime_dialog: AcceptDialog = AcceptDialog.new()
+	runtime_dialog.title = "Daedalus runtime diagnostics"
+	runtime_dialog.ok_button_text = "Close"
+	var details: RichTextLabel = RichTextLabel.new()
+	details.fit_content = true
+	details.custom_minimum_size = Vector2(560.0, 240.0)
+	details.bbcode_enabled = true
+	details.text = "\n".join([
+		"[b]Plugin[/b] %s (protocol %d)" % [PLUGIN_VERSION, PLUGIN_PROTOCOL_VERSION],
+		"[b]Studio binding[/b] %s" % STUDIO_BINDING_VERSION,
+		"[b]Backend[/b] %s" % (connected_backend_version if not connected_backend_version.is_empty() else "not connected"),
+		"[b]Connection[/b] %s" % ("connected" if _is_socket_open() else "disconnected"),
+		"[b]Project[/b] %s" % ProjectSettings.globalize_path("res://"),
+		"",
+		_get_backend_launcher_details()
+	])
+	runtime_dialog.add_child(details)
+	add_child(runtime_dialog)
+	runtime_dialog.confirmed.connect(runtime_dialog.queue_free)
+	runtime_dialog.canceled.connect(runtime_dialog.queue_free)
+	runtime_dialog.popup_centered()
 
 
 func _on_backend_manager_button_pressed() -> void:
 	_open_backend_manager()
-
-
-func _on_backend_manager_backend_update_started() -> void:
-	backend_update_in_progress = true
-	is_connecting = false
-	socket_ready = false
-	workspace_ready = false
-	backend_health_pending = false
-	backend_health_request_id = ""
-	status_button.icon = DISCONNECTED_ICON
-	status_button.tooltip_text = "Backend update in progress"
-	backend_connection_controller.shutdown()
-
-	if backend_launcher != null:
-		backend_launcher.call("stop_started_backend")
-
-
-func _on_backend_manager_backend_update_finished(exit_code: int) -> void:
-	backend_update_in_progress = false
-	connected_backend_version = ""
-	latest_backend_version_check_started = false
-	if exit_code == 0:
-		backend_manager_button.text = "Backend manager"
-		backend_manager_button.tooltip_text = "Refreshing Daedalus version status..."
-		_check_latest_backend_version_once()
-		_restart_backend_connection()
-	else:
-		status_button.icon = CONNECT_FAILED_ICON
-		status_button.tooltip_text = "Backend update failed. Open Backend Manager for details."
 
 
 func _get_frontend_config_snapshot() -> Dictionary:
@@ -7484,9 +7374,8 @@ func _on_settings_frontend_config_save_requested(
 	next_step_hints_enabled = next_step_hints_enabled_value
 	check_for_updates_enabled = next_check_for_updates_enabled
 	if not check_for_updates_enabled:
-		latest_backend_version_check_started = false
-		backend_manager_button.text = "Backend manager"
-		backend_manager_button.tooltip_text = "Update checks are disabled in Daedalus Settings."
+		backend_manager_button.text = "Runtime diagnostics"
+		backend_manager_button.tooltip_text = "View shared runtime and plugin compatibility details."
 	_save_frontend_config()
 	if not next_step_hints_enabled:
 		_clear_next_step_hint_entries()
@@ -7604,7 +7493,4 @@ func _input(event: InputEvent) -> void:
 
 
 func _exit_tree() -> void:
-	if latest_backend_version_check_thread != null:
-		latest_backend_version_check_thread.wait_to_finish()
-		latest_backend_version_check_thread = null
 	backend_connection_controller.shutdown()

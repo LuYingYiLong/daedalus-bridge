@@ -58,7 +58,7 @@ caret_blink = true
 
 [node name="BackendDevDirLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1840252981]
 layout_mode = 2
-tooltip_text = "Optional. When set, Daedalus starts this local backend with npm run dev before falling back to the installed npm package."
+tooltip_text = "Optional development backend URL. Production uses the shared backend deployed by Daedalus Studio."
 mouse_filter = 1
 text = "Backend dev directory"
 
@@ -69,7 +69,7 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "Optional local backend source directory. Leave empty to use the installed npm package."
+tooltip_text = "Optional local backend source directory for development. Leave empty to use the Studio-managed shared runtime."
 caret_blink = true
 
 [node name="BackendDevDirButton" type="Button" parent="TabContainer/General/VBoxContainer/GeneralContainer/BackendDevDirContainer" unique_id=737830909]

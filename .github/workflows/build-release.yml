@@ -1,0 +1,46 @@
+name: Build Plugin Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build plugin archive
+        shell: pwsh
+        run: ./scripts/build-plugin-release.ps1
+
+      - name: Verify release version
+        shell: pwsh
+        run: |
+          $manifestPath = Get-ChildItem -LiteralPath release -Filter "*.manifest.json" | Select-Object -First 1
+          $manifest = Get-Content -LiteralPath $manifestPath.FullName -Raw | ConvertFrom-Json
+          if ("v$($manifest.pluginVersion)" -ne "${{ github.ref_name }}" -and "${{ github.event_name }}" -eq "push") {
+            throw "Tag does not match plugin.cfg version."
+          }
+          $archivePath = Join-Path release $manifest.archive.fileName
+          if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.archive.sha256) {
+            throw "Plugin archive hash verification failed."
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: godot-daedalus-plugin
+          path: release/*
+          if-no-files-found: error
+
+      - uses: softprops/action-gh-release@v2
+        if: github.ref_type == 'tag'
+        with:
+          files: release/*
