@@ -3,8 +3,12 @@ name: Build Plugin Release
 on:
   push:
     tags:
-      - "v*"
+      - "v*.*.*"
   workflow_dispatch:
+
+concurrency:
+  group: godot-daedalus-plugin-release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -21,17 +25,51 @@ jobs:
         shell: pwsh
         run: ./scripts/build-plugin-release.ps1
 
-      - name: Verify release version
+      - name: Verify Studio-compatible release package
         shell: pwsh
         run: |
           $manifestPath = Get-ChildItem -LiteralPath release -Filter "*.manifest.json" | Select-Object -First 1
+          if ($null -eq $manifestPath) {
+            throw "Plugin release manifest was not produced."
+          }
           $manifest = Get-Content -LiteralPath $manifestPath.FullName -Raw | ConvertFrom-Json
+          $pluginMetadata = Get-Content -LiteralPath addons/godot_daedalus/daedalus-plugin.json -Raw | ConvertFrom-Json
           if ("v$($manifest.pluginVersion)" -ne "${{ github.ref_name }}" -and "${{ github.event_name }}" -eq "push") {
             throw "Tag does not match plugin.cfg version."
           }
+          if ($manifest.pluginVersion -ne $pluginMetadata.pluginVersion -or $manifest.pluginProtocolVersion -ne $pluginMetadata.pluginProtocolVersion) {
+            throw "Release manifest does not match daedalus-plugin.json."
+          }
+          if ($manifest.studioVersion -ne $pluginMetadata.studioVersion -or $manifest.minGodotVersion -ne $pluginMetadata.minGodotVersion) {
+            throw "Release compatibility metadata does not match daedalus-plugin.json."
+          }
+          if ($manifest.archive.fileName -ne "godot-daedalus-plugin-v$($manifest.pluginVersion).zip") {
+            throw "Unexpected plugin archive name."
+          }
           $archivePath = Join-Path release $manifest.archive.fileName
+          if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
+            throw "Plugin archive was not produced."
+          }
           if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant() -ne $manifest.archive.sha256) {
             throw "Plugin archive hash verification failed."
+          }
+          Add-Type -AssemblyName System.IO.Compression
+          $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $archivePath))
+          try {
+            $entries = @($archive.Entries | ForEach-Object { $_.FullName })
+            if ($entries -notcontains "addons/godot_daedalus/plugin.cfg") {
+              throw "Plugin archive does not contain addons/godot_daedalus/plugin.cfg."
+            }
+            if ($entries | Where-Object { $_ -match '(^|/)\.\.?($|/)' -or -not $_.StartsWith('addons/godot_daedalus/') }) {
+              throw "Plugin archive contains an unsafe path."
+            }
+            foreach ($file in $manifest.files) {
+              if ($entries -notcontains $file.path) {
+                throw "Plugin archive is missing manifest file $($file.path)."
+              }
+            }
+          } finally {
+            $archive.Dispose()
           }
 
       - uses: actions/upload-artifact@v4
