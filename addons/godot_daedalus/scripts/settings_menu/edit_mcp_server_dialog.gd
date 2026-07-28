@@ -6,7 +6,6 @@ signal server_config_submitted(server_id: String, config: Dictionary)
 @onready var name_line_edit: LineEdit = %NameLineEdit
 @onready var description_text_edit: TextEdit = %DescriptionTextEdit
 @onready var type_option_button: OptionButton = %TypeOptionButton
-@onready var plan_access_check_button: CheckButton = %PlanAccessCheckButton
 @onready var stdio_container: GridContainer = %StdioContainer
 @onready var common_line_edit: LineEdit = %CommonLineEdit
 @onready var args_text_edit: TextEdit = %ArgsTextEdit
@@ -44,7 +43,6 @@ func setup_server(metadata: Dictionary) -> void:
 	server_enabled = bool(metadata.get("enabled", true))
 	name_line_edit.text = str(metadata.get("name", "Custom MCP"))
 	description_text_edit.text = str(metadata.get("description", ""))
-	plan_access_check_button.button_pressed = str(metadata.get("planAccess", "disabled")) == "read"
 
 	var transport: String = str(metadata.get("transport", TRANSPORT_STDIO))
 	type_option_button.select(TYPE_INDEX_HTTP if transport == TRANSPORT_HTTP else TYPE_INDEX_STDIO)
@@ -145,8 +143,7 @@ func _get_validation_result() -> Dictionary:
 func _create_config() -> Dictionary:
 	var config: Dictionary[String, Variant] = {
 		"description": description_text_edit.text.strip_edges(),
-		"enabled": server_enabled,
-		"planAccess": "read" if plan_access_check_button.button_pressed else "disabled"
+		"enabled": server_enabled
 	}
 
 	if type_option_button.selected == TYPE_INDEX_HTTP:

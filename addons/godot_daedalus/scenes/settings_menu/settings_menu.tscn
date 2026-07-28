@@ -1,18 +1,18 @@
 [gd_scene format=3 uid="uid://dp3tsanvojx2k"]
 
-[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/settings_menu/settings_menu.gd" id="1_smwku"]
-[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/folder_browse.svg" id="2_mcffq"]
-[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/clear.svg" id="2_y8kc5"]
-[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="3_pcvmy"]
-[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/reload.svg" id="4_skill_reload"]
+[ext_resource type="Script" uid="uid://be4xxflyjlo3e" path="res://addons/godot_daedalus/scripts/settings_menu/settings_menu.gd" id="1_smwku"]
+[ext_resource type="Texture2D" uid="uid://olystld4m5ww" path="res://addons/godot_daedalus/assets/icons/folder_browse.svg" id="2_mcffq"]
+[ext_resource type="Texture2D" uid="uid://dwn7uwenqn3td" path="res://addons/godot_daedalus/assets/icons/clear.svg" id="2_y8kc5"]
+[ext_resource type="Texture2D" uid="uid://cwim1h34ei5ff" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="3_pcvmy"]
+[ext_resource type="Texture2D" uid="uid://cs4ys8a8p7ee0" path="res://addons/godot_daedalus/assets/icons/reload.svg" id="4_skill_reload"]
 
 [node name="SettingsMenu" type="AcceptDialog" unique_id=740368191]
 oversampling_override = 1.0
 title = "Daedalus Settings"
 initial_position = 2
-size = Vector2i(655, 435)
+size = Vector2i(860, 580)
 maximize_disabled = false
-min_size = Vector2i(128, 128)
+min_size = Vector2i(720, 500)
 ok_button_text = "Save"
 script = ExtResource("1_smwku")
 
@@ -21,17 +21,17 @@ unique_name_in_owner = true
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 9.0
-offset_top = 9.0
-offset_right = -9.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -12.0
 offset_bottom = -51.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_type_variation = &"TabContainerOdd"
-tab_alignment = 1
+tab_alignment = 0
 current_tab = 0
-tab_2/title = "MCP server"
-tab_4/title = "Archived chats"
+tab_2/title = "MCP Servers"
+tab_4/title = "Archived Chats"
 
 [node name="General" type="ScrollContainer" parent="TabContainer" unique_id=620720813]
 layout_mode = 2
@@ -40,10 +40,27 @@ metadata/_tab_index = 0
 [node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/General" unique_id=175611611]
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="PageTitle" type="Label" parent="TabContainer/General/VBoxContainer"]
+layout_mode = 2
+theme_type_variation = &"HeaderSmall"
+text = "General"
+
+[node name="PageDescription" type="Label" parent="TabContainer/General/VBoxContainer"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+text = "Configure the backend connection, provider credentials, task models, and editor behavior."
+autowrap_mode = 2
+
+[node name="PageSeparator" type="HSeparator" parent="TabContainer/General/VBoxContainer"]
+layout_mode = 2
 
 [node name="GeneralContainer" type="GridContainer" parent="TabContainer/General/VBoxContainer" unique_id=65203203]
 layout_mode = 2
 columns = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 8
 
 [node name="BackendURLLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1120041522]
 layout_mode = 2
@@ -53,7 +70,7 @@ text = "Backend URL"
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-placeholder_text = "ws://localhost:38180"
+placeholder_text = "ws://127.0.0.1:38180"
 caret_blink = true
 
 [node name="BackendDevDirLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1840252981]
@@ -192,6 +209,21 @@ text = "Enabled"
 visible = false
 layout_mode = 2
 metadata/_tab_index = 1
+theme_override_constants/separation = 10
+
+[node name="PageTitle" type="Label" parent="TabContainer/Personalization"]
+layout_mode = 2
+theme_type_variation = &"HeaderSmall"
+text = "Personalization"
+
+[node name="PageDescription" type="Label" parent="TabContainer/Personalization"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+text = "Add persistent instructions that guide every Daedalus conversation in this project."
+autowrap_mode = 2
+
+[node name="PageSeparator" type="HSeparator" parent="TabContainer/Personalization"]
+layout_mode = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Personalization" unique_id=691243455]
 layout_mode = 2
@@ -200,14 +232,14 @@ layout_mode = 2
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-tooltip_text = "No custom instructions will be sent this turn."
-text = "Custom instructions"
+tooltip_text = "No backend user prompt is configured."
+text = "User prompt"
 
 [node name="CustomInstructionsWarningButton" type="Button" parent="TabContainer/Personalization/HBoxContainer" unique_id=1014150117]
 unique_name_in_owner = true
 visible = false
 layout_mode = 2
-tooltip_text = "No custom instructions will be sent this turn."
+tooltip_text = "No backend user prompt is configured."
 theme_type_variation = &"FlatButton"
 disabled = true
 icon = ExtResource("3_pcvmy")
@@ -217,7 +249,7 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 256)
 layout_mode = 2
 size_flags_vertical = 3
-tooltip_text = "No custom instructions will be sent this turn."
+tooltip_text = "No backend user prompt is configured."
 wrap_mode = 1
 caret_blink = true
 
@@ -225,12 +257,32 @@ caret_blink = true
 visible = false
 layout_mode = 2
 metadata/_tab_index = 2
-metadata/_tab_name = "MCP server"
+metadata/_tab_name = "MCP Servers"
+theme_override_constants/separation = 10
 
-[node name="AddMCPServerButton" type="Button" parent="TabContainer/MCPServer" unique_id=418947967]
+[node name="PageHeader" type="HBoxContainer" parent="TabContainer/MCPServer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TitleContainer" type="VBoxContainer" parent="TabContainer/MCPServer/PageHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 2
+
+[node name="PageTitle" type="Label" parent="TabContainer/MCPServer/PageHeader/TitleContainer"]
+layout_mode = 2
+theme_type_variation = &"HeaderSmall"
+text = "MCP Servers"
+
+[node name="PageDescription" type="Label" parent="TabContainer/MCPServer/PageHeader/TitleContainer"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+text = "Connect custom tools over STDIO or HTTP. Tools remain subject to Daedalus approval policies."
+autowrap_mode = 2
+
+[node name="AddMCPServerButton" type="Button" parent="TabContainer/MCPServer/PageHeader" unique_id=418947967]
 unique_name_in_owner = true
 layout_mode = 2
-size_flags_horizontal = 4
 tooltip_text = "Add custom MCP server"
 text = "Add MCP server"
 
@@ -252,11 +304,24 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_constants/separation = 8
 
 [node name="Skills" type="VBoxContainer" parent="TabContainer" unique_id=1614181837]
 visible = false
 layout_mode = 2
 metadata/_tab_index = 3
+theme_override_constants/separation = 10
+
+[node name="PageTitle" type="Label" parent="TabContainer/Skills"]
+layout_mode = 2
+theme_type_variation = &"HeaderSmall"
+text = "Skills"
+
+[node name="PageDescription" type="Label" parent="TabContainer/Skills"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+text = "Manage project and personal skills available to this workspace. Built-in runtime skills stay hidden."
+autowrap_mode = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Skills" unique_id=393295439]
 layout_mode = 2
@@ -284,12 +349,25 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+theme_override_constants/separation = 8
 
 [node name="ArchivedChats" type="VBoxContainer" parent="TabContainer" unique_id=1085550901]
 visible = false
 layout_mode = 2
 metadata/_tab_index = 4
-metadata/_tab_name = "Archived chats"
+metadata/_tab_name = "Archived Chats"
+theme_override_constants/separation = 10
+
+[node name="PageTitle" type="Label" parent="TabContainer/ArchivedChats"]
+layout_mode = 2
+theme_type_variation = &"HeaderSmall"
+text = "Archived Chats"
+
+[node name="PageDescription" type="Label" parent="TabContainer/ArchivedChats"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+text = "Restore previous conversations or permanently remove archives you no longer need."
+autowrap_mode = 2
 
 [node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/ArchivedChats" unique_id=1920292159]
 layout_mode = 2
@@ -341,7 +419,7 @@ access = 2
 [connection signal="pressed" from="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer/HBoxContainer/ClearDeepseekAPIKeyButton" to="." method="_on_clear_deepseek_api_key_button_pressed"]
 [connection signal="pressed" from="TabContainer/Personalization/HBoxContainer/CustomInstructionsWarningButton" to="." method="_on_custom_instructions_warning_button_pressed"]
 [connection signal="text_changed" from="TabContainer/Personalization/CustomInstructionsEdit" to="." method="_on_custom_instructions_edit_text_changed"]
-[connection signal="pressed" from="TabContainer/MCPServer/AddMCPServerButton" to="." method="_on_add_mcp_server_button_pressed"]
+[connection signal="pressed" from="TabContainer/MCPServer/PageHeader/AddMCPServerButton" to="." method="_on_add_mcp_server_button_pressed"]
 [connection signal="pressed" from="TabContainer/Skills/HBoxContainer/RefreshSkillsButton" to="." method="_on_refresh_skills_button_pressed"]
 [connection signal="item_selected" from="TabContainer/ArchivedChats/HBoxContainer/WorkspaceFilterOptionButton" to="." method="_on_workspace_filter_option_button_item_selected"]
 [connection signal="text_changed" from="TabContainer/ArchivedChats/HBoxContainer/SearchArchivedChatLineEdit" to="." method="_on_search_archived_chat_line_edit_text_changed"]

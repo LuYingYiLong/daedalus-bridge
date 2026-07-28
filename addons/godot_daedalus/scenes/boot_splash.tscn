@@ -64,6 +64,10 @@ selection_enabled = true
 layout_mode = 2
 text = "Reconnect"
 
+[node name="SettingsButton" type="Button" parent="VBoxContainer/ErrorContainer" unique_id=1325972221]
+layout_mode = 2
+text = "Daedalus Settings"
+
 [node name="BackendManagerButton" type="Button" parent="VBoxContainer/ErrorContainer" unique_id=1442225959]
 layout_mode = 2
 text = "Runtime diagnostics"
@@ -73,5 +77,6 @@ layout_mode = 2
 text = "Copy Details"
 
 [connection signal="pressed" from="VBoxContainer/ErrorContainer/ReconnectButton" to="." method="_on_reconnect_button_pressed"]
+[connection signal="pressed" from="VBoxContainer/ErrorContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/ErrorContainer/BackendManagerButton" to="." method="_on_backend_manager_button_pressed"]
 [connection signal="pressed" from="VBoxContainer/ErrorContainer/CopyDetailsButton" to="." method="_on_copy_details_button_pressed"]

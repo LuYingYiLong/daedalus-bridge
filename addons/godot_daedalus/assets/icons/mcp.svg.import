@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b2r17usm57bnm"
+path="res://.godot/imported/mcp.svg-9ac01784e02e16c93a681b36a2ae577e.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/mcp.svg"
+dest_files=["res://.godot/imported/mcp.svg-9ac01784e02e16c93a681b36a2ae577e.ctex"]
 
 [params]
 

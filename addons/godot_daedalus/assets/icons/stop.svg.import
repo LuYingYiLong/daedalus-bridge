@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cgdkrgrsv2kcg"
+path="res://.godot/imported/stop.svg-40f9dda6159b8ab2fc884777372a8254.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/stop.svg"
+dest_files=["res://.godot/imported/stop.svg-40f9dda6159b8ab2fc884777372a8254.ctex"]
 
 [params]
 

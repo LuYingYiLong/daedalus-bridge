@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dvtapr6ha0f2g"
+path="res://.godot/imported/context_length4.svg-40e78748028253bae3bf615dccdd8f1c.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/context_length4.svg"
+dest_files=["res://.godot/imported/context_length4.svg-40e78748028253bae3bf615dccdd8f1c.ctex"]
 
 [params]
 

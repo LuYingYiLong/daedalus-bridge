@@ -6,14 +6,26 @@
 oversampling_override = 1.0
 title = "Edit MCP server"
 initial_position = 2
-size = Vector2i(510, 440)
+size = Vector2i(620, 500)
+min_size = Vector2i(560, 440)
+ok_button_text = "Save changes"
 script = ExtResource("1_2h8ps")
 
 [node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1006102409]
 offset_left = 9.0
 offset_top = 9.0
-offset_right = 501.0
-offset_bottom = 389.0
+offset_right = 611.0
+offset_bottom = 449.0
+theme_override_constants/separation = 10
+
+[node name="IntroLabel" type="Label" parent="VBoxContainer"]
+layout_mode = 2
+modulate = Color(1, 1, 1, 0.68)
+text = "Update the connection without exposing stored secret values. Leave an existing secret value empty to keep it."
+autowrap_mode = 2
+
+[node name="Separator" type="HSeparator" parent="VBoxContainer"]
+layout_mode = 2
 
 [node name="GridContainer" type="GridContainer" parent="VBoxContainer" unique_id=2145942431]
 layout_mode = 2
@@ -58,17 +70,6 @@ popup/item_0/id = 0
 popup/item_1/text = "HTTP"
 popup/item_1/id = 1
 
-[node name="PlanAccessLabel" type="Label" parent="VBoxContainer/GridContainer"]
-custom_minimum_size = Vector2(128, 0)
-layout_mode = 2
-text = "Plan access"
-
-[node name="PlanAccessCheckButton" type="CheckButton" parent="VBoxContainer/GridContainer"]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Allow this custom MCP server in Plan mode as read-only"
-text = "Read-only in Plan"
-
 [node name="StdioContainer" type="GridContainer" parent="VBoxContainer" unique_id=1241376977]
 unique_name_in_owner = true
 layout_mode = 2
@@ -90,19 +91,18 @@ caret_blink = true
 [node name="ArgsLabel" type="Label" parent="VBoxContainer/StdioContainer" unique_id=366263641]
 custom_minimum_size = Vector2(128, 0)
 layout_mode = 2
-text = "Args"
+text = "Arguments"
 
 [node name="ArgsTextEdit" type="TextEdit" parent="VBoxContainer/StdioContainer" unique_id=656557038]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 80)
 layout_mode = 2
-placeholder_text = "arg1
-arg2"
+placeholder_text = "One argument per line"
 caret_blink = true
 
 [node name="EnvLabel" type="Label" parent="VBoxContainer/StdioContainer" unique_id=341090014]
 layout_mode = 2
-text = "Env"
+text = "Environment"
 
 [node name="EnvTextEdit" type="TextEdit" parent="VBoxContainer/StdioContainer" unique_id=1053263788]
 unique_name_in_owner = true
@@ -134,7 +134,7 @@ caret_blink = true
 [node name="HttpHeaderLabel" type="Label" parent="VBoxContainer/HttpContainer" unique_id=53445024]
 custom_minimum_size = Vector2(128, 0)
 layout_mode = 2
-text = "HTTP Header"
+text = "HTTP headers"
 
 [node name="HttpHeaderTextEdit" type="TextEdit" parent="VBoxContainer/HttpContainer" unique_id=43115581]
 unique_name_in_owner = true

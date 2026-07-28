@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://uogq2wf46q46"
+path="res://.godot/imported/think.svg-16da40c806cb5c9641e7b4fb4b9f3a93.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/think.svg"
+dest_files=["res://.godot/imported/think.svg-16da40c806cb5c9641e7b4fb4b9f3a93.ctex"]
 
 [params]
 

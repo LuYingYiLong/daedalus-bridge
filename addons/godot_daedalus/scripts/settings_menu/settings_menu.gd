@@ -81,6 +81,7 @@ const TASK_MODEL_KEYS: PackedStringArray = [
 	"sessionTitle"
 ]
 const USE_CURRENT_MODEL_TEXT: String = "Use current model"
+const USER_SKILL_SOURCES: PackedStringArray = ["project", "personal"]
 
 var archived_sessions: Array[Dictionary]
 var archived_workspaces_by_id: Dictionary[String, Dictionary]
@@ -88,6 +89,7 @@ var custom_mcp_servers: Array[Dictionary]
 var skill_summaries: Array[Dictionary]
 var skill_catalog_revision: String
 var provider_status_by_id: Dictionary[String, Dictionary]
+var provider_order: PackedStringArray
 var mcp_backend_available: bool = true
 var mcp_add_pending: bool
 var pending_mcp_update_server_id: String
@@ -124,6 +126,7 @@ func _ready() -> void:
 func setup_provider_config(status: Dictionary, frontend_config: Dictionary = {}) -> void:
 	var active_provider_id: String = str(status.get("activeProvider", status.get("provider", frontend_config.get("provider", "deepseek"))))
 	provider_status_by_id.clear()
+	provider_order.clear()
 	var providers_value: Variant = status.get("providers", [])
 	if typeof(providers_value) == TYPE_ARRAY:
 		var providers_array: Array = providers_value as Array
@@ -135,10 +138,15 @@ func setup_provider_config(status: Dictionary, frontend_config: Dictionary = {})
 			var provider_id: String = str(provider_status.get("provider", "")).strip_edges()
 			if not provider_id.is_empty():
 				provider_status_by_id[provider_id] = provider_status
+				provider_order.append(provider_id)
 
 	if provider_status_by_id.is_empty() and status.has("provider"):
-		provider_status_by_id[str(status.get("provider", active_provider_id))] = status
-	backend_url_line_edit.text = str(frontend_config.get("backendUrl", "ws://localhost:38180"))
+		var fallback_provider_id: String = str(status.get("provider", active_provider_id))
+		provider_status_by_id[fallback_provider_id] = status
+		provider_order.append(fallback_provider_id)
+	if provider_order.is_empty():
+		provider_order.append_array(PROVIDER_IDS)
+	backend_url_line_edit.text = str(frontend_config.get("backendUrl", "ws://127.0.0.1:38180"))
 	backend_dev_dir_line_edit.text = str(frontend_config.get("backendDevDir", ""))
 	custom_instructions_edit.text = str(frontend_config.get("customInstructions", ""))
 	next_step_hints_check_box.button_pressed = bool(frontend_config.get("nextStepHintsEnabled", false))
@@ -195,7 +203,10 @@ func setup_skills(skills: Array, revision: String = "", backend_available: bool 
 	for item: Variant in skills:
 		if typeof(item) != TYPE_DICTIONARY:
 			continue
-		skill_summaries.append((item as Dictionary).duplicate(true))
+		var metadata: Dictionary = (item as Dictionary).duplicate(true)
+		if not USER_SKILL_SOURCES.has(str(metadata.get("source", ""))):
+			continue
+		skill_summaries.append(metadata)
 	skill_catalog_revision = revision
 	mcp_backend_available = backend_available
 	_render_skills()
@@ -241,7 +252,7 @@ func _render_skills() -> void:
 		return
 	if skill_summaries.is_empty():
 		skills_status_label.visible = true
-		skills_status_label.text = "No skills discovered"
+		skills_status_label.text = "No project or personal skills discovered"
 		return
 	skills_status_label.visible = true
 	skills_status_label.text = _format_skills_status()
@@ -250,7 +261,7 @@ func _render_skills() -> void:
 	if packed_scene == null:
 		show_skill_error("Skill item scene is unavailable.")
 		return
-	for source_name: String in ["project", "personal", "builtin"]:
+	for source_name: String in USER_SKILL_SOURCES:
 		var source_skills: Array[Dictionary] = []
 		for metadata: Dictionary in skill_summaries:
 			if str(metadata.get("source", "")) == source_name:
@@ -258,7 +269,7 @@ func _render_skills() -> void:
 		if source_skills.is_empty():
 			continue
 		var source_label: Label = Label.new()
-		source_label.text = source_name.capitalize()
+		source_label.text = "%s skills" % source_name.capitalize()
 		source_label.theme_type_variation = &"HeaderSmall"
 		skills_list.add_child(source_label)
 		for metadata: Dictionary in source_skills:
@@ -368,9 +379,10 @@ func _on_close_requested() -> void:
 
 func _populate_provider_options(active_provider_id: String) -> void:
 	provider_option_button.clear()
-	for index: int in range(PROVIDER_IDS.size()):
-		provider_option_button.add_item(PROVIDER_NAMES[index], index)
-		provider_option_button.set_item_metadata(index, PROVIDER_IDS[index])
+	for provider_id: String in provider_order:
+		var index: int = provider_option_button.get_item_count()
+		provider_option_button.add_item(_get_provider_display_name(provider_id), index)
+		provider_option_button.set_item_metadata(index, provider_id)
 
 	for index: int in range(provider_option_button.get_item_count()):
 		if str(provider_option_button.get_item_metadata(index)) == active_provider_id:
@@ -404,7 +416,7 @@ func _populate_task_model_option_button(option_button: OptionButton, routing_key
 		selected_provider = str(selected_ref.get("provider", "")).strip_edges()
 		selected_model = str(selected_ref.get("model", "")).strip_edges()
 
-	for provider_id: String in PROVIDER_IDS:
+	for provider_id: String in provider_order:
 		var provider_status: Dictionary = provider_status_by_id.get(provider_id, {}) as Dictionary
 		if not bool(provider_status.get("configured", false)):
 			continue
@@ -512,7 +524,7 @@ func _get_selected_provider_id() -> String:
 	if selected_index >= 0 and selected_index < provider_option_button.get_item_count():
 		return str(provider_option_button.get_item_metadata(selected_index))
 
-	return PROVIDER_IDS[0]
+	return provider_order[0] if not provider_order.is_empty() else PROVIDER_IDS[0]
 
 
 func _get_selected_provider_name() -> String:
@@ -520,7 +532,7 @@ func _get_selected_provider_name() -> String:
 	if selected_index >= 0 and selected_index < provider_option_button.get_item_count():
 		return provider_option_button.get_item_text(selected_index)
 
-	return PROVIDER_NAMES[0]
+	return _get_provider_display_name(_get_selected_provider_id())
 
 
 func _get_provider_display_name(provider_id: String) -> String:
@@ -630,8 +642,9 @@ func _render_mcp_servers() -> void:
 		mcp_status_label.visible = true
 		mcp_status_label.text = "No custom MCP servers"
 	else:
-		mcp_status_label.visible = false
-		mcp_status_label.text = ""
+		mcp_status_label.visible = true
+		mcp_status_label.text = _format_mcp_status()
+		mcp_status_label.tooltip_text = mcp_status_label.text
 
 	var rendered_servers: Array[Dictionary] = []
 	for metadata: Dictionary in custom_mcp_servers:
@@ -657,6 +670,17 @@ func _render_mcp_servers() -> void:
 		mcp_server_item.connect("remove_requested", Callable(self, "_on_mcp_server_item_remove_requested"))
 		mcp_server_item.connect("edit_requested", Callable(self, "_on_mcp_server_item_edit_requested"))
 		mcp_server_item.connect("enabled_changed", Callable(self, "_on_mcp_server_item_enabled_changed"))
+
+
+func _format_mcp_status() -> String:
+	var enabled_count: int
+	var connected_count: int
+	for metadata: Dictionary in custom_mcp_servers:
+		if bool(metadata.get("enabled", false)):
+			enabled_count += 1
+		if str(metadata.get("status", "")) == "connected":
+			connected_count += 1
+	return "%d configured  ·  %d enabled  ·  %d connected" % [custom_mcp_servers.size(), enabled_count, connected_count]
 
 
 func _render_archived_sessions() -> void:

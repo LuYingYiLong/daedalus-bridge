@@ -1,8 +1,8 @@
 @tool
 extends VBoxContainer
 
-const DEFAULT_BACKEND_URL: String = "ws://localhost:38180"
-const DEVELOPMENT_BACKEND_URL: String = "ws://localhost:38181"
+const DEFAULT_BACKEND_URL: String = "ws://127.0.0.1:38180"
+const DEVELOPMENT_BACKEND_URL: String = "ws://127.0.0.1:38181"
 const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
 const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
 const USER_MESSAGE_ITEM_SCENE: PackedScene = preload("res://addons/godot_daedalus/scenes/user_message_item.tscn")
@@ -1277,6 +1277,10 @@ func _normalize_backend_url(url: String) -> String:
 	var normalized_url: String = url.strip_edges()
 	if normalized_url.is_empty():
 		return DEFAULT_BACKEND_URL
+	if normalized_url == "ws://localhost:38180":
+		return DEFAULT_BACKEND_URL
+	if normalized_url == "ws://localhost:38181":
+		return DEVELOPMENT_BACKEND_URL
 
 	return normalized_url
 
@@ -1632,6 +1636,8 @@ func _show_backend_startup_error(title: String, details: String) -> void:
 	status_button.icon = CONNECT_FAILED_ICON
 	status_button.tooltip_text = "Connect failed. Click to reconnect."
 	backend_connection_controller.shutdown()
+	main_viewer.hide()
+	boot_splash.show()
 	boot_splash.call("show_error", title, details)
 
 
@@ -1787,6 +1793,10 @@ func _on_boot_splash_backend_check_requested() -> void:
 	_open_backend_manager()
 
 
+func _on_boot_splash_settings_requested() -> void:
+	_on_settings_button_pressed()
+
+
 func _on_status_button_pressed() -> void:
 	if backend_connection_controller.is_open():
 		return
@@ -1914,6 +1924,14 @@ func _send_client_hello() -> void:
 			"editorTools": true,
 			"editorUndoRedo": true,
 			"sceneViewCapture": true,
+			"typedVariantV1": true,
+			"scenePatchV2": true,
+			"resourcePatchV1": true,
+			"animationPatchV1": true,
+			"mapPatchV1": true,
+			"audioPatchV1": true,
+			"editorNavigationV1": true,
+			"safePreviewV1": true,
 			"inlineDiffUndo": true,
 			"inlineDiffView": true,
 			"sessionSubscribe": true,

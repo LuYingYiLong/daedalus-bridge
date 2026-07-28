@@ -2,7 +2,7 @@
 extends RefCounted
 
 const DEFAULT_BACKEND_PORT: int = 38180
-const PLUGIN_PROTOCOL_VERSION: int = 1
+const PLUGIN_PROTOCOL_VERSION: int = 2
 
 var backend_url: String
 var backend_dev_dir: String

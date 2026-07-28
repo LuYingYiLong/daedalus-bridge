@@ -3,6 +3,7 @@ extends CenterContainer
 
 signal reconnect_requested
 signal backend_check_requested
+signal settings_requested
 
 const SHINE_SHADER: Shader = preload("res://addons/godot_daedalus/scripts/shaders/shine.gdshader")
 
@@ -73,6 +74,10 @@ func _on_reconnect_button_pressed() -> void:
 
 func _on_backend_manager_button_pressed() -> void:
 	backend_check_requested.emit()
+
+
+func _on_settings_button_pressed() -> void:
+	settings_requested.emit()
 
 
 func _on_copy_details_button_pressed() -> void:

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "pluginVersion": "1.1.3",
-  "pluginProtocolVersion": 1,
+  "pluginVersion": "1.2.0",
+  "pluginProtocolVersion": 2,
   "files": [
     {
       "path": "addons/godot_daedalus/assets/fonts/JetBrainsMono-Medium.ttf",
@@ -636,7 +636,7 @@
     {
       "path": "addons/godot_daedalus/daedalus-plugin.json",
       "size": 141,
-      "sha256": "747e2df5ffc809f793916b5abfaf3e439d783dbdcd7d9cd64bd4fb8683232c33"
+      "sha256": "a7ca110a27426882f9c9a8a82f077293ba68892b4611245be81e1909b2271ef7"
     },
     {
       "path": "addons/godot_daedalus/godot_daedalus.gd",
@@ -651,7 +651,7 @@
     {
       "path": "addons/godot_daedalus/plugin.cfg",
       "size": 202,
-      "sha256": "f9a747cf5e17ef8869992ac582b38a5dbe6876d853425a2b72c535b02eb3b84a"
+      "sha256": "47a18b9eaf822417fa9f414e7d783528f3ed2ae2ae61b5790133ff0e60cdcbec"
     },
     {
       "path": "addons/godot_daedalus/README.md",
@@ -895,13 +895,18 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd",
-      "size": 37452,
-      "sha256": "0c8cf232bb7f144ad927e6bc21a349c50bb2e277bc4c30b1006eeb813ea6d844"
+      "size": 58123,
+      "sha256": "faf5a3ff91d337f32644579350e6fe6fb1d92a30a988e535619f948bb888be9f"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd.uid",
       "size": 20,
       "sha256": "e8286dc895e50f920d5b2525b382349f9fc7cbae212cfeb0de3110f7856fe52f"
+    },
+    {
+      "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_domain_tools.gd",
+      "size": 97942,
+      "sha256": "33d8beed94ee79aabb1bcd6edc488a20a472cec68266571fc9430cc936f27536"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_file_edit_controller.gd",
@@ -922,6 +927,11 @@
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_provider_navigation_controller.gd.uid",
       "size": 21,
       "sha256": "f8985c3a9127fe26563d47a670eb12680fb04d898638450df026ca9644a35344"
+    },
+    {
+      "path": "addons/godot_daedalus/scripts/controllers/daedalus_variant_codec.gd",
+      "size": 16304,
+      "sha256": "862626d0bb2a7319ff8ee41f39d1e66556a11e87441cd1aef6b4c53d027fb9e7"
     },
     {
       "path": "addons/godot_daedalus/scripts/inline_diff_item.gd",
@@ -956,7 +966,7 @@
     {
       "path": "addons/godot_daedalus/scripts/main.gd",
       "size": 292453,
-      "sha256": "fcdd4dd4f53f60c696ce9be56e2d2b598660fb95d68d1206a0659d19af309cfd"
+      "sha256": "bc3947a67fe1a0acc16b9eef758c707aa21f4d338fdd58c6b9715089e670a85e"
     },
     {
       "path": "addons/godot_daedalus/scripts/main.gd.uid",
@@ -995,8 +1005,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/rpc_methods.gd",
-      "size": 7423,
-      "sha256": "f750c8352d1dbf708ed55ed16834c95d30721290038a4449de11dc706d66f4a8"
+      "size": 7503,
+      "sha256": "8f0bb28c5106a7016237d30cf7f20b0c746d00fa38faa94663c2bde9c6f09bff"
     },
     {
       "path": "addons/godot_daedalus/scripts/rpc_methods.gd.uid",

@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bj12p3owt7b3w"
+path="res://.godot/imported/plan.svg-0b7e57278452bdce0e410ed2fac270cd.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/plan.svg"
+dest_files=["res://.godot/imported/plan.svg-0b7e57278452bdce0e410ed2fac270cd.ctex"]
 
 [params]
 

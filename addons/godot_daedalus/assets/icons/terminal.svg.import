@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://8njc14j68jqo"
+path="res://.godot/imported/terminal.svg-62b86015146707a29d60a994720fe212.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/terminal.svg"
+dest_files=["res://.godot/imported/terminal.svg-62b86015146707a29d60a994720fe212.ctex"]
 
 [params]
 

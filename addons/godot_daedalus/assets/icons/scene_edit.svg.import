@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dq706rcaruo5n"
+path="res://.godot/imported/scene_edit.svg-3217f77a99fbb9b30976b7594d41f335.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/scene_edit.svg"
+dest_files=["res://.godot/imported/scene_edit.svg-3217f77a99fbb9b30976b7594d41f335.ctex"]
 
 [params]
 

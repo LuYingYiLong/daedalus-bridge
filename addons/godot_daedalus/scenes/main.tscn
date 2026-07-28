@@ -484,3 +484,4 @@ size_flags_vertical = 3
 [connection signal="pressed" from="MainViewer/FooterContainer/BackendManagerButton" to="." method="_on_backend_manager_button_pressed"]
 [connection signal="backend_check_requested" from="BootSplash" to="." method="_on_boot_splash_backend_check_requested"]
 [connection signal="reconnect_requested" from="BootSplash" to="." method="_on_boot_splash_reconnect_requested"]
+[connection signal="settings_requested" from="BootSplash" to="." method="_on_boot_splash_settings_requested"]

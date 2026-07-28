@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bb8k2bkti2ks"
+path="res://.godot/imported/disconnected.svg-1dea6d166060901c2b9b2941dda283f3.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/disconnected.svg"
+dest_files=["res://.godot/imported/disconnected.svg-1dea6d166060901c2b9b2941dda283f3.ctex"]
 
 [params]
 

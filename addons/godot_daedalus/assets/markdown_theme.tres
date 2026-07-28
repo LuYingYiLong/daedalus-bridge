@@ -1,6 +1,6 @@
 [gd_resource type="Theme" format=3 uid="uid://dhartxld7pqyb"]
 
-[ext_resource type="FontFile" path="res://addons/godot_daedalus/assets/fonts/JetBrainsMono-Medium.ttf" id="1_qmkse"]
+[ext_resource type="FontFile" uid="uid://dg0p4unxnpch6" path="res://addons/godot_daedalus/assets/fonts/JetBrainsMono-Medium.ttf" id="1_qmkse"]
 
 [sub_resource type="FontVariation" id="FontVariation_n4pjj"]
 variation_embolden = 0.5

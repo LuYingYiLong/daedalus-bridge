@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://f7wgfuj37e31"
+path="res://.godot/imported/status_warning.svg-17e18844cf56253e83494e86ed8ffc5e.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/status_warning.svg"
+dest_files=["res://.godot/imported/status_warning.svg-17e18844cf56253e83494e86ed8ffc5e.ctex"]
 
 [params]
 

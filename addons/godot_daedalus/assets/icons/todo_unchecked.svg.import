@@ -3,10 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://4vfbrr3w7rgh"
+path="res://.godot/imported/todo_unchecked.svg-dfb0f9e545a30599ff29c0ff756a90ea.ctex"
+metadata={
+"vram_texture": false
+}
 
 [deps]
 
 source_file="res://addons/godot_daedalus/assets/icons/todo_unchecked.svg"
+dest_files=["res://.godot/imported/todo_unchecked.svg-dfb0f9e545a30599ff29c0ff756a90ea.ctex"]
 
 [params]
 
