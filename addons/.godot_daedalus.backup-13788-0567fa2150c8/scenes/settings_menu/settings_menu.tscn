@@ -1,0 +1,348 @@
+[gd_scene format=3 uid="uid://dp3tsanvojx2k"]
+
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/settings_menu/settings_menu.gd" id="1_smwku"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/folder_browse.svg" id="2_mcffq"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/clear.svg" id="2_y8kc5"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="3_pcvmy"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/reload.svg" id="4_skill_reload"]
+
+[node name="SettingsMenu" type="AcceptDialog" unique_id=740368191]
+oversampling_override = 1.0
+title = "Daedalus Settings"
+initial_position = 2
+size = Vector2i(655, 435)
+maximize_disabled = false
+min_size = Vector2i(128, 128)
+ok_button_text = "Save"
+script = ExtResource("1_smwku")
+
+[node name="TabContainer" type="TabContainer" parent="." unique_id=1119026021]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 9.0
+offset_top = 9.0
+offset_right = -9.0
+offset_bottom = -51.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"TabContainerOdd"
+tab_alignment = 1
+current_tab = 0
+tab_2/title = "MCP server"
+tab_4/title = "Archived chats"
+
+[node name="General" type="ScrollContainer" parent="TabContainer" unique_id=620720813]
+layout_mode = 2
+metadata/_tab_index = 0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/General" unique_id=175611611]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="GeneralContainer" type="GridContainer" parent="TabContainer/General/VBoxContainer" unique_id=65203203]
+layout_mode = 2
+columns = 2
+
+[node name="BackendURLLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1120041522]
+layout_mode = 2
+text = "Backend URL"
+
+[node name="BackendURLLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1495464268]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "ws://localhost:38180"
+caret_blink = true
+
+[node name="BackendDevDirLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1840252981]
+layout_mode = 2
+tooltip_text = "Optional development backend URL. Production uses the shared backend deployed by Daedalus Studio."
+mouse_filter = 1
+text = "Backend dev directory"
+
+[node name="BackendDevDirContainer" type="HBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1025641172]
+layout_mode = 2
+
+[node name="BackendDevDirLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer/BackendDevDirContainer" unique_id=1857705544]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "Optional local backend source directory for development. Leave empty to use the Studio-managed shared runtime."
+caret_blink = true
+
+[node name="BackendDevDirButton" type="Button" parent="TabContainer/General/VBoxContainer/GeneralContainer/BackendDevDirContainer" unique_id=737830909]
+layout_mode = 2
+icon = ExtResource("2_mcffq")
+
+[node name="ProviderLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=915626358]
+layout_mode = 2
+text = "Provider"
+
+[node name="ProviderOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=840726840]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 1
+popup/item_0/text = "Deepseek"
+popup/item_0/id = 0
+
+[node name="APIKeyLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=493643975]
+unique_name_in_owner = true
+layout_mode = 2
+text = "API Key"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=831029577]
+layout_mode = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer" unique_id=1384427553]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DeepseekAPIKeyLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer/HBoxContainer" unique_id=1108202873]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+caret_blink = true
+secret = true
+
+[node name="ClearDeepseekAPIKeyButton" type="Button" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer/HBoxContainer" unique_id=1646854023]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Clear saved API key"
+icon = ExtResource("2_y8kc5")
+
+[node name="Label" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer" unique_id=1992095171]
+layout_mode = 2
+text = "Daedalus will mask the API key"
+
+[node name="ProviderBaseURLLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1908720007]
+layout_mode = 2
+text = "Request URL"
+
+[node name="ProviderBaseURLLineEdit" type="LineEdit" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1509624576]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "https://api.deepseek.com"
+clear_button_enabled = true
+caret_blink = true
+
+[node name="ImageRecognitionModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=2082936855]
+layout_mode = 2
+text = "Image recognition model"
+
+[node name="ImageRecognitionModelOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1786138034]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Model used to read images when the current chat model does not support image input."
+selected = 0
+item_count = 1
+popup/item_0/text = "Use current model"
+popup/item_0/id = 0
+
+[node name="WorkflowPlannerModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1736267794]
+layout_mode = 2
+text = "Workflow/Plan planner model"
+
+[node name="WorkflowPlannerModelOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1053240666]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Model used for Plan mode and LLM workflow planning."
+selected = 0
+item_count = 1
+popup/item_0/text = "Use current model"
+popup/item_0/id = 0
+
+[node name="SessionTitleModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=305954957]
+layout_mode = 2
+text = "Session title model"
+
+[node name="SessionTitleModelOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1746106011]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Model used to rename new sessions automatically."
+selected = 0
+item_count = 1
+popup/item_0/text = "Use current model"
+popup/item_0/id = 0
+
+[node name="CheckForUpdatesLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1765588519]
+layout_mode = 2
+text = "Check for updates"
+
+[node name="CheckForUpdatesCheckBox" type="CheckBox" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1023545494]
+unique_name_in_owner = true
+layout_mode = 2
+button_pressed = true
+text = "Enabled"
+
+[node name="NextStepHintsLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1041727010]
+layout_mode = 2
+text = "Next-step hints"
+
+[node name="NextStepHintsCheckBox" type="CheckBox" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=942113094]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Generate short next-step suggestions after a response finishes or pauses. This uses one extra temporary LLM call and consumes additional tokens."
+text = "Enabled"
+
+[node name="Personalization" type="VBoxContainer" parent="TabContainer" unique_id=444173481]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Personalization" unique_id=691243455]
+layout_mode = 2
+
+[node name="CustomInstructionsLabel" type="Label" parent="TabContainer/Personalization/HBoxContainer" unique_id=1601299335]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "No custom instructions will be sent this turn."
+text = "Custom instructions"
+
+[node name="CustomInstructionsWarningButton" type="Button" parent="TabContainer/Personalization/HBoxContainer" unique_id=1014150117]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "No custom instructions will be sent this turn."
+theme_type_variation = &"FlatButton"
+disabled = true
+icon = ExtResource("3_pcvmy")
+
+[node name="CustomInstructionsEdit" type="TextEdit" parent="TabContainer/Personalization" unique_id=354201490]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 256)
+layout_mode = 2
+size_flags_vertical = 3
+tooltip_text = "No custom instructions will be sent this turn."
+wrap_mode = 1
+caret_blink = true
+
+[node name="MCPServer" type="VBoxContainer" parent="TabContainer" unique_id=1772459009]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 2
+metadata/_tab_name = "MCP server"
+
+[node name="AddMCPServerButton" type="Button" parent="TabContainer/MCPServer" unique_id=418947967]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+tooltip_text = "Add custom MCP server"
+text = "Add MCP server"
+
+[node name="MCPStatusLabel" type="Label" parent="TabContainer/MCPServer" unique_id=943741942]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+text = "No custom MCP servers"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="ScrollContainer" type="ScrollContainer" parent="TabContainer/MCPServer" unique_id=1478158191]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="MCPServerList" type="VBoxContainer" parent="TabContainer/MCPServer/ScrollContainer" unique_id=380676817]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Skills" type="VBoxContainer" parent="TabContainer" unique_id=1614181837]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 3
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/Skills" unique_id=393295439]
+layout_mode = 2
+
+[node name="SkillsStatusLabel" type="Label" parent="TabContainer/Skills/HBoxContainer" unique_id=245110866]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "No skills discovered"
+vertical_alignment = 1
+
+[node name="RefreshSkillsButton" type="Button" parent="TabContainer/Skills/HBoxContainer" unique_id=2026071201]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Reload skills from disk"
+icon = ExtResource("4_skill_reload")
+
+[node name="ScrollContainer" type="ScrollContainer" parent="TabContainer/Skills" unique_id=490341913]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SkillsList" type="VBoxContainer" parent="TabContainer/Skills/ScrollContainer" unique_id=1394093083]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="ArchivedChats" type="VBoxContainer" parent="TabContainer" unique_id=1085550901]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 4
+metadata/_tab_name = "Archived chats"
+
+[node name="HBoxContainer" type="HBoxContainer" parent="TabContainer/ArchivedChats" unique_id=1920292159]
+layout_mode = 2
+
+[node name="WorkspaceFilterOptionButton" type="OptionButton" parent="TabContainer/ArchivedChats/HBoxContainer" unique_id=1103638757]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 1
+popup/item_0/text = "All"
+popup/item_0/id = 0
+
+[node name="SearchArchivedChatLineEdit" type="LineEdit" parent="TabContainer/ArchivedChats/HBoxContainer" unique_id=1254808222]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Search archived chats"
+clear_button_enabled = true
+select_all_on_focus = true
+caret_blink = true
+
+[node name="DeleteAllArchivedChatsButton" type="Button" parent="TabContainer/ArchivedChats/HBoxContainer" unique_id=207187615]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "No archived chats to delete."
+disabled = true
+text = "Delete all"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="TabContainer/ArchivedChats" unique_id=563202303]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ArchivedChatList" type="VBoxContainer" parent="TabContainer/ArchivedChats/ScrollContainer" unique_id=1703279177]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="EditorFileDialog" type="EditorFileDialog" parent="." unique_id=858716456]
+unique_name_in_owner = true
+title = "Open a Directory"
+file_mode = 2
+access = 2
+
+[connection signal="canceled" from="." to="." method="_on_close_requested"]
+[connection signal="close_requested" from="." to="." method="_on_close_requested"]
+[connection signal="confirmed" from="." to="." method="_on_confirmed"]
+[connection signal="pressed" from="TabContainer/General/VBoxContainer/GeneralContainer/BackendDevDirContainer/BackendDevDirButton" to="." method="_on_backend_dev_dir_button_pressed"]
+[connection signal="pressed" from="TabContainer/General/VBoxContainer/GeneralContainer/VBoxContainer/HBoxContainer/ClearDeepseekAPIKeyButton" to="." method="_on_clear_deepseek_api_key_button_pressed"]
+[connection signal="pressed" from="TabContainer/Personalization/HBoxContainer/CustomInstructionsWarningButton" to="." method="_on_custom_instructions_warning_button_pressed"]
+[connection signal="text_changed" from="TabContainer/Personalization/CustomInstructionsEdit" to="." method="_on_custom_instructions_edit_text_changed"]
+[connection signal="pressed" from="TabContainer/MCPServer/AddMCPServerButton" to="." method="_on_add_mcp_server_button_pressed"]
+[connection signal="pressed" from="TabContainer/Skills/HBoxContainer/RefreshSkillsButton" to="." method="_on_refresh_skills_button_pressed"]
+[connection signal="item_selected" from="TabContainer/ArchivedChats/HBoxContainer/WorkspaceFilterOptionButton" to="." method="_on_workspace_filter_option_button_item_selected"]
+[connection signal="text_changed" from="TabContainer/ArchivedChats/HBoxContainer/SearchArchivedChatLineEdit" to="." method="_on_search_archived_chat_line_edit_text_changed"]
+[connection signal="pressed" from="TabContainer/ArchivedChats/HBoxContainer/DeleteAllArchivedChatsButton" to="." method="_on_delete_all_archived_chats_button_pressed"]

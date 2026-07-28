@@ -1,0 +1,65 @@
+[gd_scene format=3 uid="uid://dsi4mi4uglngs"]
+
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/send.svg" id="1_3o6k1"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/clarification_dialog.gd" id="1_6mbvw"]
+
+[node name="ClarificationDialog" type="PanelContainer" unique_id=280340528]
+visible = false
+theme_type_variation = &"PanelContainerTabbarInner"
+script = ExtResource("1_6mbvw")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=872872704]
+layout_mode = 2
+
+[node name="QuestionLabel" type="Label" parent="VBoxContainer" unique_id=912421306]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Clarification required"
+autowrap_mode = 3
+
+[node name="RecommendReplyButton" type="Button" parent="VBoxContainer" unique_id=824755952]
+unique_name_in_owner = true
+layout_mode = 2
+text = "{Reply} (Recommend)"
+alignment = 0
+
+[node name="Reply2Button" type="Button" parent="VBoxContainer" unique_id=1698970857]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+text = "{Reply}"
+alignment = 0
+
+[node name="Reply3Button" type="Button" parent="VBoxContainer" unique_id=1858627100]
+unique_name_in_owner = true
+layout_mode = 2
+theme_type_variation = &"FlatButton"
+text = "{Reply}"
+alignment = 0
+
+[node name="TextEdit" type="TextEdit" parent="VBoxContainer" unique_id=1308847883]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "No, and tell the LLM what to do"
+scroll_fit_content_height = true
+
+[node name="MarginContainer" type="MarginContainer" parent="VBoxContainer/TextEdit" unique_id=1953407671]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="SendButton" type="Button" parent="VBoxContainer/TextEdit/MarginContainer" unique_id=1293004293]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+size_flags_vertical = 8
+theme_type_variation = &"FlatButton"
+disabled = true
+icon = ExtResource("1_3o6k1")

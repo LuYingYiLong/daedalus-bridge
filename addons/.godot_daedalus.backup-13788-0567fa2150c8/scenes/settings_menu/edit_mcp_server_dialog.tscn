@@ -1,0 +1,163 @@
+[gd_scene load_steps=2 format=3 uid="uid://c7vbtknay2b0y"]
+
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/settings_menu/edit_mcp_server_dialog.gd" id="1_2h8ps"]
+
+[node name="EditMCPServerDialog" type="ConfirmationDialog" unique_id=890601286]
+oversampling_override = 1.0
+title = "Edit MCP server"
+initial_position = 2
+size = Vector2i(510, 440)
+script = ExtResource("1_2h8ps")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1006102409]
+offset_left = 9.0
+offset_top = 9.0
+offset_right = 501.0
+offset_bottom = 389.0
+
+[node name="GridContainer" type="GridContainer" parent="VBoxContainer" unique_id=2145942431]
+layout_mode = 2
+columns = 2
+
+[node name="NameLabel" type="Label" parent="VBoxContainer/GridContainer" unique_id=1490221879]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "Name"
+
+[node name="NameLineEdit" type="LineEdit" parent="VBoxContainer/GridContainer" unique_id=903515476]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+editable = false
+select_all_on_focus = true
+
+[node name="DescriptionLabel" type="Label" parent="VBoxContainer/GridContainer" unique_id=288492793]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "Description"
+
+[node name="DescriptionTextEdit" type="TextEdit" parent="VBoxContainer/GridContainer" unique_id=988070851]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+placeholder_text = "MCP server description"
+caret_blink = true
+
+[node name="TypeLabel" type="Label" parent="VBoxContainer/GridContainer" unique_id=1728499238]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "Type"
+
+[node name="TypeOptionButton" type="OptionButton" parent="VBoxContainer/GridContainer" unique_id=1351068477]
+unique_name_in_owner = true
+layout_mode = 2
+selected = 0
+item_count = 2
+popup/item_0/text = "STDIO"
+popup/item_0/id = 0
+popup/item_1/text = "HTTP"
+popup/item_1/id = 1
+
+[node name="PlanAccessLabel" type="Label" parent="VBoxContainer/GridContainer"]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "Plan access"
+
+[node name="PlanAccessCheckButton" type="CheckButton" parent="VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Allow this custom MCP server in Plan mode as read-only"
+text = "Read-only in Plan"
+
+[node name="StdioContainer" type="GridContainer" parent="VBoxContainer" unique_id=1241376977]
+unique_name_in_owner = true
+layout_mode = 2
+columns = 2
+
+[node name="CommonLabel" type="Label" parent="VBoxContainer/StdioContainer" unique_id=1560445887]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "Command"
+
+[node name="CommonLineEdit" type="LineEdit" parent="VBoxContainer/StdioContainer" unique_id=545406650]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "npx or uvx"
+select_all_on_focus = true
+caret_blink = true
+
+[node name="ArgsLabel" type="Label" parent="VBoxContainer/StdioContainer" unique_id=366263641]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "Args"
+
+[node name="ArgsTextEdit" type="TextEdit" parent="VBoxContainer/StdioContainer" unique_id=656557038]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+placeholder_text = "arg1
+arg2"
+caret_blink = true
+
+[node name="EnvLabel" type="Label" parent="VBoxContainer/StdioContainer" unique_id=341090014]
+layout_mode = 2
+text = "Env"
+
+[node name="EnvTextEdit" type="TextEdit" parent="VBoxContainer/StdioContainer" unique_id=1053263788]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+placeholder_text = "KEY1=value1
+KEY2=value2"
+caret_blink = true
+
+[node name="HttpContainer" type="GridContainer" parent="VBoxContainer" unique_id=1816543867]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+columns = 2
+
+[node name="URLLabel" type="Label" parent="VBoxContainer/HttpContainer" unique_id=1063932986]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "URL"
+
+[node name="URLLineEdit" type="LineEdit" parent="VBoxContainer/HttpContainer" unique_id=206183212]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "https://mcp.example.com/mcp"
+select_all_on_focus = true
+caret_blink = true
+
+[node name="HttpHeaderLabel" type="Label" parent="VBoxContainer/HttpContainer" unique_id=53445024]
+custom_minimum_size = Vector2(128, 0)
+layout_mode = 2
+text = "HTTP Header"
+
+[node name="HttpHeaderTextEdit" type="TextEdit" parent="VBoxContainer/HttpContainer" unique_id=43115581]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 80)
+layout_mode = 2
+placeholder_text = "Authorization: Bearer your_token_here
+Content-Type: application/json"
+caret_blink = true
+
+[node name="ErrorLabel" type="Label" parent="VBoxContainer" unique_id=1567941561]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+layout_mode = 2
+theme_type_variation = &"WarningLabel"
+text = "Name is required."
+autowrap_mode = 2
+
+[connection signal="confirmed" from="." to="." method="_on_confirmed"]
+[connection signal="text_changed" from="VBoxContainer/GridContainer/NameLineEdit" to="." method="_on_line_edit_text_changed"]
+[connection signal="text_changed" from="VBoxContainer/GridContainer/DescriptionTextEdit" to="." method="_on_text_edit_text_changed"]
+[connection signal="item_selected" from="VBoxContainer/GridContainer/TypeOptionButton" to="." method="_on_type_option_button_item_selected"]
+[connection signal="text_changed" from="VBoxContainer/StdioContainer/CommonLineEdit" to="." method="_on_line_edit_text_changed"]
+[connection signal="text_changed" from="VBoxContainer/StdioContainer/ArgsTextEdit" to="." method="_on_text_edit_text_changed"]
+[connection signal="text_changed" from="VBoxContainer/StdioContainer/EnvTextEdit" to="." method="_on_text_edit_text_changed"]
+[connection signal="text_changed" from="VBoxContainer/HttpContainer/URLLineEdit" to="." method="_on_line_edit_text_changed"]
+[connection signal="text_changed" from="VBoxContainer/HttpContainer/HttpHeaderTextEdit" to="." method="_on_text_edit_text_changed"]

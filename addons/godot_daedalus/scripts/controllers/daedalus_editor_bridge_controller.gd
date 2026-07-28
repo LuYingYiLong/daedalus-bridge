@@ -7,6 +7,8 @@ signal live_context_changed(context_id: String, context: Dictionary)
 
 const MAIN_HELPERS: GDScript = preload("res://addons/godot_daedalus/scripts/main_helpers.gd")
 const RPC_METHODS: GDScript = preload("res://addons/godot_daedalus/scripts/rpc_methods.gd")
+const EDITOR_DOMAIN_TOOLS: GDScript = preload("res://addons/godot_daedalus/scripts/controllers/daedalus_editor_domain_tools.gd")
+const VARIANT_CODEC: GDScript = preload("res://addons/godot_daedalus/scripts/controllers/daedalus_variant_codec.gd")
 const LIVE_EDITOR_SELECTION_CONTEXT_ID: String = "editor-selection-live"
 const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
 const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"
@@ -24,6 +26,7 @@ var editor_script_editor: Object
 var editor_context_update_queued: bool
 var editor_context_next_poll_msec: int
 var editor_instance_id: String
+var editor_domain_tools: RefCounted
 
 
 func get_editor_instance_id() -> String:
@@ -62,6 +65,8 @@ func setup(plugin: EditorPlugin) -> void:
 	editor_selection = editor_interface.get_selection()
 	editor_undo_redo = editor_plugin.get_undo_redo()
 	editor_script_editor = editor_interface.get_script_editor()
+	editor_domain_tools = EDITOR_DOMAIN_TOOLS.new()
+	editor_domain_tools.setup(editor_interface, editor_selection, editor_undo_redo)
 	if editor_selection != null and not editor_selection.selection_changed.is_connected(_on_editor_selection_changed):
 		editor_selection.selection_changed.connect(_on_editor_selection_changed)
 	var script_changed_callable: Callable = Callable(self, "_on_editor_script_changed")
@@ -125,8 +130,18 @@ func _send_editor_context_update() -> void:
 		"selectedNodeCount": selected_nodes.size(),
 		"selectedNodes": selected_nodes,
 		"capabilities": {
-			"sceneViewCapture": true
+			"sceneViewCapture": true,
+			"typedVariantV1": true,
+			"scenePatchV2": true,
+			"resourcePatchV1": true,
+			"animationPatchV1": true,
+			"mapPatchV1": true,
+			"audioPatchV1": true,
+			"editorNavigationV1": true,
+			"safePreviewV1": true
 		},
+		"godotVersion": str(Engine.get_version_info().get("string", "")),
+		"pluginProtocolVersion": 2,
 		"scriptContext": script_context if not script_context.is_empty() else null,
 		"filesystemSelection": filesystem_selection_context if not filesystem_selection_context.is_empty() else null,
 		"updatedAt": MAIN_HELPERS.get_utc_timestamp()
@@ -487,12 +502,22 @@ func handle_tool_requested(data: Dictionary) -> void:
 		_complete_editor_capture_scene_view.call_deferred(call_id, args)
 		return
 
-	if tool_name == "inspect_node":
+	if tool_name == "get_context":
+		result = _build_editor_tool_context()
+	elif tool_name == "get_selected_nodes":
+		result = _get_selected_node_summaries()
+	elif tool_name == "inspect_node":
 		result = _execute_editor_inspect_node(args)
+	elif tool_name == "propose_scene_patch":
+		result = _execute_editor_propose_scene_patch(args)
 	elif tool_name == "apply_scene_patch":
 		result = _execute_editor_apply_scene_patch(args)
 	elif tool_name == "refresh_filesystem":
 		result = _execute_editor_refresh_filesystem(args)
+	elif _is_editor_domain_tool(tool_name):
+		_emit_editor_tool_progress(call_id, { "phase": "started", "toolName": tool_name })
+		result = editor_domain_tools.execute(tool_name, args, get_edited_scene_root())
+		_emit_editor_tool_progress(call_id, { "phase": "completed", "toolName": tool_name })
 	else:
 		ok = false
 		error_message = "Unknown editor tool: %s" % tool_name
@@ -524,6 +549,75 @@ func _emit_editor_tool_result(call_id: String, ok: bool, result: Variant, error_
 	)
 
 
+func _emit_editor_tool_progress(call_id: String, progress: Dictionary) -> void:
+	request_ready.emit(
+		RPC_METHODS.EDITOR_TOOL_PROGRESS,
+		{
+			"callId": call_id,
+			"progress": progress
+		},
+		"editor-tool-progress"
+	)
+
+
+func _is_editor_domain_tool(tool_name: String) -> bool:
+	return tool_name in [
+		"search_classes",
+		"get_class_schema",
+		"inspect_resource",
+		"inspect_animation",
+		"inspect_map",
+		"inspect_audio",
+		"get_performance_snapshot",
+		"propose_resource_patch",
+		"apply_resource_patch",
+		"propose_animation_patch",
+		"apply_animation_patch",
+		"propose_map_patch",
+		"apply_map_patch",
+		"propose_audio_patch",
+		"apply_audio_patch",
+		"navigate",
+		"preview_control",
+		"reimport_assets",
+		"bake_resource"
+	]
+
+
+func _build_editor_tool_context() -> Dictionary:
+	var edited_root: Node = get_edited_scene_root()
+	return {
+		"ok": true,
+		"workspaceId": ProjectSettings.globalize_path("res://"),
+		"editorInstanceId": get_editor_instance_id(),
+		"godotVersion": str(Engine.get_version_info().get("string", "")),
+		"pluginProtocolVersion": 2,
+		"activeScenePath": get_scene_resource_path(edited_root) if edited_root != null else "",
+		"selectedNodes": _get_selected_node_summaries().get("nodes", []),
+		"capabilities": {
+			"sceneViewCapture": true,
+			"typedVariantV1": true,
+			"scenePatchV2": true,
+			"resourcePatchV1": true,
+			"animationPatchV1": true,
+			"mapPatchV1": true,
+			"audioPatchV1": true,
+			"editorNavigationV1": true,
+			"safePreviewV1": true
+		},
+		"updatedAt": MAIN_HELPERS.get_utc_timestamp()
+	}
+
+
+func _get_selected_node_summaries() -> Dictionary:
+	var edited_root: Node = get_edited_scene_root()
+	var nodes: Array[Dictionary] = []
+	if edited_root != null and editor_selection != null:
+		for selected_node: Node in editor_selection.get_selected_nodes():
+			nodes.append(serialize_editor_node_summary(selected_node, edited_root))
+	return { "ok": true, "nodes": nodes, "count": nodes.size() }
+
+
 func _execute_editor_inspect_node(args: Dictionary) -> Dictionary:
 	var scene_path: String = str(args.get("scenePath", ""))
 	var node_path: String = str(args.get("nodePath", "."))
@@ -532,10 +626,10 @@ func _execute_editor_inspect_node(args: Dictionary) -> Dictionary:
 	if target_node == null or edited_root == null:
 		return { "ok": false, "error": "editor_node_not_found" }
 
-	return {
-		"ok": true,
-		"node": _serialize_editor_node_deep(target_node, edited_root)
-	}
+	var inspected: Dictionary = editor_domain_tools.inspect_live_node(target_node, args)
+	if bool(inspected.get("ok", false)):
+		(inspected.get("node") as Dictionary)["children"] = _serialize_editor_node_deep(target_node, edited_root).get("children", [])
+	return inspected
 
 
 func _execute_editor_capture_scene_view(args: Dictionary) -> Dictionary:
@@ -684,25 +778,67 @@ func _execute_editor_refresh_filesystem(args: Dictionary) -> Dictionary:
 	}
 
 
+func _execute_editor_propose_scene_patch(args: Dictionary) -> Dictionary:
+	var prepared: Dictionary = _prepare_editor_scene_patch(args)
+	if not bool(prepared.get("ok", false)):
+		return prepared
+	return {
+		"ok": true,
+		"valid": true,
+		"operations": prepared.get("operations"),
+		"before": prepared.get("before"),
+		"after": { "operations": prepared.get("operations") },
+		"fingerprint": prepared.get("fingerprint"),
+		"warnings": []
+	}
+
+
+func _prepare_editor_scene_patch(args: Dictionary) -> Dictionary:
+	var edited_root: Node = get_edited_scene_root()
+	if edited_root == null:
+		return { "ok": false, "error": "editor_scene_unavailable" }
+	var scene_path: String = str(args.get("scenePath", ""))
+	if not scene_path.strip_edges().is_empty() and scene_path != get_scene_resource_path(edited_root):
+		return { "ok": false, "error": "editor_scene_mismatch" }
+	var operations_value: Variant = args.get("operations", [])
+	if typeof(operations_value) != TYPE_ARRAY:
+		return { "ok": false, "error": "invalid_operations" }
+	var operations: Array = operations_value as Array
+	if operations.is_empty() or operations.size() > 100:
+		return { "ok": false, "error": "invalid_operation_count" }
+	for operation_value: Variant in operations:
+		if typeof(operation_value) != TYPE_DICTIONARY:
+			return { "ok": false, "error": "invalid_operation" }
+		var operation_error: String = _validate_editor_patch_operation(operation_value as Dictionary)
+		if not operation_error.is_empty():
+			return { "ok": false, "error": operation_error }
+	var before: Dictionary = _serialize_editor_node_deep(edited_root, edited_root)
+	return {
+		"ok": true,
+		"root": edited_root,
+		"operations": operations,
+		"before": before,
+		"fingerprint": VARIANT_CODEC.fingerprint(before)
+	}
+
+
 func _execute_editor_apply_scene_patch(args: Dictionary) -> Dictionary:
 	if editor_undo_redo == null:
 		return { "ok": false, "error": "editor_undo_redo_unavailable" }
 
-	var edited_root: Node = get_edited_scene_root()
-	if edited_root == null:
-		return { "ok": false, "error": "editor_scene_unavailable" }
-
-	var scene_path: String = str(args.get("scenePath", ""))
-	if not scene_path.strip_edges().is_empty() and scene_path != get_scene_resource_path(edited_root):
-		return { "ok": false, "error": "editor_scene_mismatch" }
-
-	var operations_value: Variant = args.get("operations", [])
-	if typeof(operations_value) != TYPE_ARRAY:
-		return { "ok": false, "error": "invalid_operations" }
-
-	var operations: Array = operations_value as Array
-	if operations.is_empty():
-		return { "ok": false, "error": "empty_operations" }
+	var prepared: Dictionary = _prepare_editor_scene_patch(args)
+	if not bool(prepared.get("ok", false)):
+		return prepared
+	var edited_root: Node = prepared.get("root") as Node
+	var operations: Array = prepared.get("operations", []) as Array
+	var expected_fingerprint: String = str(args.get("expectedFingerprint", "")).strip_edges()
+	if not expected_fingerprint.is_empty() and expected_fingerprint != str(prepared.get("fingerprint", "")):
+		return {
+			"ok": false,
+			"error": "scene_patch_conflict",
+			"expectedFingerprint": expected_fingerprint,
+			"actualFingerprint": prepared.get("fingerprint")
+		}
 
 	var action_title: String = str(args.get("title", "Scene patch")).strip_edges()
 	if action_title.is_empty():
@@ -711,15 +847,6 @@ func _execute_editor_apply_scene_patch(args: Dictionary) -> Dictionary:
 		action_title = "Daedalus: %s" % action_title
 
 	var created_nodes: Array[Node] = []
-	for operation_value: Variant in operations:
-		if typeof(operation_value) != TYPE_DICTIONARY:
-			return { "ok": false, "error": "invalid_operation" }
-
-		var operation: Dictionary = operation_value as Dictionary
-		var operation_error: String = _validate_editor_patch_operation(operation)
-		if not operation_error.is_empty():
-			return { "ok": false, "error": operation_error }
-
 	editor_undo_redo.create_action(action_title)
 	for operation_value: Variant in operations:
 		var operation: Dictionary = operation_value as Dictionary
@@ -739,6 +866,8 @@ func _execute_editor_apply_scene_patch(args: Dictionary) -> Dictionary:
 		"operations": operations.size(),
 		"createdNodes": created_nodes.size(),
 		"saved": should_save and save_error == OK,
+		"fingerprintBefore": prepared.get("fingerprint"),
+		"fingerprintAfter": VARIANT_CODEC.fingerprint(_serialize_editor_node_deep(edited_root, edited_root)),
 		"error": "" if save_error == OK else "editor_save_failed:%d" % int(save_error)
 	}
 
@@ -753,8 +882,30 @@ func _add_editor_patch_operation(operation: Dictionary, edited_root: Node, creat
 		return _add_editor_rename_node_operation(operation, edited_root)
 	if operation_type == "attach_script":
 		return _add_editor_attach_script_operation(operation, edited_root)
+	if operation_type == "detach_script":
+		return _add_editor_detach_script_operation(operation)
 	if operation_type == "connect_signal":
 		return _add_editor_connect_signal_operation(operation, edited_root)
+	if operation_type == "disconnect_signal":
+		return _add_editor_disconnect_signal_operation(operation)
+	if operation_type == "remove_node":
+		return _add_editor_remove_node_operation(operation, edited_root)
+	if operation_type == "duplicate_node":
+		return _add_editor_duplicate_node_operation(operation, edited_root, created_nodes)
+	if operation_type == "instantiate_scene":
+		return _add_editor_instantiate_scene_operation(operation, edited_root, created_nodes)
+	if operation_type == "reparent_node":
+		return _add_editor_reparent_node_operation(operation)
+	if operation_type == "reorder_node":
+		return _add_editor_reorder_node_operation(operation)
+	if operation_type == "set_owner":
+		return _add_editor_set_owner_operation(operation, edited_root)
+	if operation_type in ["add_to_group", "remove_from_group"]:
+		return _add_editor_group_operation(operation)
+	if operation_type in ["set_metadata", "remove_metadata"]:
+		return _add_editor_metadata_operation(operation)
+	if operation_type == "reset_property":
+		return _add_editor_reset_property_operation(operation)
 	return "unsupported_operation:%s" % operation_type
 
 
@@ -767,6 +918,12 @@ func _validate_editor_patch_operation(operation: Dictionary) -> String:
 			return "node_not_found"
 		if property_name.is_empty() or not _node_has_property(target_node, property_name):
 			return "property_not_found:%s" % property_name
+		var decoded_property: Dictionary = VARIANT_CODEC.decode(
+			operation.get("value"),
+			target_node.get(property_name)
+		)
+		if not bool(decoded_property.get("ok", false)):
+			return str(decoded_property.get("error", "invalid_property_value"))
 		return ""
 	if operation_type == "add_node":
 		var parent_node: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
@@ -779,6 +936,22 @@ func _validate_editor_patch_operation(operation: Dictionary) -> String:
 		if not (created_node_value is Node):
 			return "class_is_not_node:%s" % node_type
 		var validation_node: Node = created_node_value as Node
+		var properties_value: Variant = operation.get("properties", {})
+		if typeof(properties_value) != TYPE_DICTIONARY:
+			validation_node.free()
+			return "invalid_node_properties"
+		for property_key: Variant in (properties_value as Dictionary).keys():
+			var property_name: String = str(property_key)
+			if not _node_has_property(validation_node, property_name):
+				validation_node.free()
+				return "property_not_found:%s" % property_name
+			var decoded_property: Dictionary = VARIANT_CODEC.decode(
+				(properties_value as Dictionary)[property_key],
+				validation_node.get(property_name)
+			)
+			if not bool(decoded_property.get("ok", false)):
+				validation_node.free()
+				return str(decoded_property.get("error", "invalid_property_value"))
 		validation_node.free()
 		return ""
 	if operation_type == "rename_node":
@@ -796,11 +969,15 @@ func _validate_editor_patch_operation(operation: Dictionary) -> String:
 			return "node_not_found"
 		if script_path.is_empty():
 			return "empty_script_path"
+		if not VARIANT_CODEC.is_safe_resource_path(script_path, false):
+			return "unsafe_script_path"
 		var script_resource: Resource = load(script_path)
 		if not (script_resource is Script):
 			return "script_not_found:%s" % script_path
 		return ""
-	if operation_type == "connect_signal":
+	if operation_type == "detach_script":
+		return "" if _find_editor_node("", str(operation.get("nodePath", "."))) != null else "node_not_found"
+	if operation_type in ["connect_signal", "disconnect_signal"]:
 		var source_node: Node = _find_editor_node("", str(operation.get("fromNode", ".")))
 		var target_node: Node = _find_editor_node("", str(operation.get("toNode", ".")))
 		var signal_name: String = str(operation.get("signal", "")).strip_edges()
@@ -809,6 +986,93 @@ func _validate_editor_patch_operation(operation: Dictionary) -> String:
 			return "signal_node_not_found"
 		if signal_name.is_empty() or method_name.is_empty():
 			return "invalid_signal_or_method"
+		if not source_node.has_signal(signal_name):
+			return "signal_not_found:%s" % signal_name
+		if not target_node.has_method(method_name):
+			return "method_not_found:%s" % method_name
+		return ""
+	if operation_type in ["remove_node", "duplicate_node"]:
+		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+		if target_node == null:
+			return "node_not_found"
+		if operation_type == "remove_node" and target_node == get_edited_scene_root():
+			return "cannot_remove_scene_root"
+		if operation_type == "duplicate_node":
+			var duplicated: Node = target_node.duplicate(int(operation.get(
+				"flags",
+				Node.DUPLICATE_SIGNALS | Node.DUPLICATE_GROUPS | Node.DUPLICATE_SCRIPTS | Node.DUPLICATE_USE_INSTANTIATION
+			)))
+			if duplicated == null:
+				return "duplicate_node_failed"
+			duplicated.free()
+		return ""
+	if operation_type == "instantiate_scene":
+		var parent_node: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
+		var packed_scene_path: String = str(operation.get("scenePath", "")).strip_edges()
+		if parent_node == null:
+			return "parent_not_found"
+		if not VARIANT_CODEC.is_safe_resource_path(packed_scene_path, false):
+			return "unsafe_scene_path"
+		var packed_scene: PackedScene = load(packed_scene_path) as PackedScene
+		if packed_scene == null:
+			return "packed_scene_not_found:%s" % packed_scene_path
+		var validation_instance: Node = packed_scene.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
+		if validation_instance == null:
+			return "scene_instantiate_failed"
+		validation_instance.free()
+		return ""
+	if operation_type == "reparent_node":
+		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+		var new_parent: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
+		if target_node == null or new_parent == null:
+			return "node_or_parent_not_found"
+		if target_node == get_edited_scene_root() or target_node == new_parent or target_node.is_ancestor_of(new_parent):
+			return "invalid_reparent_target"
+		return ""
+	if operation_type == "reorder_node":
+		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+		if target_node == null or target_node.get_parent() == null:
+			return "node_not_found"
+		var new_index: int = int(operation.get("index", -1))
+		if new_index < 0 or new_index >= target_node.get_parent().get_child_count():
+			return "child_index_out_of_range"
+		return ""
+	if operation_type == "set_owner":
+		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+		var owner_path: String = str(operation.get("ownerPath", "."))
+		var new_owner: Node = get_edited_scene_root() if owner_path == "." else _find_editor_node("", owner_path)
+		if target_node == null or new_owner == null:
+			return "node_or_owner_not_found"
+		if new_owner != target_node and not new_owner.is_ancestor_of(target_node):
+			return "owner_must_be_ancestor"
+		return ""
+	if operation_type in ["add_to_group", "remove_from_group"]:
+		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+		if target_node == null:
+			return "node_not_found"
+		if str(operation.get("group", "")).strip_edges().is_empty():
+			return "empty_group_name"
+		return ""
+	if operation_type in ["set_metadata", "remove_metadata"]:
+		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+		if target_node == null:
+			return "node_not_found"
+		if str(operation.get("name", "")).strip_edges().is_empty():
+			return "empty_metadata_name"
+		if operation_type == "set_metadata":
+			var decoded_metadata: Dictionary = VARIANT_CODEC.decode(operation.get("value"))
+			if not bool(decoded_metadata.get("ok", false)):
+				return str(decoded_metadata.get("error", "invalid_metadata_value"))
+		return ""
+	if operation_type == "reset_property":
+		var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+		var property_name: String = str(operation.get("property", ""))
+		if target_node == null:
+			return "node_not_found"
+		if property_name.is_empty() or not _node_has_property(target_node, property_name):
+			return "property_not_found:%s" % property_name
+		if not ClassDB.can_instantiate(target_node.get_class()):
+			return "node_class_has_no_default_instance"
 		return ""
 	return "unsupported_operation:%s" % operation_type
 
@@ -822,7 +1086,10 @@ func _add_editor_set_property_operation(operation: Dictionary, edited_root: Node
 		return "property_not_found:%s" % property_name
 
 	var old_value: Variant = target_node.get(property_name)
-	var new_value: Variant = _coerce_property_value(operation.get("value", null), old_value)
+	var decoded: Dictionary = VARIANT_CODEC.decode(operation.get("value", null), old_value)
+	if not bool(decoded.get("ok", false)):
+		return str(decoded.get("error", "invalid_property_value"))
+	var new_value: Variant = decoded.get("value")
 	editor_undo_redo.add_do_property(target_node, property_name, new_value)
 	editor_undo_redo.add_undo_property(target_node, property_name, old_value)
 	return ""
@@ -850,7 +1117,9 @@ func _add_editor_add_node_operation(operation: Dictionary, edited_root: Node, cr
 			var property_name: String = str(property_key)
 			if _node_has_property(created_node, property_name):
 				var old_value: Variant = created_node.get(property_name)
-				created_node.set(property_name, _coerce_property_value(properties[property_key], old_value))
+				var decoded: Dictionary = VARIANT_CODEC.decode(properties[property_key], old_value)
+				if bool(decoded.get("ok", false)):
+					created_node.set(property_name, decoded.get("value"))
 
 	editor_undo_redo.add_do_method(parent_node, "add_child", created_node)
 	editor_undo_redo.add_do_property(created_node, "owner", edited_root)
@@ -911,16 +1180,203 @@ func _add_editor_connect_signal_operation(operation: Dictionary, _edited_root: N
 	return ""
 
 
-func _coerce_property_value(value: Variant, old_value: Variant) -> Variant:
-	if old_value is Vector2 and typeof(value) == TYPE_DICTIONARY:
-		var vector_dictionary: Dictionary = value as Dictionary
-		return Vector2(float(vector_dictionary.get("x", 0.0)), float(vector_dictionary.get("y", 0.0)))
-	if old_value is Vector2i and typeof(value) == TYPE_DICTIONARY:
-		var vector_i_dictionary: Dictionary = value as Dictionary
-		return Vector2i(int(vector_i_dictionary.get("x", 0)), int(vector_i_dictionary.get("y", 0)))
-	if old_value is Color and typeof(value) == TYPE_STRING:
-		return Color(str(value))
-	return value
+func _add_editor_detach_script_operation(operation: Dictionary) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	if target_node == null:
+		return "node_not_found"
+	var old_script: Variant = target_node.get_script()
+	editor_undo_redo.add_do_method(target_node, "set_script", null)
+	editor_undo_redo.add_undo_method(target_node, "set_script", old_script)
+	return ""
+
+
+func _add_editor_disconnect_signal_operation(operation: Dictionary) -> String:
+	var source_node: Node = _find_editor_node("", str(operation.get("fromNode", ".")))
+	var target_node: Node = _find_editor_node("", str(operation.get("toNode", ".")))
+	var signal_name: StringName = StringName(str(operation.get("signal", "")))
+	var method_name: StringName = StringName(str(operation.get("method", "")))
+	if source_node == null or target_node == null:
+		return "signal_node_not_found"
+	var callable: Callable = Callable(target_node, method_name)
+	if not source_node.is_connected(signal_name, callable):
+		return ""
+	var flags: int = 0
+	for connection: Dictionary in source_node.get_signal_connection_list(signal_name):
+		if connection.get("callable") == callable:
+			flags = int(connection.get("flags", 0))
+			break
+	editor_undo_redo.add_do_method(source_node, "disconnect", signal_name, callable)
+	editor_undo_redo.add_undo_method(source_node, "connect", signal_name, callable, flags)
+	return ""
+
+
+func _add_editor_remove_node_operation(operation: Dictionary, _edited_root: Node) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	if target_node == null or target_node.get_parent() == null:
+		return "node_not_found"
+	var parent: Node = target_node.get_parent()
+	var child_index: int = target_node.get_index()
+	var old_owner: Node = target_node.owner
+	editor_undo_redo.add_do_method(self, "_detach_node", target_node)
+	editor_undo_redo.add_undo_method(self, "_restore_node", parent, target_node, child_index, old_owner)
+	editor_undo_redo.add_undo_reference(target_node)
+	return ""
+
+
+func _add_editor_duplicate_node_operation(operation: Dictionary, edited_root: Node, created_nodes: Array[Node]) -> String:
+	var source_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	if source_node == null or source_node.get_parent() == null:
+		return "node_not_found"
+	var parent: Node = source_node.get_parent()
+	var duplicate_flags: int = int(operation.get(
+		"flags",
+		Node.DUPLICATE_SIGNALS | Node.DUPLICATE_GROUPS | Node.DUPLICATE_SCRIPTS | Node.DUPLICATE_USE_INSTANTIATION
+	))
+	var duplicated: Node = source_node.duplicate(duplicate_flags)
+	if duplicated == null:
+		return "duplicate_node_failed"
+	duplicated.name = str(operation.get("name", "%sCopy" % source_node.name))
+	var insert_index: int = clampi(int(operation.get("index", source_node.get_index() + 1)), 0, parent.get_child_count())
+	editor_undo_redo.add_do_method(self, "_restore_node", parent, duplicated, insert_index, edited_root)
+	editor_undo_redo.add_undo_method(self, "_detach_node", duplicated)
+	editor_undo_redo.add_do_reference(duplicated)
+	created_nodes.append(duplicated)
+	return ""
+
+
+func _add_editor_instantiate_scene_operation(operation: Dictionary, edited_root: Node, created_nodes: Array[Node]) -> String:
+	var parent: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
+	var packed_scene: PackedScene = load(str(operation.get("scenePath", ""))) as PackedScene
+	if parent == null:
+		return "parent_not_found"
+	if packed_scene == null:
+		return "packed_scene_not_found"
+	var instance: Node = packed_scene.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE)
+	if instance == null:
+		return "scene_instantiate_failed"
+	if operation.has("name"):
+		instance.name = str(operation.get("name"))
+	var insert_index: int = clampi(int(operation.get("index", parent.get_child_count())), 0, parent.get_child_count())
+	editor_undo_redo.add_do_method(self, "_restore_node", parent, instance, insert_index, edited_root)
+	editor_undo_redo.add_undo_method(self, "_detach_node", instance)
+	editor_undo_redo.add_do_reference(instance)
+	created_nodes.append(instance)
+	return ""
+
+
+func _add_editor_reparent_node_operation(operation: Dictionary) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	var new_parent: Node = _find_editor_node("", str(operation.get("parentPath", ".")))
+	if target_node == null or new_parent == null or target_node.get_parent() == null:
+		return "node_or_parent_not_found"
+	var old_parent: Node = target_node.get_parent()
+	var old_index: int = target_node.get_index()
+	var new_index: int = clampi(int(operation.get("index", new_parent.get_child_count())), 0, new_parent.get_child_count())
+	var keep_global_transform: bool = bool(operation.get("keepGlobalTransform", true))
+	editor_undo_redo.add_do_method(self, "_reparent_node", target_node, new_parent, new_index, keep_global_transform)
+	editor_undo_redo.add_undo_method(self, "_reparent_node", target_node, old_parent, old_index, keep_global_transform)
+	return ""
+
+
+func _add_editor_reorder_node_operation(operation: Dictionary) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	if target_node == null or target_node.get_parent() == null:
+		return "node_not_found"
+	var parent: Node = target_node.get_parent()
+	var old_index: int = target_node.get_index()
+	var new_index: int = int(operation.get("index", old_index))
+	editor_undo_redo.add_do_method(parent, "move_child", target_node, new_index)
+	editor_undo_redo.add_undo_method(parent, "move_child", target_node, old_index)
+	return ""
+
+
+func _add_editor_set_owner_operation(operation: Dictionary, edited_root: Node) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	if target_node == null:
+		return "node_not_found"
+	var owner_path: String = str(operation.get("ownerPath", "."))
+	var new_owner: Node = edited_root if owner_path == "." else _find_editor_node("", owner_path)
+	var old_owner: Node = target_node.owner
+	editor_undo_redo.add_do_property(target_node, "owner", new_owner)
+	editor_undo_redo.add_undo_property(target_node, "owner", old_owner)
+	return ""
+
+
+func _add_editor_group_operation(operation: Dictionary) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	if target_node == null:
+		return "node_not_found"
+	var group_name: StringName = StringName(str(operation.get("group", "")))
+	var persistent: bool = bool(operation.get("persistent", true))
+	if str(operation.get("type", "")) == "add_to_group":
+		if target_node.is_in_group(group_name):
+			return ""
+		editor_undo_redo.add_do_method(target_node, "add_to_group", group_name, persistent)
+		editor_undo_redo.add_undo_method(target_node, "remove_from_group", group_name)
+	else:
+		if not target_node.is_in_group(group_name):
+			return ""
+		editor_undo_redo.add_do_method(target_node, "remove_from_group", group_name)
+		editor_undo_redo.add_undo_method(target_node, "add_to_group", group_name, persistent)
+	return ""
+
+
+func _add_editor_metadata_operation(operation: Dictionary) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	if target_node == null:
+		return "node_not_found"
+	var metadata_name: StringName = StringName(str(operation.get("name", "")))
+	var had_old_value: bool = target_node.has_meta(metadata_name)
+	var old_value: Variant = target_node.get_meta(metadata_name) if had_old_value else null
+	if str(operation.get("type", "")) == "set_metadata":
+		var decoded: Dictionary = VARIANT_CODEC.decode(operation.get("value"))
+		if not bool(decoded.get("ok", false)):
+			return str(decoded.get("error", "invalid_metadata_value"))
+		editor_undo_redo.add_do_method(target_node, "set_meta", metadata_name, decoded.get("value"))
+	else:
+		editor_undo_redo.add_do_method(target_node, "remove_meta", metadata_name)
+	if had_old_value:
+		editor_undo_redo.add_undo_method(target_node, "set_meta", metadata_name, old_value)
+	else:
+		editor_undo_redo.add_undo_method(target_node, "remove_meta", metadata_name)
+	return ""
+
+
+func _add_editor_reset_property_operation(operation: Dictionary) -> String:
+	var target_node: Node = _find_editor_node("", str(operation.get("nodePath", ".")))
+	var property_name: String = str(operation.get("property", ""))
+	if target_node == null:
+		return "node_not_found"
+	var default_value: Variant = ClassDB.instantiate(target_node.get_class())
+	if not default_value is Object:
+		return "node_default_unavailable"
+	var old_value: Variant = target_node.get(property_name)
+	var new_value: Variant = (default_value as Object).get(property_name)
+	if default_value is Node:
+		(default_value as Node).free()
+	editor_undo_redo.add_do_property(target_node, property_name, new_value)
+	editor_undo_redo.add_undo_property(target_node, property_name, old_value)
+	return ""
+
+
+func _detach_node(target_node: Node) -> void:
+	if target_node != null and target_node.get_parent() != null:
+		target_node.get_parent().remove_child(target_node)
+
+
+func _restore_node(parent: Node, target_node: Node, index: int, owner: Node) -> void:
+	if parent == null or target_node == null:
+		return
+	if target_node.get_parent() != null:
+		target_node.get_parent().remove_child(target_node)
+	parent.add_child(target_node)
+	parent.move_child(target_node, clampi(index, 0, parent.get_child_count() - 1))
+	target_node.owner = owner
+
+
+func _reparent_node(target_node: Node, new_parent: Node, index: int, keep_global_transform: bool) -> void:
+	target_node.reparent(new_parent, keep_global_transform)
+	new_parent.move_child(target_node, clampi(index, 0, new_parent.get_child_count() - 1))
 
 
 func _save_current_editor_scene() -> Error:

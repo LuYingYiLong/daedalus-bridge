@@ -73,4 +73,4 @@ Before a public Beta release, also manually verify plugin enablement, backend ma
 
 The Godot example project uses `.gitattributes` with `export-ignore` so generated source archives keep the plugin runtime files and leave out example-only project files, local development notes, tests, and helper scripts.
 
-Public Beta release assets must include `godot-daedalus-plugin-vX.Y.Z.zip` and `godot-daedalus-plugin-vX.Y.Z.manifest.json`. The ZIP must contain `addons/godot_daedalus/plugin.cfg` with forward-slash entry paths. The manifest must include `pluginVersion`, `pluginProtocolVersion`, `studioVersion`, `minGodotVersion`, `sourceTag`, and `archive` (`fileName`, `size`, `sha256`).
+Public Beta release assets must include `godot-daedalus-plugin-vX.Y.Z.zip` and `godot-daedalus-plugin-vX.Y.Z.manifest.json`. The zip must contain `addons/godot_daedalus/plugin.cfg`; the manifest must include `version`, `tag`, `sha256`, `assetName`, and `minGodotVersion`.

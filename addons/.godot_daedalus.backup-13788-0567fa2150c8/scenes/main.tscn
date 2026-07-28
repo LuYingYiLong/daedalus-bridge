@@ -1,0 +1,486 @@
+[gd_scene format=3 uid="uid://qf05xb4jnata"]
+
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/back.svg" id="1_hv046"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/main.gd" id="1_p4vnu"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/add.svg" id="1_tukfc"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/empty_context_length.svg" id="2_11dqu"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/send.svg" id="2_qsedr"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/create_new_session.svg" id="3_vp1j8"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/stop.svg" id="4_gf3fo"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/settings.svg" id="4_v6xl6"]
+[ext_resource type="PackedScene" path="res://addons/godot_daedalus/scenes/boot_splash.tscn" id="5_boot"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/search.svg" id="6_m2uxd"]
+[ext_resource type="PackedScene" path="res://addons/godot_daedalus/scenes/clarification_dialog.tscn" id="7_5j0us"]
+[ext_resource type="PackedScene" path="res://addons/godot_daedalus/scenes/plan_approval_dialog.tscn" id="8_0825u"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/agent.svg" id="8_ga6bp"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/ask.svg" id="9_47d6y"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/plan.svg" id="10_4ygoa"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/status_warning.svg" id="11_27ps1"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/shield.svg" id="14_42cu0"]
+[ext_resource type="Texture2D" path="res://addons/godot_daedalus/assets/icons/warning.svg" id="15_5j0us"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_additional_context_controller.gd" id="16_additional_context"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd" id="17_editor_bridge"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_file_edit_controller.gd" id="18_file_edit"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_backend_connection_controller.gd" id="19_backend_connection"]
+[ext_resource type="Script" path="res://addons/godot_daedalus/scripts/controllers/daedalus_provider_navigation_controller.gd" id="20_provider_navigation"]
+
+[node name="Main" type="VBoxContainer" unique_id=81601605]
+offset_right = 1152.0
+offset_bottom = 648.0
+script = ExtResource("1_p4vnu")
+
+[node name="Controllers" type="Node" parent="." unique_id=885122420]
+
+[node name="AdditionalContextController" type="Node" parent="Controllers" unique_id=1204150005]
+unique_name_in_owner = true
+script = ExtResource("16_additional_context")
+
+[node name="EditorBridgeController" type="Node" parent="Controllers" unique_id=500047600]
+unique_name_in_owner = true
+script = ExtResource("17_editor_bridge")
+
+[node name="FileEditController" type="Node" parent="Controllers" unique_id=628343265]
+unique_name_in_owner = true
+script = ExtResource("18_file_edit")
+
+[node name="BackendConnectionController" type="Node" parent="Controllers" unique_id=1210848980]
+unique_name_in_owner = true
+script = ExtResource("19_backend_connection")
+
+[node name="ProviderNavigationController" type="Node" parent="Controllers" unique_id=688660357]
+unique_name_in_owner = true
+script = ExtResource("20_provider_navigation")
+
+[node name="MainViewer" type="VBoxContainer" parent="." unique_id=430137850]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HeaderContainer" type="HBoxContainer" parent="MainViewer" unique_id=1252537182]
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="MainViewer/HeaderContainer" unique_id=1493988619]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Back"
+theme_type_variation = &"FlatButton"
+disabled = true
+icon = ExtResource("1_hv046")
+
+[node name="WorkspaceFilterButton" type="OptionButton" parent="MainViewer/HeaderContainer" unique_id=365115643]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(64, 0)
+custom_maximum_size = Vector2(128, -1)
+layout_mode = 2
+text_overrun_behavior = 6
+selected = 0
+item_count = 5
+popup/item_0/text = "All"
+popup/item_0/id = 0
+popup/item_1/text = "daedalus-studio"
+popup/item_1/id = 1
+popup/item_2/text = "daedalus-backend"
+popup/item_2/id = 2
+popup/item_3/text = "测试"
+popup/item_3/id = 3
+popup/item_4/text = "godot-daedalus"
+popup/item_4/id = 4
+
+[node name="SearchSessionLineEdit" type="LineEdit" parent="MainViewer/HeaderContainer" unique_id=1392628004]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "Filter session"
+clear_button_enabled = true
+right_icon = ExtResource("6_m2uxd")
+
+[node name="SessionOptionButton" type="OptionButton" parent="MainViewer/HeaderContainer" unique_id=1654924232]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+selected = 0
+item_count = 5
+popup/item_0/text = "2D平台跳跃游戏完善"
+popup/item_0/id = 0
+popup/item_1/text = "你好呀"
+popup/item_1/id = 1
+popup/item_2/text = "你好"
+popup/item_2/id = 2
+popup/item_3/text = "你好呀"
+popup/item_3/id = 3
+popup/item_4/text = "模型身份询问"
+popup/item_4/id = 4
+
+[node name="CreateNewSessionButton" type="Button" parent="MainViewer/HeaderContainer" unique_id=1073886672]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Create new session"
+theme_type_variation = &"FlatButton"
+icon = ExtResource("3_vp1j8")
+
+[node name="SettingsButton" type="Button" parent="MainViewer/HeaderContainer" unique_id=1656396567]
+layout_mode = 2
+tooltip_text = "Settings"
+theme_type_variation = &"FlatButton"
+icon = ExtResource("4_v6xl6")
+
+[node name="StatusButton" type="Button" parent="MainViewer/HeaderContainer" unique_id=142072528]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Open settings and save DeepSeek API key"
+theme_type_variation = &"FlatButton"
+icon = ExtResource("11_27ps1")
+
+[node name="SessionListViewer" type="VBoxContainer" parent="MainViewer" unique_id=1116610413]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MainViewer/SessionListViewer" unique_id=1323299812]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="SessionList" type="VBoxContainer" parent="MainViewer/SessionListViewer/ScrollContainer" unique_id=1183204434]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="BackgroundContextViewer" type="VBoxContainer" parent="MainViewer" unique_id=1744028626]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MainViewer/BackgroundContextViewer" unique_id=1394211666]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="BackgroundContextContainer" type="VBoxContainer" parent="MainViewer/BackgroundContextViewer/ScrollContainer" unique_id=2046895021]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+alignment = 2
+
+[node name="ApprovalDialog" type="PanelContainer" parent="MainViewer/BackgroundContextViewer" unique_id=289692166]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+offset_transform_enabled = true
+theme_type_variation = &"PanelContainerTabbarInner"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainViewer/BackgroundContextViewer/ApprovalDialog" unique_id=61817274]
+layout_mode = 2
+
+[node name="ApprovalTitleLabel" type="Label" parent="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer" unique_id=439582884]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Title"
+
+[node name="ApprovalDescriptionLabel" type="TextEdit" parent="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer" unique_id=1934558291]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 96)
+layout_mode = 2
+text = "Description"
+editable = false
+wrap_mode = 1
+
+[node name="HBoxContainer" type="HBoxContainer" parent="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer" unique_id=1366367330]
+layout_mode = 2
+
+[node name="ApproveButton" type="Button" parent="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer" unique_id=92655108]
+layout_mode = 2
+text = "Approve"
+
+[node name="RejectButton" type="Button" parent="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer" unique_id=1353782632]
+layout_mode = 2
+text = "Reject"
+
+[node name="SkipButton" type="Button" parent="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer" unique_id=227942498]
+layout_mode = 2
+text = "Skip"
+
+[node name="TodoList" type="FoldableContainer" parent="MainViewer/BackgroundContextViewer" unique_id=1199180687]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+title = "Todo"
+
+[node name="TodoContainer" type="VBoxContainer" parent="MainViewer/BackgroundContextViewer/TodoList" unique_id=353063066]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = -2
+
+[node name="MessageQueue" type="PanelContainer" parent="MainViewer/BackgroundContextViewer" unique_id=310784471]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_type_variation = &"PanelContainerTabbarInner"
+
+[node name="MessageTree" type="Tree" parent="MainViewer/BackgroundContextViewer/MessageQueue" unique_id=1639711758]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 112)
+layout_mode = 2
+theme_type_variation = &"TreeTable"
+columns = 3
+column_titles_visible = true
+hide_folding = true
+hide_root = true
+
+[node name="AdditionalContextViewer" type="ScrollContainer" parent="MainViewer" unique_id=1294467320]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+vertical_scroll_mode = 0
+
+[node name="AdditionalContextContainer" type="HBoxContainer" parent="MainViewer/AdditionalContextViewer" unique_id=785064898]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="ClarificationDialog" parent="MainViewer" unique_id=280340528 instance=ExtResource("7_5j0us")]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="PlanApprovalDialog" parent="MainViewer" unique_id=1039473956 instance=ExtResource("8_0825u")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="TextEdit" type="TextEdit" parent="MainViewer" unique_id=642272112]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 128)
+layout_mode = 2
+wrap_mode = 1
+caret_blink = true
+
+[node name="MarginContainer" type="MarginContainer" parent="MainViewer/TextEdit" unique_id=1772860813]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 4
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 4
+theme_override_constants/margin_bottom = 4
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MainViewer/TextEdit/MarginContainer" unique_id=1055012262]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="FooterContainer" type="HBoxContainer" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer" unique_id=697082503]
+layout_mode = 2
+size_flags_vertical = 10
+mouse_filter = 0
+
+[node name="AddContextButton" type="MenuButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=562787815]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Add the current editor or project context to the next message"
+theme_type_variation = &"FlatButton"
+icon = ExtResource("1_tukfc")
+item_count = 10
+popup/item_0/text = "添加选中节点"
+popup/item_0/id = 1
+popup/item_1/text = "添加当前场景"
+popup/item_1/id = 2
+popup/item_2/text = "添加当前脚本选区"
+popup/item_2/id = 5
+popup/item_3/text = "添加文件系统选中项"
+popup/item_3/id = 6
+popup/item_4/id = -1
+popup/item_4/separator = true
+popup/item_5/text = "添加文件"
+popup/item_5/id = 3
+popup/item_6/text = "添加文件夹"
+popup/item_6/id = 4
+popup/item_7/text = "添加图片"
+popup/item_7/id = 8
+popup/item_8/id = -1
+popup/item_8/separator = true
+popup/item_9/text = "清除未固定上下文"
+popup/item_9/id = 7
+
+[node name="VSeparator" type="VSeparator" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=888860234]
+layout_mode = 2
+
+[node name="ModeButton" type="MenuButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1673356315]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Conversation mode: Agent"
+icon = ExtResource("8_ga6bp")
+item_count = 3
+popup/item_0/text = "Agent"
+popup/item_0/icon = ExtResource("8_ga6bp")
+popup/item_0/checkable = 1
+popup/item_0/checked = true
+popup/item_0/id = 0
+popup/item_1/text = "Ask"
+popup/item_1/icon = ExtResource("9_47d6y")
+popup/item_1/checkable = 1
+popup/item_1/id = 1
+popup/item_2/text = "Plan"
+popup/item_2/icon = ExtResource("10_4ygoa")
+popup/item_2/checkable = 1
+popup/item_2/id = 2
+
+[node name="VSeparator2" type="VSeparator" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1881099270]
+layout_mode = 2
+
+[node name="ModelButton" type="OptionButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1736821875]
+unique_name_in_owner = true
+custom_maximum_size = Vector2(80, -1)
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "DeepSeek / deepseek-v4-flash
+Capabilities: reasoning"
+text_overrun_behavior = 6
+selected = 0
+item_count = 2
+popup/item_0/text = "DeepSeek V4 Flash"
+popup/item_0/id = 0
+popup/item_1/text = "DeepSeek V4 Pro"
+popup/item_1/id = 1
+
+[node name="EffortButton" type="OptionButton" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=596047341]
+unique_name_in_owner = true
+custom_maximum_size = Vector2(80, -1)
+layout_mode = 2
+selected = 0
+item_count = 1
+popup/item_0/text = "Normal"
+popup/item_0/id = 0
+
+[node name="Control" type="Control" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1164771243]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ContextLengthButton" type="Button" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1080659553]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 8
+tooltip_text = "Context usage: 0%"
+theme_type_variation = &"FlatButton"
+icon = ExtResource("2_11dqu")
+
+[node name="SendButton" type="Button" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=983577757]
+unique_name_in_owner = true
+layout_mode = 2
+tooltip_text = "Send"
+theme_type_variation = &"FlatButton"
+disabled = true
+icon = ExtResource("2_qsedr")
+
+[node name="StopButton" type="Button" parent="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer" unique_id=1281113533]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+tooltip_text = "Stop"
+theme_type_variation = &"FlatButton"
+disabled = true
+icon = ExtResource("4_gf3fo")
+
+[node name="FooterContainer" type="HBoxContainer" parent="MainViewer" unique_id=1985985829]
+layout_mode = 2
+
+[node name="ProviderOptionButton" type="OptionButton" parent="MainViewer/FooterContainer" unique_id=1876987620]
+unique_name_in_owner = true
+custom_maximum_size = Vector2(128, -1)
+layout_mode = 2
+tooltip_text = "Provider: DeepSeek"
+selected = 0
+item_count = 4
+popup/item_0/text = "DeepSeek"
+popup/item_0/id = 0
+popup/item_1/text = "Moonshot/Kimi"
+popup/item_1/id = 1
+popup/item_2/text = "OpenAI"
+popup/item_2/id = 2
+popup/item_3/text = "Zhipu AI"
+popup/item_3/id = 3
+
+[node name="ApprovalModeButton" type="OptionButton" parent="MainViewer/FooterContainer" unique_id=1350121884]
+unique_name_in_owner = true
+custom_maximum_size = Vector2(128, -1)
+layout_mode = 2
+selected = 1
+item_count = 2
+popup/item_0/text = "Manual"
+popup/item_0/icon = ExtResource("14_42cu0")
+popup/item_0/id = 0
+popup/item_1/text = "Auto Safe"
+popup/item_1/icon = ExtResource("15_5j0us")
+popup/item_1/id = 1
+
+[node name="Control" type="Control" parent="MainViewer/FooterContainer" unique_id=1027525108]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="BackendManagerButton" type="LinkButton" parent="MainViewer/FooterContainer" unique_id=2011334191]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 4
+tooltip_text = "View shared runtime and plugin compatibility details."
+text = "Runtime diagnostics"
+underline = 1
+
+[node name="BootSplash" parent="." unique_id=1741691643 instance=ExtResource("5_boot")]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_vertical = 3
+
+[connection signal="changed" from="Controllers/AdditionalContextController" to="." method="_on_additional_context_controller_changed"]
+[connection signal="status_requested" from="Controllers/AdditionalContextController" to="." method="_on_additional_context_controller_status_requested"]
+[connection signal="live_context_changed" from="Controllers/EditorBridgeController" to="Controllers/AdditionalContextController" method="upsert_live"]
+[connection signal="request_ready" from="Controllers/EditorBridgeController" to="." method="_on_editor_bridge_request_ready"]
+[connection signal="inline_diff_ready" from="Controllers/FileEditController" to="." method="_on_file_edit_inline_diff_ready"]
+[connection signal="request_ready" from="Controllers/FileEditController" to="." method="_on_file_edit_request_ready"]
+[connection signal="connected" from="Controllers/BackendConnectionController" to="." method="_on_backend_connection_connected"]
+[connection signal="disconnected" from="Controllers/BackendConnectionController" to="." method="_on_backend_connection_disconnected"]
+[connection signal="message_received" from="Controllers/BackendConnectionController" to="." method="_handle_message"]
+[connection signal="protocol_error" from="Controllers/BackendConnectionController" to="." method="_on_backend_connection_protocol_error"]
+[connection signal="pressed" from="MainViewer/HeaderContainer/BackButton" to="." method="_on_back_button_pressed"]
+[connection signal="item_selected" from="MainViewer/HeaderContainer/WorkspaceFilterButton" to="." method="_on_workspace_filter_button_item_selected"]
+[connection signal="text_changed" from="MainViewer/HeaderContainer/SearchSessionLineEdit" to="." method="_on_search_session_line_edit_text_changed"]
+[connection signal="item_selected" from="MainViewer/HeaderContainer/SessionOptionButton" to="." method="_on_session_option_button_item_selected"]
+[connection signal="pressed" from="MainViewer/HeaderContainer/CreateNewSessionButton" to="." method="_on_create_new_session_button_pressed"]
+[connection signal="pressed" from="MainViewer/HeaderContainer/SettingsButton" to="." method="_on_settings_button_pressed"]
+[connection signal="pressed" from="MainViewer/HeaderContainer/StatusButton" to="." method="_on_status_button_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/SessionItem" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21612" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21612" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21612" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21612" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21612" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21612" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21614" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21614" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21614" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21614" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21614" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21614" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21616" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21616" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21616" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21616" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21616" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21616" method="_on_pressed"]
+[connection signal="mouse_entered" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21618" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21618" method="_on_mouse_entered"]
+[connection signal="mouse_exited" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21618" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21618" method="_on_mouse_exited"]
+[connection signal="pressed" from="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21618" to="MainViewer/SessionListViewer/ScrollContainer/SessionList/@Button@21618" method="_on_pressed"]
+[connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/ApproveButton" to="." method="_on_approve_button_pressed"]
+[connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/RejectButton" to="." method="_on_reject_button_pressed"]
+[connection signal="pressed" from="MainViewer/BackgroundContextViewer/ApprovalDialog/VBoxContainer/HBoxContainer/SkipButton" to="." method="_on_skip_approval_button_pressed"]
+[connection signal="button_clicked" from="MainViewer/BackgroundContextViewer/MessageQueue/MessageTree" to="." method="_on_message_tree_button_clicked"]
+[connection signal="item_activated" from="MainViewer/BackgroundContextViewer/MessageQueue/MessageTree" to="." method="_on_message_tree_item_activated"]
+[connection signal="text_changed" from="MainViewer/TextEdit" to="." method="_on_text_edit_text_changed"]
+[connection signal="item_selected" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/ModelButton" to="." method="_on_model_button_item_selected"]
+[connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/ContextLengthButton" to="." method="_on_context_length_button_pressed"]
+[connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/SendButton" to="." method="_on_send_button_pressed"]
+[connection signal="pressed" from="MainViewer/TextEdit/MarginContainer/VBoxContainer/FooterContainer/StopButton" to="." method="_on_stop_button_pressed"]
+[connection signal="item_selected" from="MainViewer/FooterContainer/ProviderOptionButton" to="." method="_on_provider_option_button_item_selected"]
+[connection signal="item_selected" from="MainViewer/FooterContainer/ApprovalModeButton" to="." method="_on_approval_mode_button_item_selected"]
+[connection signal="pressed" from="MainViewer/FooterContainer/BackendManagerButton" to="." method="_on_backend_manager_button_pressed"]
+[connection signal="backend_check_requested" from="BootSplash" to="." method="_on_boot_splash_backend_check_requested"]
+[connection signal="reconnect_requested" from="BootSplash" to="." method="_on_boot_splash_reconnect_requested"]
