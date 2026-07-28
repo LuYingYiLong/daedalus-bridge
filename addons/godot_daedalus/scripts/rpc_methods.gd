@@ -93,7 +93,6 @@ const ENVIRONMENT_CONFIGURE: String = "environment.configure"
 const EDITOR_CONTEXT_UPDATE: String = "editor.context.update"
 const EDITOR_INSTANCES_LIST: String = "editor.instances.list"
 const EDITOR_TOOL_RESULT: String = "editor.tool.result"
-const EDITOR_TOOL_PROGRESS: String = "editor.tool.progress"
 const WORKSPACE_LIST: String = "workspace.list"
 const WORKSPACE_SELECT: String = "workspace.select"
 const WORKSPACE_DELETE: String = "workspace.delete"
@@ -194,7 +193,6 @@ static func all() -> PackedStringArray:
 		EDITOR_CONTEXT_UPDATE,
 		EDITOR_INSTANCES_LIST,
 		EDITOR_TOOL_RESULT,
-		EDITOR_TOOL_PROGRESS,
 		WORKSPACE_LIST,
 		WORKSPACE_SELECT,
 		WORKSPACE_DELETE,

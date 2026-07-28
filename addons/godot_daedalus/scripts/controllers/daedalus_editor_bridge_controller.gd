@@ -515,9 +515,7 @@ func handle_tool_requested(data: Dictionary) -> void:
 	elif tool_name == "refresh_filesystem":
 		result = _execute_editor_refresh_filesystem(args)
 	elif _is_editor_domain_tool(tool_name):
-		_emit_editor_tool_progress(call_id, { "phase": "started", "toolName": tool_name })
 		result = editor_domain_tools.execute(tool_name, args, get_edited_scene_root())
-		_emit_editor_tool_progress(call_id, { "phase": "completed", "toolName": tool_name })
 	else:
 		ok = false
 		error_message = "Unknown editor tool: %s" % tool_name
@@ -546,17 +544,6 @@ func _emit_editor_tool_result(call_id: String, ok: bool, result: Variant, error_
 			"error": error_message if not ok else ""
 		},
 		"editor-tool-result"
-	)
-
-
-func _emit_editor_tool_progress(call_id: String, progress: Dictionary) -> void:
-	request_ready.emit(
-		RPC_METHODS.EDITOR_TOOL_PROGRESS,
-		{
-			"callId": call_id,
-			"progress": progress
-		},
-		"editor-tool-progress"
 	)
 
 

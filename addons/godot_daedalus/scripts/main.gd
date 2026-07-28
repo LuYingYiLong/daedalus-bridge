@@ -2021,6 +2021,8 @@ func _sync_provider_catalog_from_status(status: Dictionary) -> void:
 			if typeof(provider_value) != TYPE_DICTIONARY:
 				continue
 			var provider_status: Dictionary = provider_value as Dictionary
+			if bool(provider_status.get("custom", false)) and not bool(provider_status.get("ready", false)):
+				continue
 			var provider_id: String = str(provider_status.get("provider", "")).strip_edges()
 			if provider_id.is_empty() or next_provider_ids.has(provider_id):
 				continue
