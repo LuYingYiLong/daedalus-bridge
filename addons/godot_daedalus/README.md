@@ -37,7 +37,7 @@ Published backend versions are installed under `%USERPROFILE%/.daedalus/backend/
 
 ## API Key
 
-Open the plugin settings panel and save the DeepSeek API key there. The backend stores secrets with the OS secret store through `keytar`; API keys and custom MCP secrets should not be committed to the project.
+Open the plugin settings panel, select any provider exposed by the backend catalog, and save its API key there. MiMo and other providers appear automatically when supported by the connected backend. The backend stores secrets with the OS secret store through `keytar`; API keys and custom MCP secrets should not be committed to the project.
 
 ## Validation
 

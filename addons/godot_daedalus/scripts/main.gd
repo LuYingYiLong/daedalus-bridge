@@ -101,18 +101,6 @@ const ADDITIONAL_CONTEXT_MAX_ITEMS: int = 10
 const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 500
 
 const DEFAULT_PROVIDER_ID: String = "deepseek"
-const PROVIDER_IDS: PackedStringArray = [
-	"deepseek",
-	"moonshot",
-	"openai",
-	"zhipu"
-]
-const PROVIDER_NAMES: PackedStringArray = [
-	"DeepSeek",
-	"Moonshot/Kimi",
-	"OpenAI",
-	"Zhipu AI"
-]
 
 const APPROVAL_MODE_IDS: PackedStringArray = [
 	"manual",
@@ -211,6 +199,7 @@ var active_thinking_item: Node
 var active_assistant_text: String
 var last_todo_signature: String
 var provider_config_status: Dictionary
+var web_search_settings_status: Dictionary
 var timeline_entries: Array[Dictionary]
 var timeline_heights: Array[float]
 var timeline_prefix_heights: Array[float]
@@ -285,6 +274,8 @@ var next_step_hints_enabled: bool
 var check_for_updates_enabled: bool = true
 var active_chat_mode: String = CHAT_MODE_AGENT
 var active_provider_id: String = DEFAULT_PROVIDER_ID
+var provider_ids: PackedStringArray = [DEFAULT_PROVIDER_ID]
+var provider_names: PackedStringArray = ["DeepSeek"]
 var model_ids: PackedStringArray
 var model_names: PackedStringArray
 var model_capabilities: Array[Dictionary]
@@ -328,36 +319,33 @@ func _load_skills() -> void:
 
 
 func _get_fallback_models_for_provider(provider_id: String) -> Array[Dictionary]:
-	if provider_id == "openai":
-		return [
-			{ "id": "gpt-5.5", "displayName": "GPT-5.5", "capabilities": { "imageInput": true, "reasoning": true } }
-		]
-	if provider_id == "moonshot":
-		return [
-			{ "id": "kimi-k2.7-code", "displayName": "Kimi K2.7 Code", "capabilities": { "reasoning": true } },
-			{ "id": "kimi-k2.7-code-highspeed", "displayName": "Kimi K2.7 Code Highspeed", "capabilities": { "reasoning": true } },
-			{ "id": "kimi-k2.6", "displayName": "Kimi K2.6", "capabilities": { "imageInput": true, "videoInput": true, "reasoning": true } },
-			{ "id": "kimi-k2.5", "displayName": "Kimi K2.5", "capabilities": { "reasoning": true } }
-		]
-	if provider_id == "zhipu":
-		return [
-			{ "id": "glm-5.2", "displayName": "GLM-5.2", "capabilities": { "reasoning": true } },
-			{ "id": "glm-5.1", "displayName": "GLM-5.1", "capabilities": { "reasoning": true } },
-			{ "id": "glm-5", "displayName": "GLM-5", "capabilities": { "reasoning": true } },
-			{ "id": "glm-5-turbo", "displayName": "GLM-5 Turbo", "capabilities": { "reasoning": true } },
-			{ "id": "glm-4.7", "displayName": "GLM-4.7", "capabilities": { "reasoning": true } },
-			{ "id": "glm-4.7-flashx", "displayName": "GLM-4.7 FlashX", "capabilities": { "reasoning": true } },
-			{ "id": "glm-4.6", "displayName": "GLM-4.6", "capabilities": { "reasoning": true } },
-			{ "id": "glm-5v-turbo", "displayName": "GLM-5V Turbo", "capabilities": { "imageInput": true, "reasoning": true } },
-			{ "id": "glm-4.6v", "displayName": "GLM-4.6V", "capabilities": { "imageInput": true, "reasoning": true } },
-			{ "id": "glm-4.6v-flash", "displayName": "GLM-4.6V Flash", "capabilities": { "imageInput": true, "reasoning": true } },
-			{ "id": "glm-4.1v-thinking-flashx", "displayName": "GLM-4.1V Thinking FlashX", "capabilities": { "imageInput": true, "reasoning": true } }
-		]
+	var providers_value: Variant = provider_config_status.get("providers", [])
+	if typeof(providers_value) == TYPE_ARRAY:
+		for provider_value: Variant in providers_value as Array:
+			if typeof(provider_value) != TYPE_DICTIONARY:
+				continue
+			var provider_status: Dictionary = provider_value as Dictionary
+			if str(provider_status.get("provider", "")).strip_edges() != provider_id:
+				continue
+			var cached_models_value: Variant = provider_status.get("modelsCache", [])
+			if typeof(cached_models_value) == TYPE_ARRAY and not (cached_models_value as Array).is_empty():
+				return _copy_model_dictionaries(cached_models_value as Array)
+			var fallback_models_value: Variant = provider_status.get("fallbackModels", [])
+			if typeof(fallback_models_value) == TYPE_ARRAY and not (fallback_models_value as Array).is_empty():
+				return _copy_model_dictionaries(fallback_models_value as Array)
 
 	return [
 		{ "id": "deepseek-v4-flash", "displayName": "DeepSeek V4 Flash", "capabilities": { "reasoning": true } },
 		{ "id": "deepseek-v4-pro", "displayName": "DeepSeek V4 Pro", "capabilities": { "reasoning": true } }
 	]
+
+
+func _copy_model_dictionaries(models: Array) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for model_value: Variant in models:
+		if typeof(model_value) == TYPE_DICTIONARY:
+			result.append((model_value as Dictionary).duplicate(true))
+	return result
 
 
 func _is_known_chat_mode(chat_mode: String) -> bool:
@@ -450,14 +438,14 @@ func _update_mode_button() -> void:
 
 
 func _is_known_provider_id(provider_id: String) -> bool:
-	return PROVIDER_IDS.has(provider_id)
+	return provider_ids.has(provider_id)
 
 
 func _populate_provider_button() -> void:
 	provider_option_button.clear()
-	for index: int in range(PROVIDER_IDS.size()):
-		provider_option_button.add_item(PROVIDER_NAMES[index], index)
-		provider_option_button.set_item_metadata(index, PROVIDER_IDS[index])
+	for index: int in range(provider_ids.size()):
+		provider_option_button.add_item(provider_names[index], index)
+		provider_option_button.set_item_metadata(index, provider_ids[index])
 
 	if _select_provider_id(active_provider_id):
 		return
@@ -2017,11 +2005,35 @@ func _update_model_button_tooltip() -> void:
 
 
 func _get_provider_display_name(provider_id: String) -> String:
-	for index: int in range(PROVIDER_IDS.size()):
-		if PROVIDER_IDS[index] == provider_id:
-			return PROVIDER_NAMES[index]
+	for index: int in range(provider_ids.size()):
+		if provider_ids[index] == provider_id:
+			return provider_names[index]
 
 	return provider_id
+
+
+func _sync_provider_catalog_from_status(status: Dictionary) -> void:
+	var next_provider_ids: PackedStringArray = []
+	var next_provider_names: PackedStringArray = []
+	var providers_value: Variant = status.get("providers", [])
+	if typeof(providers_value) == TYPE_ARRAY:
+		for provider_value: Variant in providers_value as Array:
+			if typeof(provider_value) != TYPE_DICTIONARY:
+				continue
+			var provider_status: Dictionary = provider_value as Dictionary
+			var provider_id: String = str(provider_status.get("provider", "")).strip_edges()
+			if provider_id.is_empty() or next_provider_ids.has(provider_id):
+				continue
+			next_provider_ids.append(provider_id)
+			var display_name: String = str(provider_status.get("displayName", provider_id)).strip_edges()
+			next_provider_names.append(display_name if not display_name.is_empty() else provider_id)
+
+	if next_provider_ids.is_empty():
+		next_provider_ids.append(DEFAULT_PROVIDER_ID)
+		next_provider_names.append("DeepSeek")
+	provider_ids = next_provider_ids
+	provider_names = next_provider_names
+	_populate_provider_button()
 
 
 func _get_selected_approval_mode() -> String:
@@ -3145,6 +3157,14 @@ func _handle_response(message: Dictionary) -> void:
 		if str(message.get("id", "")).begins_with("mcp-config"):
 			_handle_mcp_config_error(message)
 			return
+		if str(message.get("id", "")).begins_with("web-search-settings"):
+			var web_search_error_text: String = "Failed to update web search settings."
+			var web_search_error_value: Variant = message.get("error", {})
+			if typeof(web_search_error_value) == TYPE_DICTIONARY:
+				web_search_error_text = str((web_search_error_value as Dictionary).get("message", web_search_error_text))
+			if active_settings_menu != null and is_instance_valid(active_settings_menu):
+				active_settings_menu.call("show_web_search_error", web_search_error_text)
+			return
 		if str(message.get("id", "")).begins_with("skill-"):
 			var skill_error_text: String = "Skill operation failed"
 			var skill_error_value: Variant = message.get("error", {})
@@ -3212,6 +3232,9 @@ func _handle_response(message: Dictionary) -> void:
 
 	var result_dictionary: Dictionary = result as Dictionary
 	var response_id: String = str(message.get("id", ""))
+	if response_id.begins_with("web-search-settings"):
+		_apply_web_search_settings_status(result_dictionary)
+		return
 	var applied_workbench_snapshot: bool = _apply_workbench_from_result(result_dictionary)
 	if response_id.begins_with("session-workbench") and applied_workbench_snapshot:
 		return
@@ -4481,6 +4504,7 @@ func _apply_session_renamed_event(data_dictionary: Dictionary) -> void:
 
 func _apply_provider_config_status(status: Dictionary) -> void:
 	provider_config_status = status
+	_sync_provider_catalog_from_status(status)
 	var configured: bool = bool(status.get("configured", false))
 	var provider_value: String = str(status.get("activeProvider", status.get("provider", active_provider_id))).strip_edges()
 	if active_session_id.is_empty() and _is_known_provider_id(provider_value):
@@ -4501,6 +4525,12 @@ func _apply_provider_config_status(status: Dictionary) -> void:
 	_load_provider_models(active_provider_id)
 
 	_update_send_state()
+
+
+func _apply_web_search_settings_status(status: Dictionary) -> void:
+	web_search_settings_status = status.duplicate(true)
+	if active_settings_menu != null and is_instance_valid(active_settings_menu):
+		active_settings_menu.call("setup_web_search_settings", web_search_settings_status)
 
 
 func _apply_user_prompt_config(config: Dictionary) -> void:
@@ -7125,11 +7155,13 @@ func _on_settings_button_pressed() -> void:
 	active_settings_menu = settings_menu
 	add_child(settings_menu)
 	settings_menu.call("setup_provider_config", provider_config_status, _get_frontend_config_snapshot())
+	settings_menu.call("setup_web_search_settings", web_search_settings_status)
 	settings_menu.call("setup_archived_sessions", _get_archived_sessions_snapshot(), _get_workspace_snapshot())
 	settings_menu.call("setup_mcp_servers", _get_custom_mcp_servers_snapshot(), _is_socket_open())
 	settings_menu.call("setup_skills", skill_summaries, skill_catalog_revision, _is_socket_open())
 	settings_menu.connect("provider_config_save_requested", Callable(self, "_on_settings_provider_config_save_requested"))
 	settings_menu.connect("provider_config_clear_requested", Callable(self, "_on_settings_provider_config_clear_requested"))
+	settings_menu.connect("web_search_settings_save_requested", Callable(self, "_on_settings_web_search_settings_save_requested"))
 	settings_menu.connect("frontend_config_save_requested", Callable(self, "_on_settings_frontend_config_save_requested"))
 	settings_menu.connect("user_prompt_save_requested", Callable(self, "_on_settings_user_prompt_save_requested"))
 	settings_menu.connect("archived_session_restore_requested", Callable(self, "_on_settings_archived_session_restore_requested"))
@@ -7147,6 +7179,8 @@ func _on_settings_button_pressed() -> void:
 	_refresh_session_and_archive_lists()
 	_load_mcp_config()
 	_load_skills()
+	if _is_socket_open():
+		_send_request(RPC_METHODS.WEB_SEARCH_SETTINGS_GET, {}, "web-search-settings-get")
 
 
 func _on_settings_skill_get_requested(skill_ref: String) -> void:
@@ -7360,6 +7394,12 @@ func _on_settings_provider_config_clear_requested(provider_id: String) -> void:
 	if _is_known_provider_id(provider_id):
 		params["provider"] = provider_id
 	_send_request(RPC_METHODS.PROVIDER_CONFIG_CLEAR, params, "provider-config-clear")
+
+
+func _on_settings_web_search_settings_save_requested(patch: Dictionary) -> void:
+	if not _is_socket_open():
+		return
+	_send_request(RPC_METHODS.WEB_SEARCH_SETTINGS_UPDATE, patch, "web-search-settings-update")
 
 
 func _on_settings_frontend_config_save_requested(

@@ -31,6 +31,7 @@ theme_type_variation = &"TabContainerOdd"
 current_tab = 0
 tab_2/title = "MCP Servers"
 tab_4/title = "Archived Chats"
+tab_5/title = "Web Search"
 
 [node name="General" type="ScrollContainer" parent="TabContainer" unique_id=620720813]
 layout_mode = 2
@@ -339,6 +340,81 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+
+[node name="WebSearch" type="ScrollContainer" parent="TabContainer"]
+visible = false
+layout_mode = 2
+metadata/_tab_index = 5
+metadata/_tab_name = "Web Search"
+
+[node name="VBoxContainer" type="VBoxContainer" parent="TabContainer/WebSearch"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 12
+
+[node name="Description" type="Label" parent="TabContainer/WebSearch/VBoxContainer"]
+layout_mode = 2
+text = "Configure the provider-native search model used by the global web search tool."
+autowrap_mode = 2
+
+[node name="GridContainer" type="GridContainer" parent="TabContainer/WebSearch/VBoxContainer"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 10
+columns = 2
+
+[node name="EnabledLabel" type="Label" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+layout_mode = 2
+text = "Web search"
+
+[node name="WebSearchEnabledCheckBox" type="CheckBox" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Enabled"
+
+[node name="ModelLabel" type="Label" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+layout_mode = 2
+text = "Search model"
+
+[node name="WebSearchModelOptionButton" type="OptionButton" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="MaxResultsLabel" type="Label" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+layout_mode = 2
+text = "Result count"
+
+[node name="WebSearchMaxResultsSpinBox" type="SpinBox" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+min_value = 0.0
+max_value = 100.0
+value = 5.0
+rounded = true
+
+[node name="WebSearchMaxKeywordsLabel" type="Label" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "Search breadth"
+tooltip_text = "Maximum number of search keywords generated for one tool call."
+
+[node name="WebSearchMaxKeywordsSpinBox" type="SpinBox" parent="TabContainer/WebSearch/VBoxContainer/GridContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+min_value = 1.0
+max_value = 3.0
+value = 1.0
+rounded = true
+
+[node name="WebSearchNoticeLabel" type="Label" parent="TabContainer/WebSearch/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "The selected provider may charge separately for web search."
+autowrap_mode = 2
 
 [node name="EditorFileDialog" type="EditorFileDialog" parent="." unique_id=858716456]
 unique_name_in_owner = true

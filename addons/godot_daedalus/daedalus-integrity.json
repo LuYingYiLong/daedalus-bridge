@@ -655,8 +655,8 @@
     },
     {
       "path": "addons/godot_daedalus/README.md",
-      "size": 3950,
-      "sha256": "58bb8538333ab16bcaf43c2b4e25c7cb452f81ccf354906e53f64b4f2f8cbea6"
+      "size": 4080,
+      "sha256": "2b5bb2e33d387a337e089b55c8d428bf799b1d7669c3206cce3757a731144576"
     },
     {
       "path": "addons/godot_daedalus/scenes/additional_context_item.tscn",
@@ -745,8 +745,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/settings_menu.tscn",
-      "size": 14963,
-      "sha256": "0bec6440ed2e28e916ee9533e97accb95e2610c5bac4b2d229d336064b7d3c21"
+      "size": 17812,
+      "sha256": "65ca3716ba675e59abbefeb98f2b257f94bfe76addf40f9d1ba5518669ce282a"
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/skill_item.tscn",
@@ -920,8 +920,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_provider_navigation_controller.gd",
-      "size": 2088,
-      "sha256": "e525a5b01a3f3955e1491907f466887fe08b8eb6246541ffde6e972eb72444c6"
+      "size": 2189,
+      "sha256": "ebf744ef9f307acde5b7a4c601da68fcc684590641840eccc348d9251a15f949"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_provider_navigation_controller.gd.uid",
@@ -965,8 +965,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/main.gd",
-      "size": 292453,
-      "sha256": "bc3947a67fe1a0acc16b9eef758c707aa21f4d338fdd58c6b9715089e670a85e"
+      "size": 294744,
+      "sha256": "3a4a639462cba5ce6cd8342d910d075963e8a6cff95f0173a0086a53549ebacb"
     },
     {
       "path": "addons/godot_daedalus/scripts/main.gd.uid",
@@ -1075,8 +1075,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/settings_menu.gd",
-      "size": 46604,
-      "sha256": "23dc97f761d5ab7b4efd9a77ca43465fdde4b1af533835f5112cdc72bd413039"
+      "size": 53368,
+      "sha256": "1935b10c6e3d3a898fe97fbc16e727dae0573674a4aba74787d648bc9c1f4763"
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/settings_menu.gd.uid",

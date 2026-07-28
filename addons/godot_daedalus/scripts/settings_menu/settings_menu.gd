@@ -3,6 +3,7 @@ extends AcceptDialog
 
 signal provider_config_save_requested(provider_id: String, api_key: String, base_url: String, model_routing: Dictionary)
 signal provider_config_clear_requested(provider_id: String)
+signal web_search_settings_save_requested(patch: Dictionary)
 signal frontend_config_save_requested(backend_url: String, backend_dev_dir: String, next_step_hints_enabled: bool, check_for_updates_enabled: bool)
 signal user_prompt_save_requested(prompt: String)
 signal archived_session_restore_requested(session_id: String)
@@ -23,6 +24,12 @@ signal skill_remove_requested(skill_ref: String)
 @onready var workflow_planner_model_option_button: OptionButton = %WorkflowPlannerModelOptionButton
 @onready var session_title_model_option_button: OptionButton = %SessionTitleModelOptionButton
 @onready var provider_base_url_line_edit: LineEdit = %ProviderBaseURLLineEdit
+@onready var web_search_enabled_check_box: CheckBox = %WebSearchEnabledCheckBox
+@onready var web_search_model_option_button: OptionButton = %WebSearchModelOptionButton
+@onready var web_search_max_results_spin_box: SpinBox = %WebSearchMaxResultsSpinBox
+@onready var web_search_max_keywords_label: Label = %WebSearchMaxKeywordsLabel
+@onready var web_search_max_keywords_spin_box: SpinBox = %WebSearchMaxKeywordsSpinBox
+@onready var web_search_notice_label: Label = %WebSearchNoticeLabel
 @onready var api_key_label: Label = %APIKeyLabel
 @onready var backend_url_line_edit: LineEdit = %BackendURLLineEdit
 @onready var backend_dev_dir_line_edit: LineEdit = %BackendDevDirLineEdit
@@ -63,18 +70,8 @@ const BUTTONS_MIN_HEIGHT_CONSTANT: StringName = &"buttons_min_height"
 const CONFIRM_ACTION_NONE: StringName = &""
 const CONFIRM_ACTION_DELETE_ARCHIVED_SESSION: StringName = &"delete_archived_session"
 const CONFIRM_ACTION_DELETE_ALL_ARCHIVED_SESSIONS: StringName = &"delete_all_archived_sessions"
-const PROVIDER_IDS: PackedStringArray = [
-	"deepseek",
-	"moonshot",
-	"openai",
-	"zhipu"
-]
-const PROVIDER_NAMES: PackedStringArray = [
-	"DeepSeek",
-	"Moonshot",
-	"OpenAI",
-	"Zhipu AI"
-]
+const PROVIDER_IDS: PackedStringArray = ["deepseek"]
+const PROVIDER_NAMES: PackedStringArray = ["DeepSeek"]
 const TASK_MODEL_KEYS: PackedStringArray = [
 	"imageRecognition",
 	"workflowPlanner",
@@ -90,6 +87,8 @@ var skill_summaries: Array[Dictionary]
 var skill_catalog_revision: String
 var provider_status_by_id: Dictionary[String, Dictionary]
 var provider_order: PackedStringArray
+var web_search_settings: Dictionary
+var web_search_settings_loaded: bool
 var mcp_backend_available: bool = true
 var mcp_add_pending: bool
 var pending_mcp_update_server_id: String
@@ -116,6 +115,8 @@ func _ready() -> void:
 		file_dialog.dir_selected.connect(_on_backend_dev_dir_selected)
 	if not provider_option_button.item_selected.is_connected(_on_provider_option_button_item_selected):
 		provider_option_button.item_selected.connect(_on_provider_option_button_item_selected)
+	if not web_search_model_option_button.item_selected.is_connected(_on_web_search_model_option_button_item_selected):
+		web_search_model_option_button.item_selected.connect(_on_web_search_model_option_button_item_selected)
 	_update_custom_instructions_status()
 	_render_mcp_servers()
 	_render_skills()
@@ -156,6 +157,52 @@ func setup_provider_config(status: Dictionary, frontend_config: Dictionary = {})
 	_populate_task_model_options(status)
 	_update_provider_key_labels()
 	show()
+
+
+func setup_web_search_settings(status: Dictionary) -> void:
+	web_search_settings = status.duplicate(true)
+	web_search_settings_loaded = not status.is_empty()
+	web_search_enabled_check_box.button_pressed = bool(status.get("enabled", false))
+	web_search_max_results_spin_box.value = float(status.get("maxResults", 5))
+	web_search_max_keywords_spin_box.value = float(status.get("maxKeywords", 1))
+	web_search_model_option_button.clear()
+
+	var selected_provider: String = str(status.get("provider", "")).strip_edges()
+	var selected_model: String = str(status.get("model", "")).strip_edges()
+	var selected_index: int = -1
+	var models_value: Variant = status.get("models", [])
+	if typeof(models_value) == TYPE_ARRAY:
+		var models: Array = models_value as Array
+		for model_value: Variant in models:
+			if typeof(model_value) != TYPE_DICTIONARY:
+				continue
+			var model_data: Dictionary = model_value as Dictionary
+			var provider_id: String = str(model_data.get("provider", "")).strip_edges()
+			var model_id: String = str(model_data.get("model", "")).strip_edges()
+			if provider_id.is_empty() or model_id.is_empty():
+				continue
+			var provider_name: String = str(model_data.get("providerDisplayName", provider_id)).strip_edges()
+			var model_name: String = str(model_data.get("modelDisplayName", model_id)).strip_edges()
+			var index: int = web_search_model_option_button.item_count
+			web_search_model_option_button.add_item("%s / %s" % [provider_name, model_name], index)
+			web_search_model_option_button.set_item_metadata(index, model_data.duplicate(true))
+			if provider_id == selected_provider and model_id == selected_model:
+				selected_index = index
+
+	if selected_index >= 0:
+		web_search_model_option_button.select(selected_index)
+	elif web_search_model_option_button.item_count > 0:
+		web_search_model_option_button.select(0)
+	web_search_model_option_button.disabled = web_search_model_option_button.item_count == 0
+	web_search_enabled_check_box.disabled = not web_search_settings_loaded
+	web_search_max_results_spin_box.editable = web_search_settings_loaded
+	_update_web_search_keyword_controls()
+
+
+func show_web_search_error(message_text: String) -> void:
+	web_search_notice_label.visible = true
+	web_search_notice_label.text = message_text
+	web_search_notice_label.modulate = Color(1.0, 0.55, 0.45)
 
 
 func setup_archived_sessions(sessions: Array, workspaces: Array = []) -> void:
@@ -365,6 +412,20 @@ func _on_confirmed() -> void:
 		provider_base_url_line_edit.text.strip_edges(),
 		_get_model_routing_payload()
 	)
+	if web_search_settings_loaded:
+		var web_search_patch: Dictionary = {
+			"enabled": web_search_enabled_check_box.button_pressed,
+			"maxResults": int(web_search_max_results_spin_box.value),
+			"maxKeywords": int(web_search_max_keywords_spin_box.value)
+		}
+		var selected_search_index: int = web_search_model_option_button.selected
+		if selected_search_index >= 0 and selected_search_index < web_search_model_option_button.item_count:
+			var selected_metadata: Variant = web_search_model_option_button.get_item_metadata(selected_search_index)
+			if typeof(selected_metadata) == TYPE_DICTIONARY:
+				var selected_search_model: Dictionary = selected_metadata as Dictionary
+				web_search_patch["provider"] = str(selected_search_model.get("provider", ""))
+				web_search_patch["model"] = str(selected_search_model.get("model", ""))
+		web_search_settings_save_requested.emit(web_search_patch)
 	queue_free()
 
 
@@ -576,6 +637,38 @@ func _update_provider_key_labels() -> void:
 
 func _on_provider_option_button_item_selected(_index: int) -> void:
 	_update_provider_key_labels()
+
+
+func _on_web_search_model_option_button_item_selected(_index: int) -> void:
+	_update_web_search_keyword_controls()
+
+
+func _update_web_search_keyword_controls() -> void:
+	var supports_max_keywords: bool
+	var charged_per_unit: bool
+	var selected_index: int = web_search_model_option_button.selected
+	if selected_index >= 0 and selected_index < web_search_model_option_button.item_count:
+		var metadata_value: Variant = web_search_model_option_button.get_item_metadata(selected_index)
+		if typeof(metadata_value) == TYPE_DICTIONARY:
+			var metadata: Dictionary = metadata_value as Dictionary
+			var search_options_value: Variant = metadata.get("searchOptions", {})
+			if typeof(search_options_value) == TYPE_DICTIONARY:
+				var search_options: Dictionary = search_options_value as Dictionary
+				var max_keywords_value: Variant = search_options.get("maxKeywords", null)
+				if typeof(max_keywords_value) == TYPE_DICTIONARY:
+					var max_keywords: Dictionary = max_keywords_value as Dictionary
+					supports_max_keywords = true
+					web_search_max_keywords_spin_box.min_value = float(max_keywords.get("min", 1))
+					web_search_max_keywords_spin_box.max_value = float(max_keywords.get("max", 3))
+					charged_per_unit = bool(max_keywords.get("chargedPerUnit", false))
+
+	web_search_max_keywords_label.visible = supports_max_keywords
+	web_search_max_keywords_spin_box.visible = supports_max_keywords
+	web_search_max_keywords_spin_box.editable = supports_max_keywords and web_search_settings_loaded
+	web_search_notice_label.visible = charged_per_unit
+	if charged_per_unit:
+		web_search_notice_label.modulate = Color.WHITE
+		web_search_notice_label.text = "This provider may charge for each search keyword. Enable its web search service and review pricing before use."
 
 
 func _on_workspace_filter_option_button_item_selected(index: int) -> void:

@@ -4,7 +4,6 @@ extends Node
 
 const APPROVAL_MODE_IDS: PackedStringArray = ["manual", "auto-safe"]
 const CHAT_MODE_IDS: PackedStringArray = ["agent", "ask", "plan"]
-const PROVIDER_IDS: PackedStringArray = ["deepseek", "moonshot", "openai"]
 
 var _approval_mode_button: OptionButton
 var _mode_button: MenuButton
@@ -44,7 +43,12 @@ func is_known_chat_mode(chat_mode: String) -> bool:
 
 
 func is_known_provider(provider_id: String) -> bool:
-	return PROVIDER_IDS.has(provider_id)
+	if _provider_button == null:
+		return provider_id == "deepseek"
+	for index: int in range(_provider_button.item_count):
+		if str(_provider_button.get_item_metadata(index)) == provider_id:
+			return true
+	return false
 
 
 func set_model_capabilities(capabilities: Array[Dictionary]) -> void:
