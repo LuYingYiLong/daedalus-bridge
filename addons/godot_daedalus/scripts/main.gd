@@ -39,8 +39,8 @@ const MAX_CONNECT_ATTEMPTS: int = 20
 const CONNECT_RETRY_SECONDS: float = 0.5
 const BACKEND_START_TIMEOUT_MSEC: int = 10000
 const BACKEND_HEALTH_TIMEOUT_MSEC: int = 2500
-const PLUGIN_VERSION: String = "1.2.0"
-const PLUGIN_PROTOCOL_VERSION: int = 2
+const PLUGIN_VERSION: String = "1.3.1"
+const PLUGIN_PROTOCOL_VERSION: int = 3
 const STUDIO_BINDING_VERSION: String = "1.0.3"
 const WEBSOCKET_BUFFER_SIZE: int = 4194304
 const MAX_MESSAGES_PER_FRAME: int = 24
@@ -289,6 +289,8 @@ var message_queue_next_id: int
 var active_queue_message_id: int
 var workbench_revision: int
 var workbench_patch_sequence: int
+var agent_run_revisions_by_id: Dictionary[String, int]
+var agent_run_sequences_by_session_id: Dictionary[String, int]
 var applying_workbench_snapshot: bool
 var workbench_composer_patch_debounce_pending: bool
 var workbench_composer_patch_include_text: bool
@@ -1900,7 +1902,7 @@ func _send_client_hello() -> void:
 
 	var executable_path: String = OS.get_executable_path().strip_edges()
 	var params: Dictionary[String, Variant] = {
-		"protocolVersion": 2,
+		"protocolVersion": 3,
 		"clientType": "godot_plugin",
 		"clientName": "Godot Daedalus Plugin",
 		"pluginVersion": PLUGIN_VERSION,
@@ -3408,8 +3410,9 @@ func _handle_response(message: Dictionary) -> void:
 
 func _handle_event(message: Dictionary) -> void:
 	var event_name: String = str(message.get("event", ""))
-	var event_id: String = str(message.get("id", ""))
-	if event_id != active_stream_id and not _is_global_event(event_name):
+	var event_id: String = str(message.get("requestId", ""))
+	var event_session_id: String = str(message.get("sessionId", ""))
+	if not event_session_id.is_empty() and not active_session_id.is_empty() and event_session_id != active_session_id:
 		return
 
 	var data: Variant = message.get("data", {})
@@ -3427,7 +3430,9 @@ func _handle_event(message: Dictionary) -> void:
 		return
 	if _is_plan_message_event(event_name, data_dictionary) and active_stream_id.is_empty() and not event_id.is_empty():
 		_begin_plan_followup_stream(event_id, "")
-	if event_name == "agent.message.delta" or event_name == "ai.delta":
+	if event_name == "agent.run.state":
+		_handle_agent_run_state(data_dictionary, event_session_id, int(message.get("sequence", 0)))
+	elif event_name == "agent.message.delta":
 		_ensure_active_assistant_item()
 		var delta_text: String = str(data_dictionary.get("text", ""))
 		active_assistant_text += delta_text
@@ -3437,40 +3442,13 @@ func _handle_event(message: Dictionary) -> void:
 		_schedule_assistant_delta_flush()
 	elif event_name == "agent.summary.started":
 		_begin_active_assistant_summary(data_dictionary)
-	elif event_name == "ai.status":
+	elif event_name == "agent.status":
 		_append_assistant_status_event(data_dictionary)
-	elif event_name == "agent.message.done" or event_name == "ai.done":
+	elif event_name == "agent.message.done":
 		_complete_active_chat_stream()
-	elif event_name == "agent.run.paused" or event_name == "ai.paused":
-		var should_follow_bottom: bool = _should_follow_timeline_updates()
-		var paused_request_id: String = active_stream_request_id
-		var has_approval_request: bool = str(data_dictionary.get("approvalId", "")).length() > 0
-		if has_approval_request:
-			_save_paused_stream_context()
-		_flush_pending_assistant_delta()
-		if not has_approval_request:
-			file_edit_controller.set_active_session_id(active_session_id)
-			file_edit_controller.complete_stream(active_assistant_entry_id)
-		active_assistant_item = null
-		active_assistant_entry_id = ""
-		active_stream_id = ""
-		active_stream_request_id = ""
-		active_stream_started_at_utc = ""
-		active_stream_status_code = ""
-		active_assistant_text = ""
-		if not has_approval_request:
-			_clear_paused_stream_context()
-		_set_streaming_state(false)
-		if has_approval_request:
-			if active_queue_message_id > 0:
-				_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_APPROVAL)
-			_show_approval_dialog(data_dictionary)
-		_request_next_step_hints(paused_request_id, "paused")
-	elif event_name == "agent.run.cancelled" or event_name == "ai.cancelled":
-		_stop_active_stream_locally(false)
-	elif event_name == "agent.thinking.delta" or event_name == "ai.thinking.delta":
+	elif event_name == "agent.thinking.delta":
 		_append_thinking_event(str(data_dictionary.get("text", "")))
-	elif event_name == "agent.thinking.done" or event_name == "ai.thinking.done":
+	elif event_name == "agent.thinking.done":
 		var should_follow_bottom: bool = _should_follow_timeline_updates()
 		_flush_pending_thinking_delta()
 		if not active_assistant_entry_id.is_empty():
@@ -3480,22 +3458,22 @@ func _handle_event(message: Dictionary) -> void:
 			_schedule_timeline_render(should_follow_bottom)
 		active_thinking_item = null
 		active_thinking_entry_id = ""
-	elif event_name == "agent.tool.call" or event_name == "tool.call":
+	elif event_name == "agent.tool.call":
 		_add_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
-	elif event_name == "agent.tool.progress" or event_name == "tool.progress":
+	elif event_name == "agent.tool.progress":
 		_append_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
-	elif event_name == "agent.tool.result" or event_name == "tool.result":
+	elif event_name == "agent.tool.result":
 		var normalized_tool_result: Dictionary = _normalize_agent_tool_event_data(event_name, data_dictionary)
 		file_edit_controller.collect_active_batch(normalized_tool_result)
 		_append_tool_event(normalized_tool_result)
-	elif event_name == "agent.tool.error" or event_name == "tool.error":
+	elif event_name == "agent.tool.error":
 		_append_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
-	elif event_name == "agent.tool.approval_required" or event_name == "tool.approval_required":
+	elif event_name == "agent.tool.approval_required":
 		var approval_tool_event: Dictionary = _normalize_agent_tool_event_data(event_name, data_dictionary)
 		_add_tool_event(approval_tool_event)
 		_show_approval_dialog(approval_tool_event)
-	elif event_name == "agent.tool.approved" or event_name == "agent.tool.rejected" or event_name == "tool.approved" or event_name == "tool.rejected":
-		var tool_was_rejected: bool = event_name == "tool.rejected" or event_name == "agent.tool.rejected"
+	elif event_name == "agent.tool.approved" or event_name == "agent.tool.rejected":
+		var tool_was_rejected: bool = event_name == "agent.tool.rejected"
 		pending_approval_id = ""
 		approval_dialog.visible = false
 		_update_send_state()
@@ -3506,10 +3484,6 @@ func _handle_event(message: Dictionary) -> void:
 				_process_message_queue()
 		elif active_queue_message_id > 0:
 			_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_SENDING)
-	elif event_name == "agent.run.started" or event_name == "workflow.started":
-		active_workflow_id = str(data_dictionary.get("runId", data_dictionary.get("workflowId", "")))
-	elif event_name == "agent.run.snapshot" or event_name == "workflow.todo.updated":
-		_apply_workflow_todo_snapshot(data_dictionary)
 	elif event_name.begins_with("plan."):
 		_handle_plan_event(event_name, event_id, data_dictionary)
 	elif event_name == "guide.applied":
@@ -3527,6 +3501,70 @@ func _handle_event(message: Dictionary) -> void:
 		_load_skills()
 	elif event_name == "editor.tool.requested":
 		editor_bridge_controller.handle_tool_requested(data_dictionary)
+
+
+func _handle_agent_run_state(run_state: Dictionary, event_session_id: String, event_sequence: int) -> void:
+	var stage: String = str(run_state.get("stage", ""))
+	var run_id: String = str(run_state.get("runId", ""))
+	var revision: int = int(run_state.get("revision", -1))
+	var sequence_session_id: String = event_session_id
+	if sequence_session_id.is_empty():
+		sequence_session_id = str(run_state.get("sessionId", ""))
+	if not run_id.is_empty() and revision <= agent_run_revisions_by_id.get(run_id, -1):
+		return
+	if not sequence_session_id.is_empty() and event_sequence <= agent_run_sequences_by_session_id.get(sequence_session_id, -1):
+		return
+	if not run_id.is_empty():
+		agent_run_revisions_by_id[run_id] = revision
+	if not sequence_session_id.is_empty():
+		agent_run_sequences_by_session_id[sequence_session_id] = event_sequence
+	if not run_id.is_empty():
+		active_workflow_id = run_id
+
+	var todo_value: Variant = run_state.get("todo", null)
+	if typeof(todo_value) == TYPE_DICTIONARY:
+		_apply_workflow_todo_snapshot(todo_value as Dictionary)
+	elif todo_value == null:
+		_clear_todo_items()
+
+	if stage == "awaiting_approval" or stage == "awaiting_tool_budget":
+		var paused_request_id: String = active_stream_request_id
+		_save_paused_stream_context()
+		_flush_pending_assistant_delta()
+		_set_streaming_state(false)
+		if stage == "awaiting_approval" and active_queue_message_id > 0:
+			_set_queue_message_status(active_queue_message_id, MESSAGE_QUEUE_STATUS_APPROVAL)
+		_request_next_step_hints(paused_request_id, "paused")
+		return
+
+	if stage == "completed":
+		_complete_active_chat_stream()
+		return
+	if stage == "cancelled":
+		_stop_active_stream_locally(false)
+		return
+	if stage == "failed":
+		var terminal_value: Variant = run_state.get("terminal", {})
+		var terminal: Dictionary = terminal_value as Dictionary if typeof(terminal_value) == TYPE_DICTIONARY else {}
+		_append_assistant_status_event({
+			"status": "error",
+			"title": "Backend returned an error",
+			"details": str(terminal.get("message", "The run failed.")),
+			"code": "agent_run_error"
+		})
+		_complete_active_chat_stream()
+		return
+	if stage == "interrupted":
+		_append_assistant_status_event({
+			"status": "warning",
+			"title": "Run interrupted",
+			"details": "The backend stopped before this run reached a terminal state. Retry it from Daedalus Studio.",
+			"code": "agent_run_interrupted"
+		})
+		_stop_active_stream_locally(false)
+		return
+
+	_set_streaming_state(true)
 
 # --- next_step_controller.gd ---
 

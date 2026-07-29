@@ -45,7 +45,7 @@ func send_request(method: String, params: Dictionary, id_prefix: String) -> Stri
 	_request_id += 1
 	var request_key: String = "%s-%d" % [id_prefix, _request_id]
 	var payload: Dictionary = {
-		"protocolVersion": 2,
+		"protocolVersion": 3,
 		"type": "request",
 		"id": request_key,
 		"method": method,
@@ -62,7 +62,7 @@ func send_json(payload: Dictionary) -> Error:
 	if not is_open():
 		return ERR_UNAVAILABLE
 	var envelope: Dictionary = payload.duplicate(true)
-	envelope["protocolVersion"] = 2
+	envelope["protocolVersion"] = 3
 	return _socket.send_text(JSON.stringify(envelope))
 
 
@@ -105,4 +105,20 @@ func _receive_messages() -> void:
 		if typeof(parsed_value) != TYPE_DICTIONARY:
 			protocol_error.emit("Backend sent invalid JSON-RPC data.")
 			continue
-		message_received.emit(parsed_value as Dictionary)
+		var message: Dictionary = parsed_value as Dictionary
+		if str(message.get("type", "")) == "event" and not _is_v3_event_envelope(message):
+			protocol_error.emit("Backend sent an invalid v3 event envelope. Update Daedalus Studio, the backend, and this plugin together.")
+			continue
+		message_received.emit(message)
+
+
+func _is_v3_event_envelope(message: Dictionary) -> bool:
+	var sequence_type: int = typeof(message.get("sequence"))
+	return int(message.get("protocolVersion", 0)) == 3 \
+		and not str(message.get("eventId", "")).is_empty() \
+		and not str(message.get("event", "")).is_empty() \
+		and message.has("sessionId") \
+		and not str(message.get("requestId", "")).is_empty() \
+		and not str(message.get("runId", "")).is_empty() \
+		and (sequence_type == TYPE_FLOAT or sequence_type == TYPE_INT) \
+		and not str(message.get("createdAt", "")).is_empty()

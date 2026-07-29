@@ -141,7 +141,7 @@ func _send_editor_context_update() -> void:
 			"safePreviewV1": true
 		},
 		"godotVersion": str(Engine.get_version_info().get("string", "")),
-		"pluginProtocolVersion": 2,
+		"pluginProtocolVersion": 3,
 		"scriptContext": script_context if not script_context.is_empty() else null,
 		"filesystemSelection": filesystem_selection_context if not filesystem_selection_context.is_empty() else null,
 		"updatedAt": MAIN_HELPERS.get_utc_timestamp()
@@ -578,7 +578,7 @@ func _build_editor_tool_context() -> Dictionary:
 		"workspaceId": ProjectSettings.globalize_path("res://"),
 		"editorInstanceId": get_editor_instance_id(),
 		"godotVersion": str(Engine.get_version_info().get("string", "")),
-		"pluginProtocolVersion": 2,
+		"pluginProtocolVersion": 3,
 		"activeScenePath": get_scene_resource_path(edited_root) if edited_root != null else "",
 		"selectedNodes": _get_selected_node_summaries().get("nodes", []),
 		"capabilities": {

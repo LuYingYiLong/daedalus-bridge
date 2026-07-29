@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "pluginVersion": "1.2.0",
-  "pluginProtocolVersion": 2,
+  "pluginVersion": "1.3.1",
+  "pluginProtocolVersion": 3,
   "files": [
     {
       "path": "addons/godot_daedalus/assets/fonts/JetBrainsMono-Medium.ttf",
@@ -279,16 +279,6 @@
       "sha256": "2ca609e96c1f7ca00bdc7aa892e443e99b7b0444965c1802387660b45aec9e31"
     },
     {
-      "path": "addons/godot_daedalus/assets/icons/file_browse.svg",
-      "size": 365,
-      "sha256": "47d23c992b4b55ffabb76dffa5515db61cc4517fbb4aed2d1f44e03b0f534971"
-    },
-    {
-      "path": "addons/godot_daedalus/assets/icons/file_browse.svg.import",
-      "size": 860,
-      "sha256": "561de85a4026bf7ed66683ec1a2375a3198febedb38ed25397d4be158f517e84"
-    },
-    {
       "path": "addons/godot_daedalus/assets/icons/file.svg",
       "size": 127,
       "sha256": "56637e22322fa4bc4f5fd1e9852ad0eaf8fda186a81e014912595fe9b8b123a7"
@@ -297,6 +287,16 @@
       "path": "addons/godot_daedalus/assets/icons/file.svg.import",
       "size": 852,
       "sha256": "b6f7ca2093ff1fb0063b924b325ec490b7b5875331ece91429b1502e493bcef7"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/file_browse.svg",
+      "size": 365,
+      "sha256": "47d23c992b4b55ffabb76dffa5515db61cc4517fbb4aed2d1f44e03b0f534971"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/file_browse.svg.import",
+      "size": 860,
+      "sha256": "561de85a4026bf7ed66683ec1a2375a3198febedb38ed25397d4be158f517e84"
     },
     {
       "path": "addons/godot_daedalus/assets/icons/flask.svg",
@@ -329,16 +329,6 @@
       "sha256": "6b0594f7b798d5c41fa58f202ffcbe90c303671cd614798e69d80d577c72ab23"
     },
     {
-      "path": "addons/godot_daedalus/assets/icons/icon_large.svg",
-      "size": 713,
-      "sha256": "8d47e451e9f3c22a69f144047f5ad85f821ae77286a7dcacae1160ad89dd0476"
-    },
-    {
-      "path": "addons/godot_daedalus/assets/icons/icon_large.svg.import",
-      "size": 859,
-      "sha256": "45efa528bcee16d7a6ea07f5579b81d1c6b034e4eb9d97f3edcf99b9aec8a37a"
-    },
-    {
       "path": "addons/godot_daedalus/assets/icons/icon.svg",
       "size": 563,
       "sha256": "7a0bb2c3de1e2dd185c4670bb679d6a5592ac2de75939c281495962060e2afec"
@@ -347,6 +337,16 @@
       "path": "addons/godot_daedalus/assets/icons/icon.svg.import",
       "size": 853,
       "sha256": "eea92732d02ebd165fa610506650b5af33075feec123e354ee378e2511808b86"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/icon_large.svg",
+      "size": 713,
+      "sha256": "8d47e451e9f3c22a69f144047f5ad85f821ae77286a7dcacae1160ad89dd0476"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/icon_large.svg.import",
+      "size": 859,
+      "sha256": "45efa528bcee16d7a6ea07f5579b81d1c6b034e4eb9d97f3edcf99b9aec8a37a"
     },
     {
       "path": "addons/godot_daedalus/assets/icons/install.svg",
@@ -630,13 +630,13 @@
     },
     {
       "path": "addons/godot_daedalus/assets/markdown_theme.tres",
-      "size": 6365,
-      "sha256": "f66c026ba223d07f890167ff351ef047caa68454ccf9b16a7501b2ecc11d6faa"
+      "size": 6391,
+      "sha256": "526c2b4de4ad4576f50af6899adc6e8d6d309a65fc2f58e9581bf9c4ea421d2b"
     },
     {
       "path": "addons/godot_daedalus/daedalus-plugin.json",
       "size": 141,
-      "sha256": "a7ca110a27426882f9c9a8a82f077293ba68892b4611245be81e1909b2271ef7"
+      "sha256": "9bab9896434cdb30f009b6abc081061420708abf0102b64e155729ff05d202a7"
     },
     {
       "path": "addons/godot_daedalus/godot_daedalus.gd",
@@ -651,7 +651,7 @@
     {
       "path": "addons/godot_daedalus/plugin.cfg",
       "size": 202,
-      "sha256": "47a18b9eaf822417fa9f414e7d783528f3ed2ae2ae61b5790133ff0e60cdcbec"
+      "sha256": "f58a900e93455ee4c853dffe056f161a23d3eabf98d6a2d89d690552ef1c19ad"
     },
     {
       "path": "addons/godot_daedalus/README.md",
@@ -670,8 +670,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/boot_splash.tscn",
-      "size": 2957,
-      "sha256": "34a02da047c007e6ed688d339fadf58e50107af208dae835c50c1a5f958ed52d"
+      "size": 3220,
+      "sha256": "07271a782c2070ba1c0a44552dcdd2af21da0c19149e36323e1a4158b0edb8ac"
     },
     {
       "path": "addons/godot_daedalus/scenes/clarification_dialog.tscn",
@@ -695,8 +695,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/main.tscn",
-      "size": 24701,
-      "sha256": "47b57d859f8b407a2c913a22821d4299a0c26097749204571ea825a96190db0a"
+      "size": 24811,
+      "sha256": "cc57d62a6296389c3b8e826bedc7e2d89e00f91843b9bf6902bb5477bc528b16"
     },
     {
       "path": "addons/godot_daedalus/scenes/plan_approval_dialog.tscn",
@@ -720,8 +720,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/add_mcp_server_dialog.tscn",
-      "size": 6273,
-      "sha256": "4c8b9af8a12cc217cc09909c9c32f933ba87eb58bd866cd4b59bbda8fb8e34e8"
+      "size": 6330,
+      "sha256": "5a1c9c347e9d7ff0dd4817a1b5275600c3f3596b9d8d50c1a575705589f7b4ef"
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/archived_chat_item.tscn",
@@ -730,8 +730,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/edit_mcp_server_dialog.tscn",
-      "size": 6249,
-      "sha256": "6cbd50721d4dcfa8990f0a15dd29431a168ca5d8e5ab37fa5ddb36f9cf1780b9"
+      "size": 6296,
+      "sha256": "02c86ff9d317012df35fedbb72c0757953f445dbd4bb471f8d15470242e2869b"
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/edit_skill_dialog.tscn",
@@ -740,8 +740,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/mcp_server_item.tscn",
-      "size": 1696,
-      "sha256": "d3c2b69623cc433b75d396ffab89f3246ee0ef8f80090a598a504dbc79336192"
+      "size": 2676,
+      "sha256": "4aeffc0deb2d4390669cdedf45ffdf6bc4799e040385b3c1bdb80a3d2fbea2a3"
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/settings_menu.tscn",
@@ -750,8 +750,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/skill_item.tscn",
-      "size": 1636,
-      "sha256": "b2e058e6bcd924e353ba649dd0360d0fd4c13acb2ae7f79836ca622edf855961"
+      "size": 2484,
+      "sha256": "5c74d9c755cf5b263c185495bdc6779f4205cfcdb1c8def0a43870351b341a25"
     },
     {
       "path": "addons/godot_daedalus/scenes/todo_item.tscn",
@@ -836,7 +836,7 @@
     {
       "path": "addons/godot_daedalus/scripts/backend_launcher.gd",
       "size": 7484,
-      "sha256": "5bb6990e9886fe91d5f814299026950e30aaa5e435f97c3b691dbfb6287bf7a4"
+      "sha256": "fe21164a11cba396d7eb2fb0589ef7605e6ad3edb6a4797f63c0a0728acc2568"
     },
     {
       "path": "addons/godot_daedalus/scripts/backend_launcher.gd.uid",
@@ -845,8 +845,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/boot_splash.gd",
-      "size": 2236,
-      "sha256": "87cfd3d9a3a980b36d54396d82c5699060e38999aca0b9adf8928757c822f4a7"
+      "size": 2331,
+      "sha256": "d271a1ff5adf36fa4b4e6dbbbc2ff5934e59d9babe4615f3fb32c59a4f5b7c96"
     },
     {
       "path": "addons/godot_daedalus/scripts/boot_splash.gd.uid",
@@ -885,8 +885,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_backend_connection_controller.gd",
-      "size": 3315,
-      "sha256": "1e4bec9d906fd1db41e22a2516f63e45f7681ff405b48236311e3a830d3064c6"
+      "size": 4117,
+      "sha256": "5e6bdaa98fc0cbbcc9e58532fcd51a44b2e5d4358ab5617cd5a3c55343ce49f6"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_backend_connection_controller.gd.uid",
@@ -896,7 +896,7 @@
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd",
       "size": 57729,
-      "sha256": "1f613a24a1738724c1194ea2ffc6730584c5289f0b4475eea996498055458ce3"
+      "sha256": "9db5588437667cf0532b25668619d711fe81b185896d0309a618c9a2a4832a61"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd.uid",
@@ -907,6 +907,11 @@
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_domain_tools.gd",
       "size": 97942,
       "sha256": "33d8beed94ee79aabb1bcd6edc488a20a472cec68266571fc9430cc936f27536"
+    },
+    {
+      "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_domain_tools.gd.uid",
+      "size": 20,
+      "sha256": "967b5e1a2f3c180a7f1744f815b479c510f87f557fb4ff77f4f718ace67ac937"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_file_edit_controller.gd",
@@ -934,6 +939,11 @@
       "sha256": "862626d0bb2a7319ff8ee41f39d1e66556a11e87441cd1aef6b4c53d027fb9e7"
     },
     {
+      "path": "addons/godot_daedalus/scripts/controllers/daedalus_variant_codec.gd.uid",
+      "size": 20,
+      "sha256": "cd0913d2dd9c717640986fd1aa7bf1a6e5996961a94a3f5261a6d1e016b7ff78"
+    },
+    {
       "path": "addons/godot_daedalus/scripts/inline_diff_item.gd",
       "size": 323,
       "sha256": "32d85755df6befab46c12b076a0c28cc44bff34c77aa0f938922b58532ff5586"
@@ -954,6 +964,16 @@
       "sha256": "a3651e35d4675a8ddbe75c132859546d0f7744932464de5466c73cca472efe01"
     },
     {
+      "path": "addons/godot_daedalus/scripts/main.gd",
+      "size": 295712,
+      "sha256": "711a03c09f52835e01d5550b78c65157c9a3b73b3fa77797f2763dac1ad6422b"
+    },
+    {
+      "path": "addons/godot_daedalus/scripts/main.gd.uid",
+      "size": 21,
+      "sha256": "2f0beffad827c2365f68f46fe21d3d2fb235c009ac8f4c48bdefad7ce693316a"
+    },
+    {
       "path": "addons/godot_daedalus/scripts/main_helpers.gd",
       "size": 13141,
       "sha256": "c3fe2c9da654cbad9a4f099b5f8b9946d2f74eacdc32e694ff642f9012add86e"
@@ -962,16 +982,6 @@
       "path": "addons/godot_daedalus/scripts/main_helpers.gd.uid",
       "size": 20,
       "sha256": "8973fefaac05a19a7d9fc08dbad759aa90bb60118923b2c80f955ccddd6b3463"
-    },
-    {
-      "path": "addons/godot_daedalus/scripts/main.gd",
-      "size": 294857,
-      "sha256": "715ca9d4ac77cfc678b108f4e7ed39b4fb9076f872076a3a799a92547a8b55ad"
-    },
-    {
-      "path": "addons/godot_daedalus/scripts/main.gd.uid",
-      "size": 21,
-      "sha256": "2f0beffad827c2365f68f46fe21d3d2fb235c009ac8f4c48bdefad7ce693316a"
     },
     {
       "path": "addons/godot_daedalus/scripts/plan_approval_dialog.gd",
@@ -1025,8 +1035,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/add_mcp_server_dialog.gd",
-      "size": 6731,
-      "sha256": "b6cf23190fefcb6e1a40a2be8ffd69480cd5c149507504accaa029ce1ebc8855"
+      "size": 6561,
+      "sha256": "b15cd558373e23dc53d222b9ed4a755a1c55b9793c968d2709f6ed036a38f99d"
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/add_mcp_server_dialog.gd.uid",
@@ -1045,8 +1055,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/edit_mcp_server_dialog.gd",
-      "size": 9121,
-      "sha256": "df56515a2d65f577647ed62f71f3743105ffa137c186b1d1a6a462349f094098"
+      "size": 8852,
+      "sha256": "b6f455f1aad7c72fdf48437c491b1ffac2a20f43d1d8e24571394c349d7a00ea"
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/edit_mcp_server_dialog.gd.uid",
@@ -1065,8 +1075,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/mcp_server_item.gd",
-      "size": 4111,
-      "sha256": "6b26a342bb8d96b8e2ca01ee682727f27496900c144433c9907092b4dfa1e6ef"
+      "size": 4215,
+      "sha256": "0af0e920814c16f905c64489a3dd2444bf2de8427afda5e61875699528791718"
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/mcp_server_item.gd.uid",
@@ -1085,8 +1095,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/skill_item.gd",
-      "size": 2403,
-      "sha256": "4826e462ac0f8f2e1a219aefdee16f4ca1e0d5b629279bd50d6be959c0a13bb1"
+      "size": 2627,
+      "sha256": "e0d75dd1b6b9339d04ad4f3db5a59896b3de397c14509c6aae33e420345a4d7a"
     },
     {
       "path": "addons/godot_daedalus/scripts/settings_menu/skill_item.gd.uid",
