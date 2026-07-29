@@ -16,6 +16,7 @@ const PROVIDER_MODELS_LIST: String = "provider.models.list"
 const AI_CHAT: String = "ai.chat"
 const AI_NEXT_STEP_HINTS: String = "ai.next_step_hints"
 const AI_CANCEL: String = "ai.cancel"
+const AGENT_RUN_RETRY: String = "agent.run.retry"
 const PROMPT_LIST: String = "prompt.list"
 const USER_PROMPT_GET: String = "userPrompt.get"
 const USER_PROMPT_SET: String = "userPrompt.set"
@@ -116,6 +117,7 @@ static func all() -> PackedStringArray:
 		AI_CHAT,
 		AI_NEXT_STEP_HINTS,
 		AI_CANCEL,
+		AGENT_RUN_RETRY,
 		PROMPT_LIST,
 		USER_PROMPT_GET,
 		USER_PROMPT_SET,
