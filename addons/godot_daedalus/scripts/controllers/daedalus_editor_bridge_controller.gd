@@ -637,7 +637,9 @@ func _execute_editor_capture_scene_view(args: Dictionary) -> Dictionary:
 		selected_view = "2d" if edited_root is Node2D or edited_root is Control else "3d"
 
 	editor_interface.set_main_screen_editor("2D" if selected_view == "2d" else "3D")
-	await RenderingServer.frame_post_draw
+	# The request is already deferred to the editor idle loop. Waiting on another
+	# process frame can remain suspended while the editor is in low-processor mode.
+	RenderingServer.force_draw(false)
 
 	var candidates: Array[Dictionary] = []
 	var viewport_2d: SubViewport = editor_interface.get_editor_viewport_2d()
