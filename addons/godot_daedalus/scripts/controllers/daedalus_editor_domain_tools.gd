@@ -1072,22 +1072,28 @@ func _apply_blend_space_point_operation(root: AnimationNode, operation: Dictiona
 			return str(child_result.get("error", "animation_node_create_failed"))
 		var point_name: StringName = StringName(str(operation.get("name", "")))
 		if root is AnimationNodeBlendSpace1D:
-			(root as AnimationNodeBlendSpace1D).add_blend_point(
+			var blend_space_1d: AnimationNodeBlendSpace1D = root as AnimationNodeBlendSpace1D
+			blend_space_1d.add_blend_point(
 				child_result.get("value"),
 				float(operation.get("position", 0.0)),
-				point_index,
-				point_name
+				point_index
 			)
+			if not str(point_name).is_empty():
+				var added_index_1d: int = point_index if point_index >= 0 else blend_space_1d.get_blend_point_count() - 1
+				blend_space_1d.set_blend_point_name(added_index_1d, point_name)
 		else:
 			var position_result: Dictionary = VARIANT_CODEC.decode(operation.get("position"), Vector2.ZERO)
 			if not bool(position_result.get("ok", false)) or not position_result.get("value") is Vector2:
 				return "invalid_blend_point_position"
-			(root as AnimationNodeBlendSpace2D).add_blend_point(
+			var blend_space_2d: AnimationNodeBlendSpace2D = root as AnimationNodeBlendSpace2D
+			blend_space_2d.add_blend_point(
 				child_result.get("value"),
 				position_result.get("value"),
-				point_index,
-				point_name
+				point_index
 			)
+			if not str(point_name).is_empty():
+				var added_index_2d: int = point_index if point_index >= 0 else blend_space_2d.get_blend_point_count() - 1
+				blend_space_2d.set_blend_point_name(added_index_2d, point_name)
 		return ""
 	if point_index < 0 or point_index >= point_count:
 		return "blend_point_out_of_range"

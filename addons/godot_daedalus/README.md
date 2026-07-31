@@ -2,6 +2,8 @@
 
 Godot Daedalus is an editor plugin that adds an AI assistant panel to Godot. It connects to the TypeScript backend over WebSocket and supports chat, session history, approvals, custom MCP servers, editor context, and Godot project tools.
 
+Godot 4.5 or newer is required. The plugin uses the native `EditorDock` API on newer Godot versions and automatically falls back to the compatible dock API on Godot 4.5.
+
 ## Install
 
 Copy this directory to a Godot project:
@@ -44,24 +46,24 @@ Open the plugin settings panel, select any provider exposed by the backend catal
 Useful checks during development:
 
 ```powershell
-& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --check-only --script "res://addons/godot_daedalus/scripts/main.gd"
+& "D:/Godot_v4.5.1-stable_win64.exe/Godot_v4.5.1-stable_win64.exe" --headless --path "D:/GodotProjects/example" --check-only --script "res://addons/godot_daedalus/scripts/main.gd"
 pwsh -NoProfile -ExecutionPolicy Bypass -File "D:/GodotProjects/example/addons/godot_daedalus/tools/run_plugin_tests.ps1"
 ```
 
 Targeted checks:
 
 ```powershell
-& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --check-only --script "res://addons/godot_daedalus/scripts/main.gd"
-& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --quit --scene "res://addons/godot_daedalus/scenes/main.tscn"
-& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/main_helpers_test.gd"
-& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/rpc_methods_test.gd"
-& "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/additional_context_item_test.gd"
+& "D:/Godot_v4.5.1-stable_win64.exe/Godot_v4.5.1-stable_win64.exe" --headless --path "D:/GodotProjects/example" --check-only --script "res://addons/godot_daedalus/scripts/main.gd"
+& "D:/Godot_v4.5.1-stable_win64.exe/Godot_v4.5.1-stable_win64.exe" --headless --path "D:/GodotProjects/example" --quit --scene "res://addons/godot_daedalus/scenes/main.tscn"
+& "D:/Godot_v4.5.1-stable_win64.exe/Godot_v4.5.1-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/main_helpers_test.gd"
+& "D:/Godot_v4.5.1-stable_win64.exe/Godot_v4.5.1-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/rpc_methods_test.gd"
+& "D:/Godot_v4.5.1-stable_win64.exe/Godot_v4.5.1-stable_win64.exe" --headless --path "D:/GodotProjects/example" --script "res://addons/godot_daedalus/tests/additional_context_item_test.gd"
 ```
 
 For the public Beta smoke path, start from the backend repository and run:
 
 ```powershell
-$env:GODOT_EXECUTABLE_PATH = "D:/Godot_v4.7-stable_win64.exe/Godot_v4.7-stable_win64.exe"
+$env:GODOT_EXECUTABLE_PATH = "D:/Godot_v4.5.1-stable_win64.exe/Godot_v4.5.1-stable_win64.exe"
 $env:GODOT_PROJECT_PATH = "D:/GodotProjects/example"
 $env:GODOT_DAEDALUS_PLUGIN_DIR = "D:/GodotProjects/example/addons/godot_daedalus"
 npm run smoke:beta
