@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pluginVersion": "1.3.2",
+  "pluginVersion": "1.3.3",
   "pluginProtocolVersion": 3,
   "files": [
     {
@@ -279,16 +279,6 @@
       "sha256": "2ca609e96c1f7ca00bdc7aa892e443e99b7b0444965c1802387660b45aec9e31"
     },
     {
-      "path": "addons/godot_daedalus/assets/icons/file.svg",
-      "size": 127,
-      "sha256": "56637e22322fa4bc4f5fd1e9852ad0eaf8fda186a81e014912595fe9b8b123a7"
-    },
-    {
-      "path": "addons/godot_daedalus/assets/icons/file.svg.import",
-      "size": 852,
-      "sha256": "b6f7ca2093ff1fb0063b924b325ec490b7b5875331ece91429b1502e493bcef7"
-    },
-    {
       "path": "addons/godot_daedalus/assets/icons/file_browse.svg",
       "size": 365,
       "sha256": "47d23c992b4b55ffabb76dffa5515db61cc4517fbb4aed2d1f44e03b0f534971"
@@ -297,6 +287,16 @@
       "path": "addons/godot_daedalus/assets/icons/file_browse.svg.import",
       "size": 860,
       "sha256": "561de85a4026bf7ed66683ec1a2375a3198febedb38ed25397d4be158f517e84"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/file.svg",
+      "size": 127,
+      "sha256": "56637e22322fa4bc4f5fd1e9852ad0eaf8fda186a81e014912595fe9b8b123a7"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/file.svg.import",
+      "size": 852,
+      "sha256": "b6f7ca2093ff1fb0063b924b325ec490b7b5875331ece91429b1502e493bcef7"
     },
     {
       "path": "addons/godot_daedalus/assets/icons/flask.svg",
@@ -329,16 +329,6 @@
       "sha256": "6b0594f7b798d5c41fa58f202ffcbe90c303671cd614798e69d80d577c72ab23"
     },
     {
-      "path": "addons/godot_daedalus/assets/icons/icon.svg",
-      "size": 563,
-      "sha256": "7a0bb2c3de1e2dd185c4670bb679d6a5592ac2de75939c281495962060e2afec"
-    },
-    {
-      "path": "addons/godot_daedalus/assets/icons/icon.svg.import",
-      "size": 853,
-      "sha256": "eea92732d02ebd165fa610506650b5af33075feec123e354ee378e2511808b86"
-    },
-    {
       "path": "addons/godot_daedalus/assets/icons/icon_large.svg",
       "size": 713,
       "sha256": "8d47e451e9f3c22a69f144047f5ad85f821ae77286a7dcacae1160ad89dd0476"
@@ -347,6 +337,16 @@
       "path": "addons/godot_daedalus/assets/icons/icon_large.svg.import",
       "size": 859,
       "sha256": "45efa528bcee16d7a6ea07f5579b81d1c6b034e4eb9d97f3edcf99b9aec8a37a"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/icon.svg",
+      "size": 563,
+      "sha256": "7a0bb2c3de1e2dd185c4670bb679d6a5592ac2de75939c281495962060e2afec"
+    },
+    {
+      "path": "addons/godot_daedalus/assets/icons/icon.svg.import",
+      "size": 853,
+      "sha256": "eea92732d02ebd165fa610506650b5af33075feec123e354ee378e2511808b86"
     },
     {
       "path": "addons/godot_daedalus/assets/icons/install.svg",
@@ -630,18 +630,18 @@
     },
     {
       "path": "addons/godot_daedalus/assets/markdown_theme.tres",
-      "size": 6391,
-      "sha256": "526c2b4de4ad4576f50af6899adc6e8d6d309a65fc2f58e9581bf9c4ea421d2b"
+      "size": 6365,
+      "sha256": "f66c026ba223d07f890167ff351ef047caa68454ccf9b16a7501b2ecc11d6faa"
     },
     {
       "path": "addons/godot_daedalus/daedalus-plugin.json",
       "size": 141,
-      "sha256": "a9063aff66ff6bd907c50df1007b7060cd37e22ef8736c398e3a7ad1795156a1"
+      "sha256": "423895a272f0699129846945fb0ffd9790489266831744a58dbb1f5c29d724ce"
     },
     {
       "path": "addons/godot_daedalus/godot_daedalus.gd",
-      "size": 962,
-      "sha256": "0a1bae64b4afd1946bc7421f334978bae05ec6975c7f20f674780d4a914d649f"
+      "size": 1347,
+      "sha256": "b9fb228dd67a97ee920991c06cf4a762b9d110c85b65a2a5a2a9a07a4d895cf6"
     },
     {
       "path": "addons/godot_daedalus/godot_daedalus.gd.uid",
@@ -649,14 +649,304 @@
       "sha256": "8e284b492aff4c6d5b1935e3f00f0a9ec10be18354a5ba30cd7dd1700f74b3c5"
     },
     {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF14a41884.TMP",
+      "size": 840192,
+      "sha256": "997499215781759e1839469a4863bba6ad039a4a0156c9700259537ad4132405"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF3482015.TMP",
+      "size": 838144,
+      "sha256": "6740a617cd7cd1652573af60dc5f51d5e9919bc752a04e77b72056de83462c56"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF3bfc858.TMP",
+      "size": 838144,
+      "sha256": "6740a617cd7cd1652573af60dc5f51d5e9919bc752a04e77b72056de83462c56"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF46f6d6f.TMP",
+      "size": 772608,
+      "sha256": "5963d319653bdf8ed5b4fe2fc296e54e7f43f8a40f6a6822cdcace54017f9468"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF55f0167.TMP",
+      "size": 838144,
+      "sha256": "6740a617cd7cd1652573af60dc5f51d5e9919bc752a04e77b72056de83462c56"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF5620447.TMP",
+      "size": 838144,
+      "sha256": "6740a617cd7cd1652573af60dc5f51d5e9919bc752a04e77b72056de83462c56"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF570002c.TMP",
+      "size": 838144,
+      "sha256": "6740a617cd7cd1652573af60dc5f51d5e9919bc752a04e77b72056de83462c56"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF589ddd0.TMP",
+      "size": 838144,
+      "sha256": "6740a617cd7cd1652573af60dc5f51d5e9919bc752a04e77b72056de83462c56"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/~markdown_label.windows.template_debug.x86_64.dll~RF72c2548.TMP",
+      "size": 772608,
+      "sha256": "5963d319653bdf8ed5b4fe2fc296e54e7f43f8a40f6a6822cdcace54017f9468"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_debug.arm32.so",
+      "size": 1466628,
+      "sha256": "05ccfccf1b5064ba11ee16c8223bb994b60a9802f42e1a2a4726cd9fc756f153"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_debug.arm64.so",
+      "size": 1510568,
+      "sha256": "14bc9ff1b260cba821b380309bebe19f54107ce73c16caa39410aabd93643d9a"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_debug.x86_32.so",
+      "size": 1573576,
+      "sha256": "464fef2b34c36fba0fa593a433b4013d15be2855f4819726f4f9f613294e27b6"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_debug.x86_64.so",
+      "size": 1463184,
+      "sha256": "92133e22e606481f1a1572f45582a56dccc203ef8cd9955f3c10e643967e49e1"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_release.arm32.so",
+      "size": 1184148,
+      "sha256": "32a6ef858dd283cc407e46d0db8f558213df47a840c232da8012934a37343bfc"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_release.arm64.so",
+      "size": 1394152,
+      "sha256": "f633cae7dcbc02ab0bd6955fc5a79f438637c05897286a2cc8808885aa10af5a"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_release.x86_32.so",
+      "size": 1464280,
+      "sha256": "1ec0308892baa191116a55f1d3561c639a9ac76c71dc8323b8d208093085c797"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.android.template_release.x86_64.so",
+      "size": 1325800,
+      "sha256": "cd70c367d95c5a2ec5b21eb149f591ac154a391c6f6432c627d6c4ae68936d6e"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.ios.template_debug.a",
+      "size": 774920,
+      "sha256": "67e8e13fe2430809747cb0b5a4f1e47142e91398010baf0d6feef2ca39d25ad5"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.ios.template_release.a",
+      "size": 772560,
+      "sha256": "4fcd5fbcea20eb81dcb26e0469db38ec7635b12f837e1422f2cf15cbb21eccca"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_debug.arm32.so",
+      "size": 2312520,
+      "sha256": "078024ef71ad12f3f722e983bb338500b12f013d3850988bbadd11eced50fee8"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_debug.arm64.so",
+      "size": 2316616,
+      "sha256": "8b308060cae4d2bcbd2703bf452aad30dc393d72d029b7dae65f54aaec54a29a"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_debug.x86_32.so",
+      "size": 2441452,
+      "sha256": "b52738d0f8bb2fae6f2bef30d3ba4453b16cf941506642ee9fc511d3601a0c02"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_debug.x86_64.so",
+      "size": 2230592,
+      "sha256": "d88db0f58fc228125db685ac6bf297eddf05eb9ebe5af743c7971bf4dfc1d443"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_release.arm32.so",
+      "size": 2130344,
+      "sha256": "cbb4e9a81d7616d660da088c6529415a64ddea8fb2377106954df101f5af2356"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_release.arm64.so",
+      "size": 2130344,
+      "sha256": "829ea9701ac045a00af2d44736c95d86ff97c022a95290c25ac802866a1c9565"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_release.x86_32.so",
+      "size": 2259292,
+      "sha256": "301f5a849e57ea01ea5572e6174803178d681e076d1abc51b848407d26690ead"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.linux.template_release.x86_64.so",
+      "size": 2060728,
+      "sha256": "8a277468ecf1bd7a5fc67086264979580aa7ae2ed15baaff6d3d3e6ce35ec4c3"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.macos.template_debug.framework/libmarkdown_label.macos.template_debug",
+      "size": 1042328,
+      "sha256": "fa993d4bdd879b4f888839984d04d1dab6cfcacb1e0e269fa5f368a424217539"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.macos.template_release.framework/libmarkdown_label.macos.template_release",
+      "size": 1025224,
+      "sha256": "91cd39c5ded0ff27912ecbe4802bacfa0d822e6100a1c57283ce8634cd1da88b"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.web.template_debug.wasm32.wasm",
+      "size": 1323089,
+      "sha256": "5309a91b2503ce015f64fe22bc0edbaaa4f2c541f7936007ceb697e6e07b7115"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.web.template_release.wasm32.wasm",
+      "size": 1313203,
+      "sha256": "0357ce5de5ac176a80bc65191c66be5e1e821ce92dce5d64abe4943a3308922c"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.windows.template_debug.arm64.a",
+      "size": 1986,
+      "sha256": "3dcad9600f0e0c3f0ec2d5ad3bef1f56aa244dbb86af063f72cd091360546fb5"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.windows.template_debug.x86_32.a",
+      "size": 2000,
+      "sha256": "fb3d7f1c25b5906e5955e49ae6e38eb6d1b288761ad9099c47a2040d2aea5f8d"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.windows.template_debug.x86_64.a",
+      "size": 2000,
+      "sha256": "d82814d5de03170dcdf9f9601fe686ee9cb4d5896d6d49cb23e35bf84f539537"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.windows.template_release.arm64.a",
+      "size": 2008,
+      "sha256": "5ea2c34cb8f48f7faf900374f8935173fc4504aa930c7d0adebb78fee16f9351"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.windows.template_release.x86_32.a",
+      "size": 2018,
+      "sha256": "1e9fc5d82e07716dd4e18600723bf5c999633bd5fe0b8dde4e8312d29fe997d7"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/libmarkdown_label.windows.template_release.x86_64.a",
+      "size": 2018,
+      "sha256": "afe1860af907b4350f327cd74cf83ff3c49fc3bed6371b9be475e80f7263dff5"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_debug.arm64.dll",
+      "size": 1891328,
+      "sha256": "43a6bd5520858c7f3e36a99c8d58439e176c99ec8f7cc36f076ef115e97de839"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_debug.x86_32.dll",
+      "size": 1889792,
+      "sha256": "f7b46cbe471e92fd837f2082b177b809bc6a5f3bc367fc0c1136caaf8167b49c"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_debug.x86_64.dll",
+      "size": 838144,
+      "sha256": "6740a617cd7cd1652573af60dc5f51d5e9919bc752a04e77b72056de83462c56"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_debug.x86_64.exp",
+      "size": 832,
+      "sha256": "07d00c4df29925ed62708b7293eec860ad5a7589512a6805220e350eafb11487"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_debug.x86_64.lib",
+      "size": 2352,
+      "sha256": "086ec5f37b4c2cff6da6ed2ff073f6fe9ed8ced4c84b55ebcd8f3105cb6d6d3c"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_release.arm64.dll",
+      "size": 1712128,
+      "sha256": "5c8521fbc888b9a6b8f2e901adf666d3fbb0f0f849ae537617b922ea1aedec25"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_release.x86_32.dll",
+      "size": 1709056,
+      "sha256": "2ce2ea1de26542ca363b5e22715d239206f42493a3ef0f239fdb1aebd938aa27"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/bin/markdown_label.windows.template_release.x86_64.dll",
+      "size": 734208,
+      "sha256": "db5ae8f4a9e7062d3bfd9e49abc52c662d417193629ddaa0676a67a6e8f6ffdf"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/docs/markdown_label_theme_reference.md",
+      "size": 10218,
+      "sha256": "edab553194a95e6e141513efbe0934117c1f13f619f2344a79c6a4798ed6b5fc"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/example/example.tscn",
+      "size": 2494,
+      "sha256": "f017ada484a57ccbcbf62042068175603ab60ad13ba1f303248fd44bd505c04b"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/example/theme.tres",
+      "size": 6103,
+      "sha256": "e6b64a4b67aa24e6d9b970c8ebfc54c643ef8a46d5059f462ac33a45803aed68"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/file_broken.svg",
+      "size": 313,
+      "sha256": "9b240358962e812aab92f766529a17d417746db024d5a5ce99266d9e2fe5db36"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/file_broken.svg.import",
+      "size": 853,
+      "sha256": "3c6b41627f3ad800f1d5a9d889a83caf898833d657909f1afcdd79d1e548e003"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/markdown_label.svg",
+      "size": 391,
+      "sha256": "2dd3d13fb2bd32a5f5acdcc8a27789b38ea7d64b55302f5f16becc3289232e92"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/markdown_label.svg.import",
+      "size": 854,
+      "sha256": "57c8100fbf838143ce44a514854b0cfc5221cbfa391e2d1d6b479024c0c2ed70"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/task_checked.svg",
+      "size": 232,
+      "sha256": "b3aee05e08b33488ea1a20eaa89565152e28c284eda5cae35b398a3a0baf625c"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/task_checked.svg.import",
+      "size": 253,
+      "sha256": "ec6c8aa7d1bb694bd53387672a82c54a8a57106b0731253ae60375dec96f3dfa"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/task_unchecked.svg",
+      "size": 156,
+      "sha256": "d4a3bc42abd4a6dcdbb2e277be9fd5775503cd118583d15c15d5dfcc2d42430f"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/icons/task_unchecked.svg.import",
+      "size": 254,
+      "sha256": "b40268e6bfdfa0493f8cdfb71eca4b986edfc0e1ac5185207e181fd3a804e706"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/markdown_label.gdextension",
+      "size": 319,
+      "sha256": "3975a976ebfb53ab76c527e4590991052e8a788eaf032ba289923c875512f349"
+    },
+    {
+      "path": "addons/godot_daedalus/markdown_label/markdown_label.gdextension.uid",
+      "size": 20,
+      "sha256": "45b6e7374fe36d69499fe0d6c8f8a20545397f7d528c1bba2b4270c128b06b87"
+    },
+    {
       "path": "addons/godot_daedalus/plugin.cfg",
       "size": 202,
-      "sha256": "74538ec02da35a1e419765ce8dfab098feac151d36dafec9d37650821a151bde"
+      "sha256": "bd3e1d5ebd4a7f36640f731f7d653c13c26a9fdca0b2bcbada61924f119cf68b"
     },
     {
       "path": "addons/godot_daedalus/README.md",
-      "size": 4080,
-      "sha256": "2b5bb2e33d387a337e089b55c8d428bf799b1d7669c3206cce3757a731144576"
+      "size": 4270,
+      "sha256": "0d2d9abb3bd3cf10c2cb849bc0288b0fc2b332af24d058cc52d737a672f935dd"
     },
     {
       "path": "addons/godot_daedalus/scenes/additional_context_item.tscn",
@@ -745,8 +1035,8 @@
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/settings_menu.tscn",
-      "size": 17812,
-      "sha256": "65ca3716ba675e59abbefeb98f2b257f94bfe76addf40f9d1ba5518669ce282a"
+      "size": 17683,
+      "sha256": "459a3f01b172d8f4842d568ee7bbc6e0760c714569f8b9636335c585b7634246"
     },
     {
       "path": "addons/godot_daedalus/scenes/settings_menu/skill_item.tscn",
@@ -895,8 +1185,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd",
-      "size": 57729,
-      "sha256": "9db5588437667cf0532b25668619d711fe81b185896d0309a618c9a2a4832a61"
+      "size": 57883,
+      "sha256": "d92b938af1f669a52bdb381a39909870f96a50d69d9493133f87e765cae7bf72"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_bridge_controller.gd.uid",
@@ -905,8 +1195,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_domain_tools.gd",
-      "size": 97942,
-      "sha256": "33d8beed94ee79aabb1bcd6edc488a20a472cec68266571fc9430cc936f27536"
+      "size": 98470,
+      "sha256": "d34a1007009ff76c822d0074b5df95844f0f9aa414355779e6b222a1fbc71341"
     },
     {
       "path": "addons/godot_daedalus/scripts/controllers/daedalus_editor_domain_tools.gd.uid",
@@ -964,16 +1254,6 @@
       "sha256": "a3651e35d4675a8ddbe75c132859546d0f7744932464de5466c73cca472efe01"
     },
     {
-      "path": "addons/godot_daedalus/scripts/main.gd",
-      "size": 295712,
-      "sha256": "a61386c05a5b2df44801b939b7adcd036641a1bb5658af6252fa6d10634f358b"
-    },
-    {
-      "path": "addons/godot_daedalus/scripts/main.gd.uid",
-      "size": 21,
-      "sha256": "2f0beffad827c2365f68f46fe21d3d2fb235c009ac8f4c48bdefad7ce693316a"
-    },
-    {
       "path": "addons/godot_daedalus/scripts/main_helpers.gd",
       "size": 13141,
       "sha256": "c3fe2c9da654cbad9a4f099b5f8b9946d2f74eacdc32e694ff642f9012add86e"
@@ -982,6 +1262,16 @@
       "path": "addons/godot_daedalus/scripts/main_helpers.gd.uid",
       "size": 20,
       "sha256": "8973fefaac05a19a7d9fc08dbad759aa90bb60118923b2c80f955ccddd6b3463"
+    },
+    {
+      "path": "addons/godot_daedalus/scripts/main.gd",
+      "size": 295712,
+      "sha256": "6cab66cdd390fdb5abdc545929cc3cb0123cae1617f7ea6fa2b7c82056717f70"
+    },
+    {
+      "path": "addons/godot_daedalus/scripts/main.gd.uid",
+      "size": 21,
+      "sha256": "2f0beffad827c2365f68f46fe21d3d2fb235c009ac8f4c48bdefad7ce693316a"
     },
     {
       "path": "addons/godot_daedalus/scripts/plan_approval_dialog.gd",
@@ -1015,8 +1305,8 @@
     },
     {
       "path": "addons/godot_daedalus/scripts/rpc_methods.gd",
-      "size": 7415,
-      "sha256": "0ad3b3b5d2bd464930c19263e2f9adb15d9129d97eb8eeffa84239e76d24f4f4"
+      "size": 7476,
+      "sha256": "76c3809cfbb3dddc041c8d8b18bd9357d133edf50ecd632bf5c54fcaaa977ab6"
     },
     {
       "path": "addons/godot_daedalus/scripts/rpc_methods.gd.uid",
