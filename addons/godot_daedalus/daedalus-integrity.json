@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pluginVersion": "1.3.3",
+  "pluginVersion": "1.3.4",
   "pluginProtocolVersion": 3,
   "files": [
     {
@@ -636,7 +636,7 @@
     {
       "path": "addons/godot_daedalus/daedalus-plugin.json",
       "size": 141,
-      "sha256": "423895a272f0699129846945fb0ffd9790489266831744a58dbb1f5c29d724ce"
+      "sha256": "d6a8ac4e8646d07ff6fe29669dc22fbf502e1856917ebadfb9a2be4c88fd55df"
     },
     {
       "path": "addons/godot_daedalus/godot_daedalus.gd",
@@ -941,7 +941,7 @@
     {
       "path": "addons/godot_daedalus/plugin.cfg",
       "size": 202,
-      "sha256": "bd3e1d5ebd4a7f36640f731f7d653c13c26a9fdca0b2bcbada61924f119cf68b"
+      "sha256": "87ba54b7bdd408aa00b232def0832e3827c0eb1ef45cad6f4830e7450a184804"
     },
     {
       "path": "addons/godot_daedalus/README.md",
@@ -1266,7 +1266,7 @@
     {
       "path": "addons/godot_daedalus/scripts/main.gd",
       "size": 295712,
-      "sha256": "6cab66cdd390fdb5abdc545929cc3cb0123cae1617f7ea6fa2b7c82056717f70"
+      "sha256": "b17a017e6e0e767346cef383db00fe84528a9e2c8b19300e17ad842d63deaf46"
     },
     {
       "path": "addons/godot_daedalus/scripts/main.gd.uid",
