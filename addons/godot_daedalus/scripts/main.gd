@@ -197,6 +197,7 @@ var tool_items_by_call_id: Dictionary[String, Node]
 var active_assistant_item: Node
 var active_thinking_item: Node
 var active_assistant_text: String
+var provider_reconnect_revisions_by_id: Dictionary[String, int]
 var last_todo_signature: String
 var provider_config_status: Dictionary
 var web_search_settings_status: Dictionary
@@ -3458,6 +3459,8 @@ func _handle_event(message: Dictionary) -> void:
 			_schedule_timeline_render(should_follow_bottom)
 		active_thinking_item = null
 		active_thinking_entry_id = ""
+	elif event_name == "agent.provider.reconnect":
+		_handle_provider_reconnect_event(data_dictionary)
 	elif event_name == "agent.tool.call":
 		_add_tool_event(_normalize_agent_tool_event_data(event_name, data_dictionary))
 	elif event_name == "agent.tool.progress":
@@ -4645,6 +4648,7 @@ func _clear_chat_items() -> void:
 	next_step_hint_entry_ids.clear()
 	next_step_hints_by_action_id.clear()
 	text_edit.placeholder_text = ""
+	provider_reconnect_revisions_by_id.clear()
 	timeline_entries.clear()
 	timeline_heights.clear()
 	timeline_prefix_heights.clear()
@@ -5241,6 +5245,8 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 			continue
 		if event_name.begins_with("ai.thinking.") or event_name.begins_with("agent.thinking."):
 			continue
+		if event_name == "agent.provider.reconnect":
+			continue
 		if event_name == "ai.status":
 			continue
 		if event_name == "agent.summary.started":
@@ -5257,6 +5263,7 @@ func _filter_non_assistant_body_event_records(records: Array) -> Array:
 
 func _build_assistant_body_parts(records: Array, message_content: String, request_id: String, assistant_message: Dictionary = {}) -> Array[Dictionary]:
 	var body_parts: Array[Dictionary] = []
+	var reconnect_revisions: Dictionary[String, int] = {}
 	var file_edit_batches: Array[Dictionary] = []
 	var has_markdown_delta: bool = false
 	var has_error_status: bool = false
@@ -5294,6 +5301,8 @@ func _build_assistant_body_parts(records: Array, message_content: String, reques
 			_append_thinking_event_to_body_parts(body_parts, str(event_data.get("text", "")), false)
 		elif event_name == "ai.thinking.done" or event_name == "agent.thinking.done":
 			_append_thinking_event_to_body_parts(body_parts, "", true)
+		elif event_name == "agent.provider.reconnect":
+			_apply_provider_reconnect_to_body_parts(body_parts, event_data, reconnect_revisions)
 		elif event_name == "ai.status":
 			_append_status_event_to_body_parts(body_parts, event_data)
 		elif _is_run_error_event(event_name):
@@ -5470,6 +5479,97 @@ func _append_thinking_event_to_body_parts(body_parts: Array, delta_text: String,
 		"text": delta_text,
 		"done": is_done
 	})
+
+
+func _truncate_tail_code_points(text: String, count: int) -> String:
+	if count <= 0 or text.is_empty():
+		return text
+	return text.substr(0, maxi(0, text.length() - count))
+
+
+func _discard_provider_attempt_text(body_parts: Array, part_type: String, count: int) -> void:
+	var remaining: int = maxi(0, count)
+	for index: int in range(body_parts.size() - 1, -1, -1):
+		if remaining <= 0:
+			break
+		var part_value: Variant = body_parts[index]
+		if typeof(part_value) != TYPE_DICTIONARY:
+			continue
+		var part: Dictionary = part_value as Dictionary
+		if str(part.get("type", "")) != part_type:
+			continue
+		var current_text: String = str(part.get("text", ""))
+		var removed: int = mini(remaining, current_text.length())
+		var next_text: String = _truncate_tail_code_points(current_text, removed)
+		remaining -= removed
+		if next_text.is_empty():
+			body_parts.remove_at(index)
+		else:
+			part["text"] = next_text
+			body_parts[index] = part
+
+
+func _apply_provider_reconnect_to_body_parts(body_parts: Array, event_data: Dictionary, revisions: Dictionary) -> bool:
+	var reconnect_id: String = str(event_data.get("reconnectId", ""))
+	var revision: int = int(event_data.get("revision", 0))
+	if reconnect_id.is_empty() or revision <= int(revisions.get(reconnect_id, 0)):
+		return false
+	revisions[reconnect_id] = revision
+	_discard_provider_attempt_text(body_parts, "markdown", int(event_data.get("discardedMessageCodePoints", 0)))
+	_discard_provider_attempt_text(body_parts, "thinking", int(event_data.get("discardedThinkingCodePoints", 0)))
+	return true
+
+
+func _get_markdown_text_from_body_parts(body_parts: Array) -> String:
+	var chunks: PackedStringArray = PackedStringArray()
+	for part_value: Variant in body_parts:
+		if typeof(part_value) != TYPE_DICTIONARY:
+			continue
+		var part: Dictionary = part_value as Dictionary
+		if str(part.get("type", "")) == "markdown":
+			chunks.append(str(part.get("text", "")))
+	return "".join(chunks)
+
+
+func _handle_provider_reconnect_event(event_data: Dictionary) -> void:
+	var reconnect_id: String = str(event_data.get("reconnectId", ""))
+	var revision: int = int(event_data.get("revision", 0))
+	if reconnect_id.is_empty() or revision <= int(provider_reconnect_revisions_by_id.get(reconnect_id, 0)):
+		return
+	_flush_pending_assistant_delta()
+	_flush_pending_thinking_delta()
+	if active_assistant_entry_id.is_empty():
+		provider_reconnect_revisions_by_id[reconnect_id] = revision
+		return
+	var index: int = _find_timeline_entry_index(active_assistant_entry_id)
+	if index < 0:
+		provider_reconnect_revisions_by_id[reconnect_id] = revision
+		return
+	var entry: Dictionary = timeline_entries[index]
+	var body_parts: Array = entry.get("body_parts", []) as Array
+	if not _apply_provider_reconnect_to_body_parts(body_parts, event_data, provider_reconnect_revisions_by_id):
+		return
+	var next_content: String = _get_markdown_text_from_body_parts(body_parts)
+	entry["body_parts"] = body_parts
+	entry["content"] = next_content
+	entry["height_estimate"] = _estimate_timeline_entry_height("assistant", next_content)
+	entry["height_actual"] = 0.0
+	timeline_entries[index] = entry
+	active_assistant_text = next_content
+	_mark_timeline_height_dirty(index)
+	active_assistant_item = rendered_entry_nodes.get(active_assistant_entry_id, null) as Node
+	if active_assistant_item != null:
+		active_assistant_item.call(
+			"setup",
+			next_content,
+			str(entry.get("started_at_utc", "")),
+			str(entry.get("completed_at_utc", "")),
+			body_parts
+		)
+		active_thinking_item = active_assistant_item.call("get_thinking_item") as Node
+		_schedule_timeline_measure()
+	else:
+		_schedule_timeline_render(_should_follow_timeline_updates())
 
 
 func _append_status_event_to_body_parts(body_parts: Array, status_data: Dictionary) -> void:
