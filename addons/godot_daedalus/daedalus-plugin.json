@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "pluginVersion": "1.4.0",
+  "pluginVersion": "1.4.1",
   "pluginProtocolVersion": 3,
-  "studioVersion": "1.1.1",
+  "studioVersion": "1.1.2",
   "minGodotVersion": "4.5.0"
 }
