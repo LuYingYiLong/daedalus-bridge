@@ -132,11 +132,30 @@ func _get_or_queue_image_thumbnail(resource_path: String, data_url: String) -> T
 	]
 	if thumbnail_texture != null and thumbnail_source_key == next_source_key:
 		return thumbnail_texture
-	_queue_thumbnail_load(next_source_key, normalized_resource_path, normalized_data_url)
+
+	var resource_thumbnail: Texture2D = _load_resource_thumbnail(normalized_resource_path)
+	if resource_thumbnail != null:
+		thumbnail_source_key = next_source_key
+		thumbnail_request_id += 1
+		thumbnail_texture = resource_thumbnail
+		return thumbnail_texture
+
+	if not normalized_data_url.is_empty():
+		_queue_thumbnail_load(next_source_key, normalized_data_url)
 	return null
 
 
-func _queue_thumbnail_load(source_key: String, resource_path: String, data_url: String) -> void:
+func _load_resource_thumbnail(resource_path: String) -> Texture2D:
+	if resource_path.is_empty() or not resource_path.begins_with("res://"):
+		return null
+
+	var resource: Resource = ResourceLoader.load(resource_path, "Texture2D")
+	if resource is Texture2D:
+		return resource as Texture2D
+	return null
+
+
+func _queue_thumbnail_load(source_key: String, data_url: String) -> void:
 	if thumbnail_thread != null:
 		if thumbnail_source_key == source_key:
 			return
@@ -147,7 +166,7 @@ func _queue_thumbnail_load(source_key: String, resource_path: String, data_url: 
 	thumbnail_request_id += 1
 	var request_id: int = thumbnail_request_id
 	thumbnail_thread = Thread.new()
-	var error: Error = thumbnail_thread.start(Callable(self, "_load_image_thumbnail_thread").bind(request_id, resource_path, data_url))
+	var error: Error = thumbnail_thread.start(Callable(self, "_load_image_thumbnail_thread").bind(request_id, data_url))
 	if error != OK:
 		thumbnail_thread = null
 		return
@@ -181,13 +200,9 @@ func _poll_thumbnail_thread() -> void:
 	_set_context_texture(thumbnail_texture)
 
 
-func _load_image_thumbnail_thread(request_id: int, resource_path: String, data_url: String) -> Dictionary:
+func _load_image_thumbnail_thread(request_id: int, data_url: String) -> Dictionary:
 	var image_resource: Image = Image.new()
-	var error: Error = ERR_UNAVAILABLE
-	if not resource_path.is_empty():
-		error = image_resource.load(resource_path)
-	elif not data_url.is_empty():
-		error = _load_image_from_data_url(image_resource, data_url)
+	var error: Error = _load_image_from_data_url(image_resource, data_url)
 
 	if error != OK:
 		return { "requestId": request_id }
