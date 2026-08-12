@@ -6,11 +6,14 @@
 !/.editorconfig
 !/.gitattributes
 !/.gitignore
+!/README.md
 !/.github/
 !/.github/workflows/
 !/.github/workflows/build-release.yml
 !/scripts/
 !/scripts/build-plugin-release.ps1
+!/scripts/build-bridge-release.ps1
+!/scripts/test-bridge-source.ps1
 
 # 必要 Godot 项目配置
 !/project.godot
@@ -32,3 +35,6 @@
 addons/**/.vs/
 addons/**/~*
 addons/**/CSharpWrappers/
+
+# Godot 4.4+ regenerates script UID sidecars locally; release packaging excludes them.
+/addons/daedalus_editor_bridge/**/*.uid

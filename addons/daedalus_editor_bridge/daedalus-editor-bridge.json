@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 2,
+  "name": "Daedalus Editor Bridge",
+  "pluginId": "DaedalusEditorBridge",
+  "bridgeVersion": "2.0.0",
+  "bridgeProtocolVersion": 4,
+  "studioVersion": "1.1.4",
+  "minGodotVersion": "4.0.0",
+  "installDirectory": "addons/daedalus_editor_bridge"
+}
