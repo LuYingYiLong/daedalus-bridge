@@ -1,8 +1,8 @@
-# Daedalus Editor Bridge
+# Daedalus Bridge
 
-This repository publishes **Daedalus Editor Bridge**, a lightweight Godot 4.x editor communication bridge for Daedalus Studio.
+This repository publishes **Daedalus Bridge**, a lightweight Godot 4.x editor communication bridge for Daedalus Studio.
 
-- Install directory: `addons/daedalus_editor_bridge`
+- Install directory: `addons/daedalus_bridge`
 - Bridge version: `2.0.0`
 - Bridge Protocol: `4`
 - Minimum Godot version: `4.0`

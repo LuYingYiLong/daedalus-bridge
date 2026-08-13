@@ -4,18 +4,21 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
-$bridgeRoot = Join-Path $repositoryRoot "addons\daedalus_editor_bridge"
-$metadataPath = Join-Path $bridgeRoot "daedalus-editor-bridge.json"
+$bridgeRoot = Join-Path $repositoryRoot "addons\daedalus_bridge"
+$metadataPath = Join-Path $bridgeRoot "daedalus-bridge.json"
 $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
 $version = [string]$metadata.bridgeVersion
 if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
     throw "Bridge version must use semantic versioning: $version"
 }
 if ([int]$metadata.bridgeProtocolVersion -ne 4) {
-    throw "Daedalus Editor Bridge 2.0 requires Bridge Protocol v4."
+    throw "Daedalus Bridge 2.0 requires Bridge Protocol v4."
 }
 if ([string]$metadata.minGodotVersion -ne "4.0.0") {
     throw "The minimum Godot version must be 4.0.0."
+}
+if ([string]$metadata.installDirectory -ne "addons/daedalus_bridge") {
+    throw "Bridge installDirectory must be addons/daedalus_bridge."
 }
 
 $releaseRoot = [IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputDirectory))
@@ -25,9 +28,9 @@ if (-not $releaseRoot.StartsWith($repositoryPrefix, [StringComparison]::OrdinalI
 }
 
 $stagingRoot = Join-Path $releaseRoot "staging"
-$stagedBridgeRoot = Join-Path $stagingRoot "addons\daedalus_editor_bridge"
-$archiveName = "daedalus-editor-bridge-v$version.zip"
-$manifestName = "daedalus-editor-bridge-v$version.manifest.json"
+$stagedBridgeRoot = Join-Path $stagingRoot "addons\daedalus_bridge"
+$archiveName = "daedalus-bridge-v$version.zip"
+$manifestName = "daedalus-bridge-v$version.manifest.json"
 $archivePath = Join-Path $releaseRoot $archiveName
 $manifestPath = Join-Path $releaseRoot $manifestName
 $forbiddenExtensions = @(".uid", ".import", ".dll", ".so", ".dylib", ".a", ".wasm", ".gdextension")
@@ -87,7 +90,7 @@ $manifest = [ordered]@{
     bridgeProtocolVersion = [int]$metadata.bridgeProtocolVersion
     studioVersion = [string]$metadata.studioVersion
     minGodotVersion = [string]$metadata.minGodotVersion
-    repository = "daedalus-editor-bridge"
+    repository = "daedalus-bridge"
     sourceCommit = $sourceCommit
     publishedAt = [DateTime]::UtcNow.ToString("o")
     archive = [ordered]@{

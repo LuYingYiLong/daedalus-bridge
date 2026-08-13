@@ -14,9 +14,9 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="Daedalus Editor Bridge"
+config/name="Daedalus Bridge"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/daedalus_editor_bridge/plugin.cfg")
+enabled=PackedStringArray("res://addons/daedalus_bridge/plugin.cfg")

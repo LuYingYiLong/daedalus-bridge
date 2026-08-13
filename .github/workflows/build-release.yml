@@ -1,4 +1,4 @@
-name: Build Editor Bridge Release
+name: Build Daedalus Bridge Release
 
 on:
   push:
@@ -22,7 +22,7 @@ on:
         type: boolean
 
 concurrency:
-  group: daedalus-editor-bridge-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+  group: daedalus-bridge-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
   cancel-in-progress: false
 
 permissions:
@@ -50,19 +50,19 @@ jobs:
           Invoke-WebRequest -Uri $downloadUrl -OutFile $archiveName
           Expand-Archive -LiteralPath $archiveName -DestinationPath godot-bin
 
-      - name: Parse and enable Editor Bridge
+      - name: Parse and enable Daedalus Bridge
         shell: pwsh
         run: |
           $godot = Get-ChildItem -LiteralPath godot-bin -Filter "Godot*_console.exe" | Select-Object -First 1
           if ($null -eq $godot) {
             throw "Godot console executable was not extracted."
           }
-          $smokeRoot = Join-Path $env:RUNNER_TEMP "editor-bridge-${{ matrix.godot }}"
+          $smokeRoot = Join-Path $env:RUNNER_TEMP "daedalus-bridge-${{ matrix.godot }}"
           $appDataRoot = Join-Path $smokeRoot "appdata"
           New-Item -ItemType Directory -Path (Join-Path $smokeRoot "addons") -Force | Out-Null
           New-Item -ItemType Directory -Path $appDataRoot -Force | Out-Null
           Copy-Item -LiteralPath project.godot -Destination (Join-Path $smokeRoot "project.godot")
-          Copy-Item -LiteralPath addons/daedalus_editor_bridge -Destination (Join-Path $smokeRoot "addons/daedalus_editor_bridge") -Recurse
+          Copy-Item -LiteralPath addons/daedalus_bridge -Destination (Join-Path $smokeRoot "addons/daedalus_bridge") -Recurse
           $env:APPDATA = $appDataRoot
           $ErrorActionPreference = "Continue"
           $output = & $godot.FullName --headless --editor --path $smokeRoot --quit 2>&1
@@ -74,7 +74,7 @@ jobs:
           })
           # Godot 4.0's Windows headless editor returns 1 even for an empty project.
           if ($exitCode -notin @(0, 1) -or $compileErrors.Count -gt 0) {
-            throw "Daedalus Editor Bridge failed to load in Godot ${{ matrix.godot }} (exit $exitCode, compile errors $($compileErrors.Count))."
+            throw "Daedalus Bridge failed to load in Godot ${{ matrix.godot }} (exit $exitCode, compile errors $($compileErrors.Count))."
           }
 
   release:
@@ -103,7 +103,7 @@ jobs:
             throw "Plugin release manifest was not produced."
           }
           $manifest = Get-Content -LiteralPath $manifestPath.FullName -Raw | ConvertFrom-Json
-          $pluginMetadata = Get-Content -LiteralPath addons/daedalus_editor_bridge/daedalus-editor-bridge.json -Raw | ConvertFrom-Json
+          $pluginMetadata = Get-Content -LiteralPath addons/daedalus_bridge/daedalus-bridge.json -Raw | ConvertFrom-Json
           if ($env:EXPECTED_RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
             throw "Release tag must use v-prefixed semantic versioning: $env:EXPECTED_RELEASE_TAG"
           }
@@ -111,13 +111,13 @@ jobs:
             throw "Release tag $env:EXPECTED_RELEASE_TAG does not match Bridge version v$($manifest.bridgeVersion)."
           }
           if ($manifest.bridgeVersion -ne $pluginMetadata.bridgeVersion -or $manifest.bridgeProtocolVersion -ne $pluginMetadata.bridgeProtocolVersion) {
-            throw "Release manifest does not match daedalus-editor-bridge.json."
+            throw "Release manifest does not match daedalus-bridge.json."
           }
           if ($manifest.studioVersion -ne $pluginMetadata.studioVersion -or $manifest.minGodotVersion -ne $pluginMetadata.minGodotVersion) {
-            throw "Release compatibility metadata does not match daedalus-editor-bridge.json."
+            throw "Release compatibility metadata does not match daedalus-bridge.json."
           }
-          if ($manifest.archive.fileName -ne "daedalus-editor-bridge-v$($manifest.bridgeVersion).zip") {
-            throw "Unexpected Editor Bridge archive name."
+          if ($manifest.archive.fileName -ne "daedalus-bridge-v$($manifest.bridgeVersion).zip") {
+            throw "Unexpected Daedalus Bridge archive name."
           }
           $archivePath = Join-Path release $manifest.archive.fileName
           if (-not (Test-Path -LiteralPath $archivePath -PathType Leaf)) {
@@ -130,10 +130,10 @@ jobs:
           $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path -LiteralPath $archivePath))
           try {
             $entries = @($archive.Entries | ForEach-Object { $_.FullName })
-            if ($entries -notcontains "addons/daedalus_editor_bridge/plugin.cfg") {
-              throw "Bridge archive does not contain addons/daedalus_editor_bridge/plugin.cfg."
+            if ($entries -notcontains "addons/daedalus_bridge/plugin.cfg") {
+              throw "Bridge archive does not contain addons/daedalus_bridge/plugin.cfg."
             }
-            if ($entries | Where-Object { $_ -match '(^|/)\.\.?($|/)' -or -not $_.StartsWith('addons/daedalus_editor_bridge/') }) {
+            if ($entries | Where-Object { $_ -match '(^|/)\.\.?($|/)' -or -not $_.StartsWith('addons/daedalus_bridge/') }) {
               throw "Bridge archive contains an unsafe path."
             }
             foreach ($file in $manifest.files) {
@@ -147,7 +147,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: daedalus-editor-bridge
+          name: daedalus-bridge
           path: release/*
           if-no-files-found: error
 
@@ -156,7 +156,7 @@ jobs:
         with:
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           target_commitish: ${{ github.sha }}
-          name: Daedalus Editor Bridge ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
+          name: Daedalus Bridge ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag_name }}
           draft: ${{ github.event_name == 'workflow_dispatch' && inputs.draft || false }}
           prerelease: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || false }}
           overwrite_files: true

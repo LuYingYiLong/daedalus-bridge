@@ -37,4 +37,4 @@ addons/**/~*
 addons/**/CSharpWrappers/
 
 # Godot 4.4+ regenerates script UID sidecars locally; release packaging excludes them.
-/addons/daedalus_editor_bridge/**/*.uid
+/addons/daedalus_bridge/**/*.uid
