@@ -41,6 +41,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Build compatibility package
+        shell: pwsh
+        run: ./scripts/build-bridge-release.ps1 -OutputDirectory .compatibility-release
+
       - name: Download official Godot editor
         shell: pwsh
         run: |
@@ -57,12 +61,19 @@ jobs:
           if ($null -eq $godot) {
             throw "Godot console executable was not extracted."
           }
+          $archive = Get-ChildItem -LiteralPath .compatibility-release -Filter "daedalus-bridge-v*.zip" | Select-Object -First 1
+          if ($null -eq $archive) {
+            throw "Daedalus Bridge compatibility package was not built."
+          }
           $smokeRoot = Join-Path $env:RUNNER_TEMP "daedalus-bridge-${{ matrix.godot }}"
           $appDataRoot = Join-Path $smokeRoot "appdata"
-          New-Item -ItemType Directory -Path (Join-Path $smokeRoot "addons") -Force | Out-Null
+          New-Item -ItemType Directory -Path $smokeRoot -Force | Out-Null
           New-Item -ItemType Directory -Path $appDataRoot -Force | Out-Null
           Copy-Item -LiteralPath project.godot -Destination (Join-Path $smokeRoot "project.godot")
-          Copy-Item -LiteralPath addons/daedalus_bridge -Destination (Join-Path $smokeRoot "addons/daedalus_bridge") -Recurse
+          Expand-Archive -LiteralPath $archive.FullName -DestinationPath $smokeRoot
+          if (-not (Test-Path -LiteralPath (Join-Path $smokeRoot "addons/daedalus_bridge/plugin.cfg") -PathType Leaf)) {
+            throw "Daedalus Bridge compatibility package has an unexpected layout."
+          }
           $env:APPDATA = $appDataRoot
           $ErrorActionPreference = "Continue"
           $output = & $godot.FullName --headless --editor --path $smokeRoot --quit 2>&1
