@@ -1,7 +1,6 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://addons/daedalus_bridge/scripts/bridge_status_dock.gd" id="1_dock"]
-[ext_resource type="Texture2D" path="res://addons/daedalus_bridge/assets/icon.svg" id="2_xgk6f"]
 
 [node name="Daedalus Bridge" type="VBoxContainer" unique_id=1502931255]
 custom_minimum_size = Vector2(300, 0)
@@ -13,10 +12,10 @@ grow_vertical = 2
 alignment = 1
 script = ExtResource("1_dock")
 
-[node name="TextureRect" type="TextureRect" parent="." unique_id=23434994]
+[node name="Icon" type="TextureRect" parent="." unique_id=23434994]
+unique_name_in_owner = true
 custom_minimum_size = Vector2(128, 128)
 layout_mode = 2
-texture = ExtResource("2_xgk6f")
 expand_mode = 1
 stretch_mode = 5
 

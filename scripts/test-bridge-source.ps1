@@ -42,6 +42,13 @@ $dockScene = Get-Content -LiteralPath $dockScenePath -Raw
 if ($dockScene -notmatch 'script\s*=\s*ExtResource\("1_dock"\)') {
     throw "The status Dock root must own bridge_status_dock.gd."
 }
+if ($dockScene -match '\[ext_resource[^\r\n]+\.svg') {
+    throw "The status Dock must not depend on an imported SVG resource during plugin startup."
+}
+$dockScript = Get-Content -LiteralPath $dockScriptPath -Raw
+if ($dockScript -notmatch 'icon_image\.load\(ICON_PATH\)') {
+    throw "The status Dock must decode its SVG icon without relying on Godot's import cache."
+}
 
 $size = ($releaseFiles | Measure-Object -Property Length -Sum).Sum
 if ($size -ge 2MB) {

@@ -5,7 +5,19 @@ signal reconnect_requested
 signal studio_open_requested
 signal diagnostics_copy_requested
 
+const ICON_PATH: String = "res://addons/daedalus_bridge/assets/icon.svg"
+
+@onready var icon: TextureRect = %Icon
 @onready var error_value: Label = %ErrorValue
+
+
+func _ready() -> void:
+	var icon_image: Image = Image.new()
+	var load_result: Error = icon_image.load(ICON_PATH)
+	if load_result != OK:
+		push_warning("Daedalus Bridge icon could not be decoded (error %d)." % load_result)
+		return
+	icon.texture = ImageTexture.create_from_image(icon_image)
 
 
 func set_error(value: String) -> void:

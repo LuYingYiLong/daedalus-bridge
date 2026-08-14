@@ -81,7 +81,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           $output | ForEach-Object { Write-Host $_ }
           $compileErrors = @($output | Where-Object {
-            "$_" -match '(?i)parse error|compile error|failed to load script|invalid call'
+            "$_" -match '(?i)parse error|compile error|failed to load script|invalid call|(?:failed loading resource|no loader found for resource): res://addons/daedalus_bridge/'
           })
           # Godot 4.0's Windows headless editor returns 1 even for an empty project.
           if ($exitCode -notin @(0, 1) -or $compileErrors.Count -gt 0) {
