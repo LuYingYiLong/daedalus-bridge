@@ -87,6 +87,8 @@ jobs:
           if ($exitCode -notin @(0, 1) -or $compileErrors.Count -gt 0) {
             throw "Daedalus Bridge failed to load in Godot ${{ matrix.godot }} (exit $exitCode, compile errors $($compileErrors.Count))."
           }
+          # Do not let Godot 4.0's accepted exit code leak into the PowerShell step result.
+          exit 0
 
   release:
     needs: godot-compatibility
