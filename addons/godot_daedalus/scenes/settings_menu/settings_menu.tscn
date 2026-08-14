@@ -145,19 +145,6 @@ item_count = 1
 popup/item_0/text = "Use current model"
 popup/item_0/id = 0
 
-[node name="WorkflowPlannerModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1736267794]
-layout_mode = 2
-text = "Workflow/Plan planner model"
-
-[node name="WorkflowPlannerModelOptionButton" type="OptionButton" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=1053240666]
-unique_name_in_owner = true
-layout_mode = 2
-tooltip_text = "Model used for Plan mode and LLM workflow planning."
-selected = 0
-item_count = 1
-popup/item_0/text = "Use current model"
-popup/item_0/id = 0
-
 [node name="SessionTitleModelLabel" type="Label" parent="TabContainer/General/VBoxContainer/GeneralContainer" unique_id=305954957]
 layout_mode = 2
 text = "Session title model"

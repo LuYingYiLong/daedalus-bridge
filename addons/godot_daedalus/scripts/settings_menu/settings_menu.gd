@@ -21,7 +21,6 @@ signal skill_remove_requested(skill_ref: String)
 @onready var tab_container: TabContainer = %TabContainer
 @onready var provider_option_button: OptionButton = %ProviderOptionButton
 @onready var image_recognition_model_option_button: OptionButton = %ImageRecognitionModelOptionButton
-@onready var workflow_planner_model_option_button: OptionButton = %WorkflowPlannerModelOptionButton
 @onready var session_title_model_option_button: OptionButton = %SessionTitleModelOptionButton
 @onready var provider_base_url_line_edit: LineEdit = %ProviderBaseURLLineEdit
 @onready var web_search_enabled_check_box: CheckBox = %WebSearchEnabledCheckBox
@@ -72,11 +71,6 @@ const CONFIRM_ACTION_DELETE_ARCHIVED_SESSION: StringName = &"delete_archived_ses
 const CONFIRM_ACTION_DELETE_ALL_ARCHIVED_SESSIONS: StringName = &"delete_all_archived_sessions"
 const PROVIDER_IDS: PackedStringArray = ["deepseek"]
 const PROVIDER_NAMES: PackedStringArray = ["DeepSeek"]
-const TASK_MODEL_KEYS: PackedStringArray = [
-	"imageRecognition",
-	"workflowPlanner",
-	"sessionTitle"
-]
 const USE_CURRENT_MODEL_TEXT: String = "Use current model"
 const USER_SKILL_SOURCES: PackedStringArray = ["project", "personal"]
 
@@ -460,7 +454,6 @@ func _populate_task_model_options(status: Dictionary) -> void:
 		routing = routing_value as Dictionary
 
 	_populate_task_model_option_button(image_recognition_model_option_button, "imageRecognition", routing)
-	_populate_task_model_option_button(workflow_planner_model_option_button, "workflowPlanner", routing)
 	_populate_task_model_option_button(session_title_model_option_button, "sessionTitle", routing)
 
 
@@ -554,7 +547,6 @@ func _collect_provider_task_models(provider_status: Dictionary) -> Array[Diction
 func _get_model_routing_payload() -> Dictionary:
 	return {
 		"imageRecognition": _get_task_model_ref(image_recognition_model_option_button),
-		"workflowPlanner": _get_task_model_ref(workflow_planner_model_option_button),
 		"sessionTitle": _get_task_model_ref(session_title_model_option_button)
 	}
 
