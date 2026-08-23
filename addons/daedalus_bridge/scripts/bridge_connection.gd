@@ -6,8 +6,11 @@ signal disconnected(close_code: int, close_reason: String)
 signal message_received(message: Dictionary)
 signal protocol_error(message: String)
 
-const MAX_MESSAGES_PER_FRAME: int = 24
-const MAX_MESSAGE_PROCESS_MSEC: int = 6
+# WebSocketPeer is polled from Godot's UI thread.  Keep the work done by one
+# poll deliberately small: a large burst of backend events must not consume a
+# complete editor frame while the user is selecting files or code.
+const MAX_MESSAGES_PER_FRAME: int = 8
+const MAX_MESSAGE_PROCESS_MSEC: int = 2
 
 var _socket: WebSocketPeer = WebSocketPeer.new()
 var _request_id: int

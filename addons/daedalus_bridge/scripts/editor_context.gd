@@ -12,9 +12,10 @@ const LIVE_SCRIPT_SELECTION_CONTEXT_ID: String = "script-selection-live"
 const LIVE_FILESYSTEM_SELECTION_CONTEXT_ID: String = "filesystem-selection-live"
 const SCRIPT_SELECTION_PREVIEW_LIMIT: int = 2000
 const SCRIPT_LINE_PREVIEW_LIMIT: int = 500
-const SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT: int = 12000
+const SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT: int = 6000
 const FILESYSTEM_CONTEXT_MAX_PATHS: int = 40
-const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 500
+const EDITOR_CONTEXT_POLL_INTERVAL_MSEC: int = 1000
+const EDITOR_CONTEXT_DEBOUNCE_MSEC: int = 120
 
 var editor_plugin: EditorPlugin
 var editor_interface: EditorInterface
@@ -22,10 +23,31 @@ var editor_selection: EditorSelection
 var editor_undo_redo: EditorUndoRedoManager
 var editor_script_editor: Object
 var editor_context_update_queued: bool
+var editor_context_debounce_active: bool
+var editor_context_debounce_generation: int
 var editor_context_next_poll_msec: int
 var editor_instance_id: String
 var editor_domain_tools: RefCounted
 var variant_codec: RefCounted
+var watched_text_edit: TextEdit
+var script_content_dirty: bool = true
+var script_content_generation: int
+var cached_script_resource_path: String
+var cached_script_line_count: int = -1
+var cached_script_text_edit: TextEdit
+var cached_script_content_version: int = -1
+var cached_script_editor_text_preview: String
+var cached_script_editor_text_truncated: bool
+var cached_script_selection_key: String
+var cached_script_selection_generation: int = -1
+var cached_script_selected_text_preview: String
+var cached_script_selected_text_truncated: bool
+var cached_filesystem_selection_key: String
+var cached_filesystem_selection_context: Dictionary
+var cached_scene_root: Node
+var cached_scene_selection_key: String
+var cached_selected_nodes: Array
+var cached_edited_scene_root_summary: Dictionary
 
 
 func get_editor_instance_id() -> String:
@@ -93,17 +115,43 @@ func setup(plugin: EditorPlugin) -> void:
 	editor_domain_tools.setup(editor_interface, editor_selection, editor_undo_redo)
 	if editor_selection != null and not editor_selection.selection_changed.is_connected(_on_editor_selection_changed):
 		editor_selection.selection_changed.connect(_on_editor_selection_changed)
+	var scene_changed_callable: Callable = Callable(self, "_on_editor_scene_changed")
+	if editor_plugin.has_signal("scene_changed") and not editor_plugin.is_connected("scene_changed", scene_changed_callable):
+		editor_plugin.connect("scene_changed", scene_changed_callable)
+	var history_changed_callable: Callable = Callable(self, "_on_editor_history_changed")
+	if editor_undo_redo != null and editor_undo_redo.has_signal("history_changed") and not editor_undo_redo.is_connected("history_changed", history_changed_callable):
+		editor_undo_redo.connect("history_changed", history_changed_callable)
 	var script_changed_callable: Callable = Callable(self, "_on_editor_script_changed")
 	if editor_script_editor != null and editor_script_editor.has_signal("editor_script_changed") and not editor_script_editor.is_connected("editor_script_changed", script_changed_callable):
 		editor_script_editor.connect("editor_script_changed", script_changed_callable)
-	queue_context_update()
+	_refresh_text_edit_watch()
+	queue_context_update_immediate()
 
 
 func _on_editor_selection_changed() -> void:
+	_invalidate_scene_context_cache()
 	queue_context_update()
 
 
+func _on_editor_scene_changed(_scene: Node = null) -> void:
+	_invalidate_scene_context_cache()
+	queue_context_update()
+
+
+func _on_editor_history_changed() -> void:
+	_invalidate_scene_context_cache()
+	queue_context_update()
+
+
+func _invalidate_scene_context_cache() -> void:
+	cached_scene_selection_key = ""
+	cached_selected_nodes = []
+	cached_edited_scene_root_summary = {}
+
+
 func _on_editor_script_changed(_script: Resource) -> void:
+	script_content_dirty = true
+	_refresh_text_edit_watch.call_deferred()
 	queue_context_update()
 
 
@@ -120,9 +168,37 @@ func poll_live_context() -> void:
 
 
 func queue_context_update() -> void:
-	if editor_context_update_queued:
+	if editor_context_update_queued or editor_context_debounce_active:
 		return
 
+	var scene_tree: SceneTree = get_tree()
+	if scene_tree == null:
+		editor_context_update_queued = true
+		_send_editor_context_update.call_deferred()
+		return
+
+	editor_context_debounce_active = true
+	editor_context_debounce_generation += 1
+	var debounce_generation: int = editor_context_debounce_generation
+	var debounce_timer: SceneTreeTimer = scene_tree.create_timer(float(EDITOR_CONTEXT_DEBOUNCE_MSEC) / 1000.0)
+	debounce_timer.timeout.connect(_on_context_update_debounce_timeout.bind(debounce_generation), CONNECT_ONE_SHOT)
+
+
+func queue_context_update_immediate() -> void:
+	if editor_context_update_queued:
+		return
+	editor_context_debounce_active = false
+	editor_context_debounce_generation += 1
+	editor_context_update_queued = true
+	_send_editor_context_update.call_deferred()
+
+
+func _on_context_update_debounce_timeout(generation: int) -> void:
+	if generation != editor_context_debounce_generation:
+		return
+	editor_context_debounce_active = false
+	if editor_context_update_queued:
+		return
 	editor_context_update_queued = true
 	_send_editor_context_update.call_deferred()
 
@@ -133,19 +209,10 @@ func _send_editor_context_update() -> void:
 		return
 
 	var edited_root: Node = get_edited_scene_root()
-	var selected_nodes: Array = []
-	if editor_selection != null and edited_root != null:
-		var raw_selected_nodes: Array = editor_selection.get_selected_nodes()
-		for selected_node in raw_selected_nodes:
-			if selected_node == null:
-				continue
-			selected_nodes.append(serialize_editor_node_summary(selected_node, edited_root))
+	var selected_nodes: Array = _get_cached_selected_nodes(edited_root)
 
 	var script_context: Dictionary = collect_script_selection_context()
 	var filesystem_selection_context: Dictionary = collect_filesystem_selection_context()
-	_sync_live_editor_selection_context(edited_root, selected_nodes)
-	_sync_live_script_selection_context(script_context)
-	_sync_live_filesystem_selection_context(filesystem_selection_context)
 	var params: Dictionary = {
 		"hasEditor": true,
 		"workspaceId": ProjectSettings.globalize_path("res://"),
@@ -161,9 +228,45 @@ func _send_editor_context_update() -> void:
 		"updatedAt": Time.get_datetime_string_from_system(true, true)
 	}
 	if edited_root != null:
-		params["editedSceneRoot"] = serialize_editor_node_summary(edited_root, edited_root)
+		if cached_scene_root == edited_root and not cached_edited_scene_root_summary.is_empty():
+			params["editedSceneRoot"] = cached_edited_scene_root_summary
+		else:
+			cached_edited_scene_root_summary = serialize_editor_node_summary(edited_root, edited_root)
+			params["editedSceneRoot"] = cached_edited_scene_root_summary
 
 	request_ready.emit("editor.context.update", params, "editor-context")
+
+
+func _get_cached_selected_nodes(edited_root: Node) -> Array:
+	if editor_selection == null or edited_root == null:
+		cached_scene_root = edited_root
+		cached_scene_selection_key = ""
+		cached_selected_nodes = []
+		cached_edited_scene_root_summary = {}
+		return cached_selected_nodes
+
+	var raw_selected_nodes: Array = editor_selection.get_selected_nodes()
+	var selection_key_parts: PackedStringArray
+	for selected_node in raw_selected_nodes:
+		if selected_node == null or not (selected_node is Node):
+			continue
+		var selected_editor_node: Node = selected_node as Node
+		selection_key_parts.append(str(selected_editor_node.get_instance_id()))
+	var scene_path: String = get_scene_resource_path(edited_root)
+	var selection_key: String = "%s|%s" % [scene_path, ";".join(selection_key_parts)]
+	if cached_scene_root == edited_root and cached_scene_selection_key == selection_key:
+		return cached_selected_nodes
+
+	var selected_nodes: Array = []
+	for selected_node in raw_selected_nodes:
+		if selected_node == null or not (selected_node is Node):
+			continue
+		selected_nodes.append(serialize_editor_node_summary(selected_node as Node, edited_root))
+	cached_scene_root = edited_root
+	cached_scene_selection_key = selection_key
+	cached_selected_nodes = selected_nodes
+	cached_edited_scene_root_summary = {}
+	return cached_selected_nodes
 
 
 func _sync_live_editor_selection_context(edited_root: Node, selected_nodes: Array) -> void:
@@ -201,29 +304,116 @@ func _sync_live_filesystem_selection_context(context: Dictionary) -> void:
 	live_context_changed.emit(LIVE_FILESYSTEM_SELECTION_CONTEXT_ID, context)
 
 
-func collect_script_selection_context() -> Dictionary:
-	if editor_script_editor == null:
-		return {}
-	if not editor_script_editor.has_method("get_current_editor"):
-		return {}
+func _refresh_text_edit_watch() -> void:
+	var current_text_edit: TextEdit = _get_current_base_text_edit()
+	if current_text_edit == watched_text_edit:
+		return
 
-	var current_editor_value: Variant = editor_script_editor.call("get_current_editor")
-	if not (current_editor_value is Object):
-		return {}
-	var current_editor_object: Object = current_editor_value as Object
-	if current_editor_object == null or not current_editor_object.has_method("get_base_editor"):
-		return {}
+	if watched_text_edit != null and is_instance_valid(watched_text_edit):
+		_disconnect_text_edit_signal(watched_text_edit, "text_changed", Callable(self, "_on_script_text_changed"))
+		_disconnect_text_edit_signal(watched_text_edit, "caret_changed", Callable(self, "_on_script_caret_changed"))
+		_disconnect_text_edit_signal(watched_text_edit, "selection_changed", Callable(self, "_on_script_selection_changed"))
+
+	watched_text_edit = current_text_edit
+	script_content_dirty = true
+	if watched_text_edit == null:
+		return
+
+	_connect_text_edit_signal(watched_text_edit, "text_changed", Callable(self, "_on_script_text_changed"))
+	_connect_text_edit_signal(watched_text_edit, "caret_changed", Callable(self, "_on_script_caret_changed"))
+	_connect_text_edit_signal(watched_text_edit, "selection_changed", Callable(self, "_on_script_selection_changed"))
+
+
+func _connect_text_edit_signal(text_edit: TextEdit, signal_name: String, callback: Callable) -> void:
+	if text_edit.has_signal(signal_name) and not text_edit.is_connected(signal_name, callback):
+		text_edit.connect(signal_name, callback)
+
+
+func _disconnect_text_edit_signal(text_edit: TextEdit, signal_name: String, callback: Callable) -> void:
+	if text_edit.has_signal(signal_name) and text_edit.is_connected(signal_name, callback):
+		text_edit.disconnect(signal_name, callback)
+
+
+func _on_script_text_changed() -> void:
+	script_content_dirty = true
+	queue_context_update()
+
+
+func _on_script_caret_changed() -> void:
+	queue_context_update()
+
+
+func _on_script_selection_changed() -> void:
+	queue_context_update()
+
+
+func _get_current_base_text_edit() -> TextEdit:
+	var current_editor_object: Object = _get_current_script_editor_object()
+	if current_editor_object == null:
+		return null
 
 	var base_editor_value: Variant = current_editor_object.call("get_base_editor")
 	if not (base_editor_value is TextEdit):
+		return null
+	return base_editor_value as TextEdit
+
+
+func _get_current_script_editor_object() -> Object:
+	if editor_script_editor == null or not editor_script_editor.has_method("get_current_editor"):
+		return null
+
+	var current_editor_value: Variant = editor_script_editor.call("get_current_editor")
+	if not (current_editor_value is Object):
+		return null
+	var current_editor_object: Object = current_editor_value as Object
+	if current_editor_object == null or not current_editor_object.has_method("get_base_editor"):
+		return null
+	return current_editor_object
+
+
+func _get_text_edit_version(text_edit: TextEdit) -> int:
+	if text_edit == null or not text_edit.has_method("get_version"):
+		return -1
+	var version_value: Variant = text_edit.call("get_version")
+	if typeof(version_value) != TYPE_INT:
+		return -1
+	return int(version_value)
+
+
+func collect_script_selection_context() -> Dictionary:
+	var base_text_edit: TextEdit = _get_current_base_text_edit()
+	if base_text_edit == null:
+		_refresh_text_edit_watch()
 		return {}
-	var base_text_edit: TextEdit = base_editor_value as TextEdit
+	_refresh_text_edit_watch()
+
+	var current_editor_object: Object = _get_current_script_editor_object()
 	var line_count: int = base_text_edit.get_line_count()
 	if line_count <= 0:
 		return {}
 
-	var editor_text: String = base_text_edit.text
 	var resource_path: String = _get_current_script_resource_path(current_editor_object)
+	var content_version: int = _get_text_edit_version(base_text_edit)
+	var cached_editor_changed: bool = cached_script_text_edit == null \
+		or not is_instance_valid(cached_script_text_edit) \
+		or cached_script_text_edit != base_text_edit
+	# 仅在脚本内容变化时读取完整文本，避免选区轮询反复复制大文件
+	var content_changed: bool = script_content_dirty \
+		or cached_editor_changed \
+		or cached_script_resource_path != resource_path \
+		or cached_script_line_count != line_count \
+		or (content_version >= 0 and cached_script_content_version != content_version)
+	if content_changed:
+		var editor_preview: Dictionary = _collect_editor_text_preview(base_text_edit, SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT)
+		cached_script_editor_text_preview = str(editor_preview.get("text", ""))
+		cached_script_editor_text_truncated = bool(editor_preview.get("truncated", false))
+		cached_script_text_edit = base_text_edit
+		cached_script_resource_path = resource_path
+		cached_script_line_count = line_count
+		cached_script_content_version = content_version
+		script_content_dirty = false
+		script_content_generation += 1
+
 	var caret_line_zero: int = clampi(base_text_edit.get_caret_line(0), 0, maxi(line_count - 1, 0))
 	var caret_column_zero: int = maxi(base_text_edit.get_caret_column(0), 0)
 	var has_script_selection: bool = base_text_edit.has_selection(0)
@@ -235,8 +425,8 @@ func collect_script_selection_context() -> Dictionary:
 		"caretLine": line_start,
 		"caretColumn": column_start,
 		"hasSelection": has_script_selection,
-		"editorTextPreview": _clip_context_text(editor_text, SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT),
-		"editorTextTruncated": editor_text.length() > SCRIPT_EDITOR_TEXT_PREVIEW_LIMIT,
+		"editorTextPreview": cached_script_editor_text_preview,
+		"editorTextTruncated": cached_script_editor_text_truncated,
 		"editorTextLineCount": line_count,
 		"resourcePathAvailable": not resource_path.is_empty()
 	}
@@ -246,9 +436,29 @@ func collect_script_selection_context() -> Dictionary:
 		column_start = base_text_edit.get_selection_from_column(0) + 1
 		line_end = base_text_edit.get_selection_to_line(0) + 1
 		column_end = base_text_edit.get_selection_to_column(0) + 1
-		var selected_text: String = base_text_edit.get_selected_text(0)
-		data["selectedTextPreview"] = _clip_context_text(selected_text, SCRIPT_SELECTION_PREVIEW_LIMIT)
-		data["selectedTextTruncated"] = selected_text.length() > SCRIPT_SELECTION_PREVIEW_LIMIT
+		var selection_key: String = "%s|%d|%d|%d|%d|%d|%d" % [
+			resource_path,
+			line_start,
+			column_start,
+			line_end,
+			column_end,
+			content_version,
+			script_content_generation,
+		]
+		if selection_key != cached_script_selection_key or cached_script_selection_generation != script_content_generation:
+			var selected_preview: Dictionary = _collect_selected_text_preview(
+				base_text_edit,
+				line_start - 1,
+				column_start - 1,
+				line_end - 1,
+				column_end - 1,
+			)
+			cached_script_selected_text_preview = str(selected_preview.get("text", ""))
+			cached_script_selected_text_truncated = bool(selected_preview.get("truncated", false))
+			cached_script_selection_key = selection_key
+			cached_script_selection_generation = script_content_generation
+		data["selectedTextPreview"] = cached_script_selected_text_preview
+		data["selectedTextTruncated"] = cached_script_selected_text_truncated
 	else:
 		var current_line_text: String = base_text_edit.get_line(caret_line_zero)
 		data["lineTextPreview"] = _clip_context_text(current_line_text, SCRIPT_LINE_PREVIEW_LIMIT)
@@ -280,6 +490,68 @@ func collect_script_selection_context() -> Dictionary:
 	return context
 
 
+func _collect_selected_text_preview(text_edit: TextEdit, from_line: int, from_column: int, to_line: int, to_column: int) -> Dictionary:
+	if text_edit == null:
+		return { "text": "", "truncated": false }
+
+	var line_count: int = text_edit.get_line_count()
+	if line_count <= 0:
+		return { "text": "", "truncated": false }
+
+	var start_line: int = clampi(mini(from_line, to_line), 0, line_count - 1)
+	var end_line: int = clampi(maxi(from_line, to_line), 0, line_count - 1)
+	var output: String = ""
+	for line_index in range(start_line, end_line + 1):
+		var line_text: String = text_edit.get_line(line_index)
+		var start_column: int = 0
+		var end_column: int = line_text.length()
+		if line_index == from_line:
+			start_column = clampi(from_column, 0, line_text.length())
+		if line_index == to_line:
+			end_column = clampi(to_column, 0, line_text.length())
+		if end_column < start_column:
+			var swap_column: int = start_column
+			start_column = end_column
+			end_column = swap_column
+
+		if end_column > start_column:
+			output += line_text.substr(start_column, end_column - start_column)
+		if line_index < end_line:
+			output += "\n"
+		if output.length() > SCRIPT_SELECTION_PREVIEW_LIMIT:
+			return {
+				"text": output.substr(0, SCRIPT_SELECTION_PREVIEW_LIMIT),
+				"truncated": true,
+			}
+
+	return {
+		"text": output,
+		"truncated": false,
+	}
+
+
+func _collect_editor_text_preview(text_edit: TextEdit, max_chars: int) -> Dictionary:
+	if text_edit == null or max_chars <= 0:
+		return { "text": "", "truncated": false }
+
+	var line_count: int = text_edit.get_line_count()
+	var output: String = ""
+	for line_index in range(line_count):
+		var line_text: String = text_edit.get_line(line_index)
+		var remaining: int = max_chars - output.length()
+		if remaining <= 0:
+			return { "text": output, "truncated": true }
+		if line_text.length() > remaining:
+			return { "text": output + line_text.substr(0, remaining), "truncated": true }
+		output += line_text
+		if line_index < line_count - 1:
+			if output.length() >= max_chars:
+				return { "text": output.substr(0, max_chars), "truncated": true }
+			output += "\n"
+
+	return { "text": output, "truncated": false }
+
+
 func _get_current_script_resource_path(current_editor_object: Object) -> String:
 	var script_resource: Resource
 	if editor_script_editor != null and editor_script_editor.has_method("get_current_script"):
@@ -287,7 +559,7 @@ func _get_current_script_resource_path(current_editor_object: Object) -> String:
 		if script_value is Resource:
 			script_resource = script_value as Resource
 
-	if script_resource == null and current_editor_object.has_method("get_edited_resource"):
+	if script_resource == null and current_editor_object != null and current_editor_object.has_method("get_edited_resource"):
 		var edited_resource_value: Variant = current_editor_object.call("get_edited_resource")
 		if edited_resource_value is Resource:
 			script_resource = edited_resource_value as Resource
@@ -304,7 +576,15 @@ func collect_filesystem_selection_context() -> Dictionary:
 
 	var selected_paths: PackedStringArray = editor_interface.get_selected_paths()
 	if selected_paths.is_empty():
+		if cached_filesystem_selection_key == "":
+			return {}
+		cached_filesystem_selection_key = ""
+		cached_filesystem_selection_context = {}
 		return {}
+
+	var selection_key: String = "\n".join(selected_paths)
+	if selection_key == cached_filesystem_selection_key:
+		return cached_filesystem_selection_context
 
 	var selected_path_items: Array
 	var selected_names: PackedStringArray
@@ -334,6 +614,8 @@ func collect_filesystem_selection_context() -> Dictionary:
 		selected_names.append(selected_name)
 
 	if selected_path_items.is_empty():
+		cached_filesystem_selection_key = selection_key
+		cached_filesystem_selection_context = {}
 		return {}
 
 	var first_item: Dictionary = selected_path_items[0]
@@ -346,7 +628,8 @@ func collect_filesystem_selection_context() -> Dictionary:
 	if selected_path_items.size() > 1:
 		subtitle_text = "%s 等 %d 项" % [first_path, selected_path_items.size()]
 
-	return {
+	cached_filesystem_selection_key = selection_key
+	cached_filesystem_selection_context = {
 		"id": LIVE_FILESYSTEM_SELECTION_CONTEXT_ID,
 		"kind": "filesystem_selection",
 		"title": title_text,
@@ -360,6 +643,7 @@ func collect_filesystem_selection_context() -> Dictionary:
 			"truncated": truncated
 		}
 	}
+	return cached_filesystem_selection_context
 
 
 func _format_script_selection_range(line_start: int, line_end: int) -> String:
@@ -450,8 +734,15 @@ func get_node_script_path(target_node: Node) -> String:
 
 func _get_node_key_properties(target_node: Node) -> Dictionary:
 	var properties: Dictionary = {}
+	if target_node == null:
+		return properties
+	# get_property_list() crosses the Godot object boundary and is relatively
+	# expensive.  Read it once per node instead of once for every property.
+	var available_properties: Dictionary = {}
+	for property_info in target_node.get_property_list():
+		available_properties[str(property_info.get("name", ""))] = true
 	for property_name in ["text", "tooltip_text", "visible", "disabled", "placeholder_text", "position", "size", "custom_minimum_size"]:
-		if _node_has_property(target_node, property_name):
+		if available_properties.has(property_name):
 			var property_value: Variant = target_node.get(property_name)
 			properties[property_name] = _compact_variant_for_json(property_value)
 	return properties

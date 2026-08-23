@@ -4,6 +4,8 @@ extends Node
 const BRIDGE_VERSION: String = "2.0.0"
 const BRIDGE_PROTOCOL_VERSION: int = 4
 const HEARTBEAT_INTERVAL_MSEC: int = 5000
+const CONNECTION_POLL_INTERVAL_MSEC: int = 33
+const CONTEXT_SEND_INTERVAL_MSEC: int = 250
 const RECONNECT_DELAYS_MSEC: Array = [500, 1000, 2000, 5000, 10000]
 const BACKEND_RUNTIME_PATH: String = "res://addons/daedalus_bridge/scripts/backend_runtime.gd"
 const BRIDGE_CONNECTION_PATH: String = "res://addons/daedalus_bridge/scripts/bridge_connection.gd"
@@ -22,6 +24,8 @@ var last_context_fingerprint: String
 var context_revision: int
 var next_heartbeat_msec: int
 var next_reconnect_msec: int
+var next_connection_poll_msec: int
+var next_context_send_msec: int
 var reconnect_attempt: int
 var connection_url: String
 var auth_protocol: String
@@ -78,9 +82,17 @@ func shutdown() -> void:
 func _process(_delta: float) -> void:
 	if connection == null:
 		return
-	connection.poll()
-	editor_context.poll_live_context()
 	var now_msec: int = Time.get_ticks_msec()
+	# Polling every rendered frame makes WebSocketPeer compete with Godot's
+	# input/editor work.  A 30 Hz cadence is sufficient for tool events and
+	# keeps the bridge responsive without making selection feel latent.
+	if now_msec >= next_connection_poll_msec:
+		next_connection_poll_msec = now_msec + CONNECTION_POLL_INTERVAL_MSEC
+		connection.poll()
+	if connection.is_open() and handshake_accepted:
+		editor_context.poll_live_context()
+		if now_msec >= next_context_send_msec and not pending_context.is_empty():
+			_flush_context()
 	if connection.is_open() and handshake_accepted and now_msec >= next_heartbeat_msec:
 		_send_heartbeat()
 	if connection.is_closed() and next_reconnect_msec > 0 and now_msec >= next_reconnect_msec:
@@ -162,8 +174,12 @@ func _on_message_received(message: Dictionary) -> void:
 
 func _on_editor_request_ready(method: String, params: Dictionary, request_prefix: String) -> void:
 	if method == "editor.context.update":
-		pending_context = params.duplicate(true)
-		_flush_context()
+		# The editor owns the nested context values after this signal returns;
+		# only the top-level envelope is amended with revision metadata below.
+		# A deep duplicate here doubled the cost of every script/file selection.
+		pending_context = params.duplicate(false)
+		if Time.get_ticks_msec() >= next_context_send_msec:
+			_flush_context()
 		return
 	if method == "editor.tool.result":
 		if not handshake_accepted:
@@ -174,17 +190,54 @@ func _on_editor_request_ready(method: String, params: Dictionary, request_prefix
 func _flush_context() -> void:
 	if not handshake_accepted or pending_context.is_empty():
 		return
-	var fingerprint_value: Dictionary = pending_context.duplicate(true)
-	fingerprint_value.erase("updatedAt")
-	var fingerprint: String = str(hash(JSON.stringify(fingerprint_value)))
+	var fingerprint: String = _compute_context_fingerprint(pending_context)
 	if fingerprint == last_context_fingerprint:
+		next_context_send_msec = Time.get_ticks_msec() + CONTEXT_SEND_INTERVAL_MSEC
 		return
 	context_revision += 1
 	pending_context["contextRevision"] = context_revision
 	pending_context["contextFingerprint"] = fingerprint
 	last_context_fingerprint = fingerprint
 	connection.send_request("editor.context.update", pending_context, "editor-context")
+	next_context_send_msec = Time.get_ticks_msec() + CONTEXT_SEND_INTERVAL_MSEC
 	_update_context_labels(pending_context)
+
+
+func _compute_context_fingerprint(context: Dictionary) -> String:
+	# Do not deep-copy and JSON.stringify the whole context on every selection.
+	# Script previews can be several thousand characters; hashing only the
+	# fields which affect the live context avoids a second large allocation
+	# before the request itself is serialized.
+	var script_value: Variant = context.get("scriptContext", {})
+	var script_context: Dictionary = script_value as Dictionary if typeof(script_value) == TYPE_DICTIONARY else {}
+	var filesystem_value: Variant = context.get("filesystemSelection", {})
+	var filesystem_context: Dictionary = filesystem_value as Dictionary if typeof(filesystem_value) == TYPE_DICTIONARY else {}
+	var selected_nodes_value: Variant = context.get("selectedNodes", [])
+	var selected_nodes: Array = selected_nodes_value as Array if typeof(selected_nodes_value) == TYPE_ARRAY else []
+	var node_keys: PackedStringArray
+	for node_value in selected_nodes:
+		if typeof(node_value) != TYPE_DICTIONARY:
+			continue
+		var node: Dictionary = node_value as Dictionary
+		node_keys.append("%s:%s:%s" % [str(node.get("path", "")), str(node.get("type", "")), str(node.get("childCount", 0))])
+	var source: String = "|".join(PackedStringArray([
+		str(context.get("activeScenePath", "")),
+		str(context.get("selectedNodeCount", 0)),
+		";".join(node_keys),
+		str(script_context.get("resourcePath", "")),
+		str(script_context.get("editorTextLineCount", 0)),
+		str(script_context.get("caretLine", 0)),
+		str(script_context.get("caretColumn", 0)),
+		str(script_context.get("lineStart", 0)),
+		str(script_context.get("columnStart", 0)),
+		str(script_context.get("lineEnd", 0)),
+		str(script_context.get("columnEnd", 0)),
+		str(hash(str(script_context.get("editorTextPreview", "")))),
+		str(hash(str(script_context.get("selectedTextPreview", "")))),
+		str(filesystem_context.get("resourcePath", "")),
+		str(hash(str(filesystem_context.get("summary", ""))))
+	]))
+	return str(hash(source))
 
 
 func _send_heartbeat() -> void:
