@@ -16,7 +16,8 @@ var editor_plugin: EditorPlugin
 var backend_runtime: RefCounted
 var connection: Node
 var editor_context: Node
-var status_dock: Control
+var status_dock: EditorDock
+var status_dock_content: Control
 var handshake_request_id: String
 var handshake_accepted: bool
 var pending_context: Dictionary
@@ -46,8 +47,11 @@ func setup(plugin: EditorPlugin) -> void:
 		_set_error("One or more Bridge runtime scripts could not be loaded.")
 		return
 	backend_runtime = backend_runtime_script.new()
-	connection = bridge_connection_script.new()
-	editor_context = editor_context_script.new()
+	connection = bridge_connection_script.new() as Node
+	editor_context = editor_context_script.new() as Node
+	if connection == null or editor_context == null:
+		_set_error("One or more Bridge runtime scripts have an invalid Node base type.")
+		return
 	add_child(connection)
 	add_child(editor_context)
 	connection.connect(&"connected", Callable(self, "_on_connected"))
@@ -66,7 +70,7 @@ func start() -> void:
 	_start_connection()
 
 
-func get_status_dock() -> Control:
+func get_status_dock() -> EditorDock:
 	return status_dock
 
 
@@ -273,30 +277,36 @@ func _register_setting(settings: EditorSettings, setting_name: String, default_v
 
 
 func _build_status_dock() -> bool:
-	var dock_scene: PackedScene = load(STATUS_DOCK_SCENE_PATH) as PackedScene
+	var dock_scene: PackedScene = load(STATUS_DOCK_SCENE_PATH)
 	if dock_scene == null:
 		push_error("Daedalus Bridge status Dock scene could not be loaded.")
 		return false
-	status_dock = dock_scene.instantiate() as Control
-	if status_dock == null:
-		push_error("Daedalus Bridge status Dock scene has an invalid root node.")
+	var dock_content: Control = dock_scene.instantiate()
+	if dock_content == null:
+		push_error("Daedalus Bridge status Dock scene must have a Control root node.")
 		return false
-	status_dock.connect(&"reconnect_requested", Callable(self, "_on_reconnect_requested"))
-	status_dock.connect(&"studio_open_requested", Callable(self, "_on_studio_open_requested"))
-	status_dock.connect(&"diagnostics_copy_requested", Callable(self, "_on_diagnostics_copy_requested"))
+	status_dock_content = dock_content
+	status_dock = EditorDock.new()
+	status_dock.title = "Daedalus Bridge"
+	status_dock.dock_icon = load("res://addons/daedalus_bridge/assets/icon.svg")
+	status_dock.default_slot = EditorDock.DOCK_SLOT_RIGHT_UL
+	status_dock.add_child(dock_content)
+	status_dock_content.connect(&"reconnect_requested", Callable(self, "_on_reconnect_requested"))
+	status_dock_content.connect(&"studio_open_requested", Callable(self, "_on_studio_open_requested"))
+	status_dock_content.connect(&"diagnostics_copy_requested", Callable(self, "_on_diagnostics_copy_requested"))
 	return true
 
 
 func _update_context_labels(context: Dictionary) -> void:
 	if status_dock == null:
 		return
-	status_dock.call("update_context", context)
-	status_dock.call("set_versions", BRIDGE_VERSION, str(Engine.get_version_info().get("string", "")), backend_version)
+	status_dock_content.call("update_context", context)
+	status_dock_content.call("set_versions", BRIDGE_VERSION, str(Engine.get_version_info().get("string", "")), backend_version)
 
 
 func _set_error(value: String) -> void:
-	if status_dock != null:
-		status_dock.call("set_error", value)
+	if status_dock_content != null:
+		status_dock_content.call("set_error", value)
 
 
 func _on_reconnect_requested() -> void:
@@ -330,8 +340,8 @@ func _on_studio_open_requested() -> void:
 
 
 func _on_diagnostics_copy_requested() -> void:
-	var status_text: String = str(status_dock.call("get_status_text")) if status_dock != null else "Unavailable"
-	var error_text: String = str(status_dock.call("get_error_text")) if status_dock != null else "Unavailable"
+	var status_text: String = str(status_dock_content.call("get_status_text")) if status_dock_content != null else "Unavailable"
+	var error_text: String = str(status_dock_content.call("get_error_text")) if status_dock_content != null else "Unavailable"
 	DisplayServer.clipboard_set("\n".join(PackedStringArray([
 		"Daedalus Bridge %s" % BRIDGE_VERSION,
 		"Bridge Protocol: %d" % BRIDGE_PROTOCOL_VERSION,
