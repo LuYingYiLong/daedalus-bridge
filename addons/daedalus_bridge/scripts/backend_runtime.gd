@@ -177,8 +177,8 @@ func _supports_shared_runtime(managed_backend: Dictionary) -> bool:
 		last_error = "Managed backend %s has no verified shared-runtime manifest. Open the current Daedalus Studio once so it can repair the backend, or configure Backend dev directory for development mode." % backend_version
 		return false
 	var manifest: Dictionary = _parse_json_dictionary(FileAccess.get_file_as_string(manifest_path))
-	var minimum_protocol: int = int(manifest.get("minBridgeProtocolVersion", manifest.get("minPluginProtocolVersion", 0)))
-	var maximum_protocol: int = int(manifest.get("maxBridgeProtocolVersion", manifest.get("maxPluginProtocolVersion", 0)))
+	var minimum_protocol: int = int(manifest.get("minBridgeProtocolVersion", 0))
+	var maximum_protocol: int = int(manifest.get("maxBridgeProtocolVersion", 0))
 	if minimum_protocol <= 0 or maximum_protocol < minimum_protocol:
 		last_error = "Managed backend %s predates shared runtime support. Open Daedalus Studio 1.0.3 or later once to install backend 1.1.4 or later. For a source backend, set Backend dev directory and run it at ws://localhost:38181." % backend_version
 		return false

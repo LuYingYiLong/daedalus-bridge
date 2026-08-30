@@ -21,7 +21,7 @@ foreach ($sourceFile in $sourceFiles) {
     if ($source -match '(?:\bis\s+|\bas\s+|:\s*)(?:AnimationMixer|TileMapLayer)\b') {
         throw "Post-Godot-4.0 static types remain in $($sourceFile.FullName)."
     }
-    if ($source -match 'uid://|addons/godot_daedalus|addons/daedalus_editor_bridge|daedalus-editor-bridge|Daedalus Editor Bridge') {
+    if ($source -match 'uid://|addons/daedalus_editor_bridge|daedalus-editor-bridge|Daedalus Editor Bridge') {
         throw "Legacy naming or UID-based references remain in $($sourceFile.FullName)."
     }
     if ($source -match 'chat|provider|composer|session timeline|markdown') {

@@ -16,6 +16,13 @@ var _godot_version: String = "unknown"
 var _backend_version: String = "unknown"
 
 
+func _ready() -> void:
+	var icon_image: Image = Image.new()
+	if icon_image.load(ICON_PATH) != OK:
+		return
+	icon.texture = ImageTexture.create_from_image(icon_image)
+
+
 func set_error(value: String) -> void:
 	error_value.text = value if not value.is_empty() else "None"
 	error_value.visible = not value.is_empty()

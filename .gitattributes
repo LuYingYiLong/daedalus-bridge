@@ -1,4 +1,4 @@
-# GitHub / git archive 下载包只保留 Godot Daedalus 插件主体。
+# GitHub / git archive 下载包只保留 Daedalus Bridge 插件主体。
 .godot/** export-ignore
 .vscode/** export-ignore
 android/** export-ignore
@@ -9,10 +9,6 @@ tools/** export-ignore
 addons/godot_gif/** export-ignore
 addons/godot_jieba/** export-ignore
 addons/markdown_label/** export-ignore
-
-addons/godot_daedalus/AGENTS.md export-ignore
-addons/godot_daedalus/tests/** export-ignore
-addons/godot_daedalus/assets/icons/normalize_daedalus_icons.py export-ignore
 
 .editorconfig export-ignore
 .gitignore export-ignore
