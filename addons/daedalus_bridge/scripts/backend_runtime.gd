@@ -3,6 +3,7 @@ extends RefCounted
 
 const DEFAULT_BACKEND_PORT: int = 38180
 const BRIDGE_PROTOCOL_VERSION: int = 4
+const STUDIO_RECORD_SCHEMA_VERSION: int = 2
 
 var backend_url: String
 var backend_dev_dir: String
@@ -58,6 +59,20 @@ func start_backend() -> Dictionary:
 	if OS.get_name() != "Windows":
 		last_error = "The shared Daedalus runtime is currently available on Windows only."
 		return _failure_result()
+
+	var studio_backend: Dictionary = _read_active_studio_development_backend()
+	if not studio_backend.is_empty():
+		var studio_url: String = str(studio_backend.get("url", "")).strip_edges()
+		launch_mode = "studio-development"
+		command_summary = "Use the active Daedalus Studio development Backend at %s" % studio_url
+		return {
+			"ok": true,
+			"mode": launch_mode,
+			"url": studio_url,
+			"authProtocol": "",
+			"backendVersion": str(studio_backend.get("version", "development")),
+			"details": build_diagnostic_details(),
+		}
 
 	var managed_backend: Dictionary = _read_managed_backend()
 	var executable_path: String = str(managed_backend.get("executablePath", "")).strip_edges()
@@ -168,6 +183,61 @@ func _read_managed_backend() -> Dictionary:
 	if executable_path.is_empty() or not FileAccess.file_exists(executable_path):
 		return {}
 	return current
+
+
+func _read_active_studio_development_backend() -> Dictionary:
+	if not _uses_default_local_backend_setting():
+		return {}
+	var current_path: String = _get_daedalus_app_dir().path_join("studio").path_join("current.json")
+	if not FileAccess.file_exists(current_path):
+		return {}
+	var current: Dictionary = _parse_json_dictionary(FileAccess.get_file_as_string(current_path))
+	if int(current.get("schemaVersion", 0)) != STUDIO_RECORD_SCHEMA_VERSION:
+		return {}
+	var process_id: int = int(current.get("processId", 0))
+	if process_id <= 0 or not OS.is_process_running(process_id):
+		return {}
+	var executable_path: String = str(current.get("executablePath", "")).strip_edges()
+	if executable_path.is_empty() or not FileAccess.file_exists(executable_path):
+		return {}
+	var runtime_value: Variant = current.get("runtime", {})
+	if typeof(runtime_value) != TYPE_DICTIONARY:
+		return {}
+	var runtime: Dictionary = runtime_value as Dictionary
+	if str(runtime.get("mode", "")) != "development" \
+			or str(runtime.get("authentication", "")) != "none":
+		return {}
+	var runtime_url: String = str(runtime.get("url", "")).strip_edges()
+	if not _is_strict_loopback_websocket_url(runtime_url):
+		return {}
+	return {
+		"url": runtime_url,
+		"version": str(current.get("version", "development")),
+	}
+
+
+func _uses_default_local_backend_setting() -> bool:
+	var normalized_url: String = backend_url.strip_edges().trim_suffix("/").to_lower()
+	return normalized_url.is_empty() \
+		or normalized_url == "ws://127.0.0.1:38180" \
+		or normalized_url == "ws://localhost:38180" \
+		or normalized_url == "ws://127.0.0.1:38181" \
+		or normalized_url == "ws://localhost:38181"
+
+
+func _is_strict_loopback_websocket_url(candidate_url: String) -> bool:
+	var normalized_url: String = candidate_url.strip_edges().trim_suffix("/").to_lower()
+	var port_text: String
+	if normalized_url.begins_with("ws://127.0.0.1:"):
+		port_text = normalized_url.trim_prefix("ws://127.0.0.1:")
+	elif normalized_url.begins_with("ws://localhost:"):
+		port_text = normalized_url.trim_prefix("ws://localhost:")
+	else:
+		return false
+	if not port_text.is_valid_int():
+		return false
+	var port: int = port_text.to_int()
+	return port > 0 and port <= 65535
 
 
 func _supports_shared_runtime(managed_backend: Dictionary) -> bool:

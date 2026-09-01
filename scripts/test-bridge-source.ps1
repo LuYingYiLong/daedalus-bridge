@@ -30,10 +30,17 @@ foreach ($sourceFile in $sourceFiles) {
 }
 
 $runtimeSource = Get-Content -LiteralPath (Join-Path $bridgeRoot "scripts\bridge_runtime.gd") -Raw
+$backendRuntimeSource = Get-Content -LiteralPath (Join-Path $bridgeRoot "scripts\backend_runtime.gd") -Raw
 $dockScenePath = Join-Path $bridgeRoot "scenes\bridge_status_dock.tscn"
 $dockScriptPath = Join-Path $bridgeRoot "scripts\bridge_status_dock.gd"
 if ($runtimeSource -match 'get_node\("(?:Status|Project|Scene|Version|Sync|Capability|Error)') {
     throw "The runtime must communicate through the Dock root script instead of reaching into scene children."
+}
+if ($backendRuntimeSource -notmatch 'studio.*current\.json' -or $backendRuntimeSource -notmatch 'OS\.is_process_running') {
+    throw "The Bridge must rendezvous with the active Studio development Backend instead of starting a split runtime."
+}
+if ($backendRuntimeSource -notmatch 'ws://127\.0\.0\.1:' -or $backendRuntimeSource -notmatch 'authentication.*none') {
+    throw "The Studio development rendezvous must remain restricted to an unauthenticated loopback endpoint."
 }
 if (-not (Test-Path -LiteralPath $dockScenePath -PathType Leaf) -or -not (Test-Path -LiteralPath $dockScriptPath -PathType Leaf)) {
     throw "The status Dock scene or its root script is missing."
