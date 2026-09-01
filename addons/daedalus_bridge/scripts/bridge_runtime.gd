@@ -31,7 +31,7 @@ var reconnect_attempt: int
 var connection_url: String
 var auth_protocol: String
 var backend_version: String
-var terminal_call_ids: Dictionary = {}
+var terminal_call_ids: Dictionary
 
 
 func setup(plugin: EditorPlugin) -> void:
