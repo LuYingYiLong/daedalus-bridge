@@ -16,7 +16,7 @@ var editor_plugin: EditorPlugin
 var backend_runtime: RefCounted
 var connection: Node
 var editor_context: Node
-var status_dock: EditorDock
+var status_dock: Control
 var status_dock_content: Control
 var handshake_request_id: String
 var handshake_accepted: bool
@@ -70,7 +70,7 @@ func start() -> void:
 	_start_connection()
 
 
-func get_status_dock() -> EditorDock:
+func get_status_dock() -> Control:
 	return status_dock
 
 
@@ -281,16 +281,12 @@ func _build_status_dock() -> bool:
 	if dock_scene == null:
 		push_error("Daedalus Bridge status Dock scene could not be loaded.")
 		return false
-	var dock_content: Control = dock_scene.instantiate()
+	var dock_content: Control = dock_scene.instantiate() as Control
 	if dock_content == null:
 		push_error("Daedalus Bridge status Dock scene must have a Control root node.")
 		return false
+	status_dock = dock_content
 	status_dock_content = dock_content
-	status_dock = EditorDock.new()
-	status_dock.title = "Daedalus Bridge"
-	status_dock.dock_icon = load("res://addons/daedalus_bridge/assets/icon.svg")
-	status_dock.default_slot = EditorDock.DOCK_SLOT_RIGHT_UL
-	status_dock.add_child(dock_content)
 	status_dock_content.connect(&"reconnect_requested", Callable(self, "_on_reconnect_requested"))
 	status_dock_content.connect(&"studio_open_requested", Callable(self, "_on_studio_open_requested"))
 	status_dock_content.connect(&"diagnostics_copy_requested", Callable(self, "_on_diagnostics_copy_requested"))

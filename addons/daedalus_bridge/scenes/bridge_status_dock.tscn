@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://addons/daedalus_bridge/scripts/bridge_status_dock.gd" id="1_dock"]
 
-[node name="BridgeStatusDock" type="VBoxContainer" unique_id=1502931255]
+[node name="Daedalus Bridge" type="VBoxContainer" unique_id=1502931255]
 custom_minimum_size = Vector2(300, 0)
 anchors_preset = 15
 anchor_right = 1.0

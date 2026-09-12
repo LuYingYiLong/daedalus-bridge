@@ -6,7 +6,7 @@ const RUNTIME_TEST_AGENT_PATH: String = "res://addons/daedalus_bridge/scripts/ru
 const RUNTIME_TEST_AUTOLOAD_NAME: String = "DaedalusRuntimeTest"
 
 var bridge_runtime: Node
-var bridge_dock: EditorDock
+var bridge_dock: Control
 
 
 func _enter_tree() -> void:
@@ -21,11 +21,11 @@ func _enter_tree() -> void:
 		return
 	add_child(bridge_runtime)
 	bridge_runtime.setup(self)
-	bridge_dock = bridge_runtime.get_status_dock()
+	bridge_dock = bridge_runtime.get_status_dock() as Control
 	if bridge_dock == null:
 		push_error("Daedalus Bridge status Dock is unavailable.")
 		return
-	add_dock(bridge_dock)
+	add_control_to_dock(DOCK_SLOT_RIGHT_UL, bridge_dock)
 	bridge_runtime.start()
 
 
@@ -33,7 +33,7 @@ func _exit_tree() -> void:
 	if bridge_runtime != null:
 		bridge_runtime.shutdown()
 	if bridge_dock != null and is_instance_valid(bridge_dock):
-		remove_dock(bridge_dock)
+		remove_control_from_docks(bridge_dock)
 		bridge_dock.queue_free()
 		bridge_dock = null
 	if bridge_runtime != null:
