@@ -1,7 +1,7 @@
 @tool
 extends Node
 
-const BRIDGE_VERSION: String = "2.0.0"
+const BRIDGE_VERSION: String = "2.0.1"
 const BRIDGE_PROTOCOL_VERSION: int = 4
 const HEARTBEAT_INTERVAL_MSEC: int = 5000
 const CONNECTION_POLL_INTERVAL_MSEC: int = 33

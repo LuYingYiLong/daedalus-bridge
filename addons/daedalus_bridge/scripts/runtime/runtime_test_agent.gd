@@ -1,6 +1,6 @@
 extends Node
 
-const BRIDGE_VERSION: String = "2.0.0"
+const BRIDGE_VERSION: String = "2.0.1"
 const BRIDGE_PROTOCOL_VERSION: int = 4
 const HEARTBEAT_INTERVAL_MSEC: int = 2000
 const RECONNECT_INTERVAL_MSEC: int = 1000
