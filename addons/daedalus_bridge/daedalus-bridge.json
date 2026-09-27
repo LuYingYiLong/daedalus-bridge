@@ -2,9 +2,9 @@
   "schemaVersion": 2,
   "name": "Daedalus Bridge",
   "pluginId": "DaedalusBridge",
-  "bridgeVersion": "2.0.1",
+  "bridgeVersion": "2.0.2",
   "bridgeProtocolVersion": 4,
-  "studioVersion": "1.2.0",
+  "studioVersion": "1.3.0",
   "minGodotVersion": "4.0.0",
   "installDirectory": "addons/daedalus_bridge"
 }
